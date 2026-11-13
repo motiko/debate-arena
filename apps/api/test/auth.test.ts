@@ -1,6 +1,7 @@
-import { exports } from 'cloudflare:workers';
+import { env, exports } from 'cloudflare:workers';
 import { expect, test } from 'vitest';
-import { signedInHeaders } from './auth-helpers';
+import { makeAuth } from '../src/auth/auth';
+import { linkGithub, signedInHeaders } from './auth-helpers';
 
 test('GET /api/me without a session is 401', async () => {
   const res = await exports.default.fetch('https://api.test/api/me');
@@ -25,4 +26,19 @@ test('the GitHub sign-in route sends the browser to GitHub', async () => {
   const { url } = (await res.json()) as { url: string };
   expect(url).toMatch(/^https:\/\/github\.com\/login\/oauth\/authorize\?/);
   expect(new URL(url).searchParams.get('redirect_uri')).toBe('http://localhost:8787/api/auth/callback/github');
+});
+
+test('GitHub tokens are never stored', async () => {
+  const { userId } = await signedInHeaders();
+  await linkGithub(userId, `gh-${userId}`, 'gho_secret_token');
+  const row = await env.DB.prepare('SELECT "accessToken", "refreshToken", "idToken" FROM account WHERE "userId" = ?').bind(userId).first();
+  expect(row).toEqual({ accessToken: null, refreshToken: null, idToken: null });
+});
+
+test.each([[''], ['too-short'], ['better-auth-secret-12345678901234567890']])('outside local dev, the secret %j is refused', secret => {
+  expect(() => makeAuth({ ...env, DEV_AUTH: 'false', BETTER_AUTH_SECRET: secret })).toThrow(/BETTER_AUTH_SECRET/);
+});
+
+test('local dev may run without a secret', () => {
+  expect(() => makeAuth({ ...env, DEV_AUTH: 'true', BETTER_AUTH_SECRET: '' })).not.toThrow();
 });

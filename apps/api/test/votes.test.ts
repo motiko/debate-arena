@@ -2,6 +2,7 @@ import { env, exports } from 'cloudflare:workers';
 import { expect, test } from 'vitest';
 import { appendTurn, completeDebate, createDebate, failDebate, getDebate, saveVerdict } from '../src/db/debates';
 import { checkVote, votingClosesAt } from '../src/votes/rules';
+import { linkGithub, signedInHeaders } from './auth-helpers';
 import { newDebate, turnAt, uniqueId } from './helpers';
 
 const base = 'https://api.test/api';
@@ -114,4 +115,34 @@ test('invalid phase or stance is 400; unknown Debate is 404; signed out is 401',
   expect((await vote(id, member(), { phase: 'before', stance: 'maybe' })).status).toBe(400);
   expect((await vote('nope', member(), { phase: 'before', stance: 'for' })).status).toBe(404);
   expect((await vote(id, {}, { phase: 'before', stance: 'for' })).status).toBe(401);
+});
+
+test('re-joining with the same GitHub account after deleting cannot vote again', async () => {
+  const id = await debate('complete');
+  const githubId = `gh-${crypto.randomUUID()}`;
+  const first = await signedInHeaders();
+  await linkGithub(first.userId, githubId);
+  const h1 = Object.fromEntries(first.headers);
+  expect((await vote(id, h1, { phase: 'before', stance: 'against' })).status).toBe(201);
+  const del = await exports.default.fetch(`${base}/auth/delete-user`, {
+    method: 'POST',
+    headers: { ...h1, 'content-type': 'application/json', origin: 'http://localhost:8787' },
+    body: '{}',
+  });
+  expect(del.status).toBe(200);
+
+  const second = await signedInHeaders();
+  await linkGithub(second.userId, githubId);
+  const again = await vote(id, Object.fromEntries(second.headers), { phase: 'before', stance: 'for' });
+  expect(again.status).toBe(409);
+  expect(await again.json()).toEqual({ error: 'You already voted before this Debate' });
+});
+
+test.each(['/debates', '/debates/x/votes'])('POST %s without a JSON content type is 415 (no cross-site form posts)', async path => {
+  const res = await exports.default.fetch(`${base}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'text/plain', ...member() },
+    body: JSON.stringify({ phase: 'before', stance: 'for' }),
+  });
+  expect(res.status).toBe(415);
 });

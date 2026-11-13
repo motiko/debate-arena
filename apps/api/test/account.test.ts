@@ -1,7 +1,7 @@
 import { env, exports } from 'cloudflare:workers';
 import { expect, test } from 'vitest';
 import { appendTurn, completeDebate, saveVerdict } from '../src/db/debates';
-import { signedInHeaders } from './auth-helpers';
+import { linkGithub, signedInHeaders } from './auth-helpers';
 import { turnAt } from './helpers';
 
 const base = 'https://api.test/api';
@@ -41,6 +41,19 @@ test('export returns the Member, their Debates and votes', async () => {
   expect(data.member.email).toMatch(/@example\.test$/);
   expect(data.debates).toEqual([expect.objectContaining({ id, motion: 'Cats beat dogs' })]);
   expect(data.votes).toEqual([{ debateId: id, before: 'for', after: 'for' }]);
+});
+
+test('export includes sessions, linked accounts and Quota usage, without secrets', async () => {
+  const { userId, headers } = await signedInHeaders();
+  await linkGithub(userId, `gh-${userId}`);
+  await startAndVote(headers);
+  const data = (await (await exports.default.fetch(`${base}/me/export`, { headers })).json()) as Record<string, unknown[]>;
+  expect(data.sessions?.length).toBeGreaterThan(0);
+  expect(data.sessions?.[0]).toHaveProperty('ipAddress');
+  expect(data.sessions?.[0]).not.toHaveProperty('token');
+  expect(data.accounts).toEqual([expect.objectContaining({ provider: 'github', accountId: `gh-${userId}` })]);
+  expect(JSON.stringify(data.accounts)).not.toMatch(/accessToken|gho_/);
+  expect(data.quota).toEqual([expect.objectContaining({ points: 2 })]);
 });
 
 test('export without a session is 401', async () => {

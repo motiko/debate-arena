@@ -11,14 +11,21 @@ const toVote = (r: VoteRow): AudienceVote => ({
   after: r.after_stance,
 });
 
-/** Records a before-vote; false if this Member already cast one. */
-export async function castBefore(db: D1Database, debateId: string, memberId: string, stance: Stance, at: string): Promise<boolean> {
+/** Records a before-vote; false if this Member, or the same person under another Member id, already cast one. */
+export async function castBefore(
+  db: D1Database,
+  debateId: string,
+  memberId: string,
+  stance: Stance,
+  at: string,
+  voterKey: string = memberId,
+): Promise<boolean> {
   const result = await db
     .prepare(
-      `INSERT INTO audience_votes (debate_id, member_id, before_stance, before_at) VALUES (?, ?, ?, ?)
-       ON CONFLICT (debate_id, member_id) DO NOTHING`,
+      `INSERT INTO audience_votes (debate_id, member_id, voter_key, before_stance, before_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT DO NOTHING`,
     )
-    .bind(debateId, memberId, stance, at)
+    .bind(debateId, memberId, voterKey, stance, at)
     .run();
   return result.meta.changes === 1;
 }

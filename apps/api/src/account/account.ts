@@ -4,16 +4,25 @@ export interface MemberExport {
   member: { id: string; name: string; email: string; image: string | null; createdAt: string };
   debates: { id: string; motion: string; status: string; createdAt: string; completedAt: string | null }[];
   votes: { debateId: string; before: Stance; after: Stance | null }[];
+  sessions: { createdAt: string; expiresAt: string; ipAddress: string | null; userAgent: string | null }[];
+  accounts: { provider: string; accountId: string; scope: string | null; linkedAt: string }[];
+  quota: { day: string; points: number }[];
 }
 
 /** Everything the platform holds about a Member (GDPR access/portability). Null if there is no such Member. */
 export async function exportMember(db: D1Database, memberId: string): Promise<MemberExport | null> {
-  const [users, debates, votes] = await db.batch([
+  const [users, debates, votes, sessions, accounts, quota] = await db.batch([
     db.prepare('SELECT id, name, email, image, "createdAt" FROM "user" WHERE id = ?').bind(memberId),
     db
       .prepare('SELECT id, setup_json, status, created_at, completed_at FROM debates WHERE member_id = ? ORDER BY created_at')
       .bind(memberId),
     db.prepare('SELECT debate_id, before_stance, after_stance FROM audience_votes WHERE member_id = ? ORDER BY before_at').bind(memberId),
+    // Session tokens and OAuth tokens are secrets, never exported.
+    db
+      .prepare('SELECT "createdAt", "expiresAt", "ipAddress", "userAgent" FROM session WHERE "userId" = ? ORDER BY "createdAt"')
+      .bind(memberId),
+    db.prepare('SELECT "providerId", "accountId", scope, "createdAt" FROM account WHERE "userId" = ?').bind(memberId),
+    db.prepare('SELECT day, points FROM quota_usage WHERE member_id = ? ORDER BY day').bind(memberId),
   ]);
   const user = users?.results[0] as
     | { id: string; name: string; email: string; image: string | null; createdAt: string | number }
@@ -35,6 +44,20 @@ export async function exportMember(db: D1Database, memberId: string): Promise<Me
       const v = row as { debate_id: string; before_stance: Stance; after_stance: Stance | null };
       return { debateId: v.debate_id, before: v.before_stance, after: v.after_stance };
     }),
+    sessions: (sessions?.results ?? []).map(row => {
+      const s = row as { createdAt: string | number; expiresAt: string | number; ipAddress: string | null; userAgent: string | null };
+      return {
+        createdAt: new Date(s.createdAt).toISOString(),
+        expiresAt: new Date(s.expiresAt).toISOString(),
+        ipAddress: s.ipAddress,
+        userAgent: s.userAgent,
+      };
+    }),
+    accounts: (accounts?.results ?? []).map(row => {
+      const a = row as { providerId: string; accountId: string; scope: string | null; createdAt: string | number };
+      return { provider: a.providerId, accountId: a.accountId, scope: a.scope, linkedAt: new Date(a.createdAt).toISOString() };
+    }),
+    quota: (quota?.results ?? []) as { day: string; points: number }[],
   };
 }
 

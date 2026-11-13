@@ -11,6 +11,8 @@ export default defineConfig(async () => {
         miniflare: {
           bindings: {
             TEST_MIGRATIONS: migrations,
+            // wrangler.jsonc defaults DEV_AUTH to "false" (fail closed); tests use the dev header like `pnpm dev` does.
+            DEV_AUTH: 'true',
             // Test-only values; real secrets come from .dev.vars locally and `wrangler secret put` in production.
             BETTER_AUTH_SECRET: 'test-secret-at-least-32-characters-long',
             GITHUB_CLIENT_ID: 'test-github-client-id',

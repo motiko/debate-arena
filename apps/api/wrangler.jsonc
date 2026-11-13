@@ -26,7 +26,7 @@
   "exports": {
     "DebateRoom": { "type": "durable-object", "storage": "sqlite" }
   },
-  "vars": { "MODEL_PROVIDER": "fake", "DEV_AUTH": "true", "BETTER_AUTH_URL": "http://localhost:8787" },
+  "vars": { "MODEL_PROVIDER": "fake", "DEV_AUTH": "false", "BETTER_AUTH_URL": "http://localhost:8787" },
   // Bindings and vars are not inherited by environments, so production repeats them.
   "env": {
     "production": {

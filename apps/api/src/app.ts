@@ -7,6 +7,7 @@ import { quotaRemaining } from './db/quota';
 import { getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
 import { castAfter, castBefore, getVote, listVotes, type AudienceVote } from './db/votes';
 import { audienceResult, checkVote, type VotePhase } from './votes/rules';
+import { voterKey } from './votes/voter-key';
 import { startDebate } from './debates/start';
 import { createModels } from './models/factory';
 
@@ -57,6 +58,11 @@ function summary(d: DebateRecord): DebateSummary {
   return rest;
 }
 
+// State-changing routes accept only JSON: a cross-site form or no-cors fetch cannot send it without a CORS
+// preflight, so cookie-authenticated votes and Debates cannot be forged from another site.
+const NOT_JSON = 'Send JSON with Content-Type: application/json';
+const isJson = (contentType: string | undefined) => contentType?.split(';')[0]?.trim().toLowerCase() === 'application/json';
+
 const PHASES = ['before', 'after'] as const;
 const STANCES = ['for', 'against', 'undecided'] as const;
 
@@ -90,6 +96,7 @@ export const app = new Hono<{ Bindings: Env }>()
     return c.json({ models: catalog.entries.map(e => ({ id: e.id, label: e.label, roles: e.roles })) });
   })
   .post('/debates', async c => {
+    if (!isJson(c.req.header('content-type'))) return c.json({ error: NOT_JSON }, 415);
     const memberId = await memberResolver(c.env)(c.req.raw);
     if (!memberId) return c.json({ error: 'Sign in to start a Debate' }, 401);
     let input: unknown;
@@ -127,6 +134,7 @@ export const app = new Hono<{ Bindings: Env }>()
     return c.json(debateView(debate, await listVotes(c.env.DB, debate.id), memberId));
   })
   .post('/debates/:id/votes', async c => {
+    if (!isJson(c.req.header('content-type'))) return c.json({ error: NOT_JSON }, 415);
     const memberId = await memberResolver(c.env)(c.req.raw);
     if (!memberId) return c.json({ error: 'Sign in to vote' }, 401);
     let parsed: ReturnType<typeof parseVote>;
@@ -145,8 +153,12 @@ export const app = new Hono<{ Bindings: Env }>()
     const check = checkVote(debate, await getVote(c.env.DB, debate.id, memberId), parsed.phase, now);
     if (!check.ok) return c.json({ error: check.error }, check.status);
 
-    const cast = parsed.phase === 'before' ? castBefore : castAfter;
-    if (!(await cast(c.env.DB, debate.id, memberId, parsed.stance, now.toISOString()))) {
+    const at = now.toISOString();
+    const written =
+      parsed.phase === 'before'
+        ? await castBefore(c.env.DB, debate.id, memberId, parsed.stance, at, await voterKey(c.env, memberId))
+        : await castAfter(c.env.DB, debate.id, memberId, parsed.stance, at);
+    if (!written) {
       return c.json({ error: `You already voted ${parsed.phase} this Debate` }, 409);
     }
     const vote = (await getVote(c.env.DB, debate.id, memberId))!;

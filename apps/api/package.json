@@ -8,7 +8,7 @@
     "./events": "./src/live/events.ts"
   },
   "scripts": {
-    "dev": "wrangler d1 migrations apply DB --local && wrangler dev",
+    "dev": "wrangler d1 migrations apply DB --local && wrangler dev --var DEV_AUTH:true",
     "types": "wrangler types",
     "typecheck": "wrangler types && tsc --noEmit",
     "test": "vitest run"
