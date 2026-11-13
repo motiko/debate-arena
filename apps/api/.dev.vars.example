@@ -1,0 +1,2 @@
+# Copy to .dev.vars and set MODEL_PROVIDER=openrouter in wrangler.jsonc vars to use real models locally.
+OPENROUTER_API_KEY=
