@@ -3,12 +3,13 @@ import AiLabel from '../../components/AiLabel.astro';
 import AudienceResultView from '../../components/AudienceResultView.astro';
 import VerdictView from '../../components/VerdictView.astro';
 import TurnItem from '../../islands/TurnItem.svelte';
+import VotePanel from '../../islands/VotePanel.svelte';
 import Base from '../../layouts/Base.astro';
 import { t } from '../../i18n/t';
 import { groupByPhase, modelLabel, swingText, turnHeading, type ModelInfo } from '../../lib/debate';
 import { formatDate } from '../../lib/format';
 
-const { api } = Astro.locals;
+const { api, me } = Astro.locals;
 const id = Astro.params.id ?? '';
 
 const [debateRes, modelsRes] = await Promise.all([api.api.debates[':id'].$get({ param: { id } }), api.api.models.$get()]);
@@ -44,6 +45,21 @@ const groups = groupByPhase(debate.format, debate.turns);
   </header>
 
   {debate.status === 'failed' && <p class="note" role="status">{t('debate.failed')}</p>}
+
+  {
+    debate.status !== 'failed' && (
+      <VotePanel
+        client:load
+        debateId={debate.id}
+        motion={debate.motion}
+        status={debate.status}
+        myVote={debate.myVote}
+        signedIn={me !== null}
+        turnsHidden={debate.turnsHidden}
+        votingClosesAt={debate.audienceResult.votingClosesAt}
+      />
+    )
+  }
 
   <section class="stack" aria-labelledby="turns-title">
     <h2 id="turns-title">{t('debate.turns')}</h2>

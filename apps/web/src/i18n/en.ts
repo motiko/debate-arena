@@ -39,6 +39,22 @@ export const en = {
   'aiAudience.shared': 'Some AI Voters are the same model as a Debater.',
   'aiAudience.dropped': '{count} AI Voters gave no usable vote and are not counted.',
 
+  'vote.title': 'Your Audience Vote',
+  'vote.intro': 'Oxford rules: say where you stand before the Debate and again after it. The Side that changes more minds wins the audience.',
+  'vote.signIn': 'Members vote on Debates. Sign in to cast your Audience Vote.',
+  'vote.before': 'Before the Debate: where do you stand on “{motion}”?',
+  'vote.after': 'After the Debate: where do you stand on “{motion}” now?',
+  'vote.castBefore': 'Cast before-vote',
+  'vote.castAfter': 'Cast after-vote',
+  'vote.undecided': 'Undecided',
+  'vote.choose': 'Choose For, Against or Undecided.',
+  'vote.recorded': 'Your {phase}-vote is recorded: {stance}.',
+  'vote.youBefore': 'You voted {stance} before the Debate.',
+  'vote.youAfter': 'You voted {stance} after the Debate.',
+  'vote.waitAfter': 'You can vote again when the Debate is complete.',
+  'vote.closed': 'Voting is closed for this Debate.',
+  'vote.failed': 'Your vote could not be saved. Please try again.',
+
   'side.for': 'For',
   'side.against': 'Against',
 
