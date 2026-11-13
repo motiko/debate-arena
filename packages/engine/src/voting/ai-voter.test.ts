@@ -27,13 +27,14 @@ test('AI Audience Result is an Oxford result over all AI Voters', async () => {
   const client = new FakeModelClient(r =>
     JSON.stringify(r.messages).includes(sixTurns[0]!.text) ? 'against' : 'undecided');
   const r = await runAiAudience(setup, sixTurns, ['x/v', 'x/v'], client);
-  expect(r).toEqual({ counted: 2, swing: { for: 0, against: 100 }, winner: 'against' });
+  expect(r).toEqual({ counted: 2, swing: { for: 0, against: 100 }, winner: 'against', dropped: [] });
 });
 
 test('an AI Voter that never gives a valid stance is dropped, not fatal', async () => {
   const client = new FakeModelClient(r => (r.model === 'bad/v' ? 'maybe' : 'for'));
   const r = await runAiAudience(setup, sixTurns, ['x/v', 'bad/v'], client);
   expect(r.counted).toBe(1);
+  expect(r.dropped).toEqual(['1:bad/v']); // surfaced, so a manipulated result can be detected and disclosed
 });
 
 test('retries once on a bad reply', async () => {

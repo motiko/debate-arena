@@ -20,7 +20,7 @@ export { generateTurn } from './debate/generate-turn';
 export { isSelfJudging, modelFamily, suggestPanel, validatePanel } from './judging/panel';
 export { buildJudgeMessages, judgeDebate, parseVerdict } from './judging/judge';
 export { computeOxfordResult, type OxfordResult, type VoterStances } from './voting/oxford';
-export { castAiStance, parseStance, runAiAudience } from './voting/ai-voter';
+export { castAiStance, parseStance, runAiAudience, type AiAudienceResult } from './voting/ai-voter';
 export {
   JUDGE_OUTPUT_TOKENS,
   PROMPT_OVERHEAD_TOKENS,

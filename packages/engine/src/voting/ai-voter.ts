@@ -7,6 +7,9 @@ import { computeOxfordResult, type OxfordResult } from './oxford';
 
 export const STANCE_OUTPUT_TOKENS = 10;
 
+/** An Oxford result over AI Voters, plus the voter ids (`index:model`) left out for unparseable stances. */
+export interface AiAudienceResult extends OxfordResult { dropped: string[] }
+
 const STANCES: readonly Stance[] = ['for', 'against', 'undecided'];
 
 export function parseStance(text: string): Stance | null {
@@ -40,14 +43,15 @@ export async function castAiStance(motion: Motion, model: ModelId, client: Model
 
 /**
  * Runs every AI Voter's before- and after-stance on a finished Debate and returns the AI Audience Result.
- * A voter that never gives a valid stance is left out rather than failing the whole result.
+ * A voter that never gives a valid stance is left out rather than failing the whole result, but is listed in
+ * `dropped` so callers can disclose it, or reject the result when too many drop (a Turn may try to cause this).
  */
 export async function runAiAudience(
   setup: DebateSetup,
   turns: Turn[],
   voters: ModelId[],
   client: ModelClient,
-): Promise<OxfordResult> {
+): Promise<AiAudienceResult> {
   if (nextSlot(setup.format, turns)) throw new DebateNotFinishedError('The Debate still has Turns to come');
   const settled = await Promise.allSettled(
     voters.map(async (model, index) => ({
@@ -56,6 +60,12 @@ export async function runAiAudience(
       after: await castAiStance(setup.motion, model, client, turns),
     })),
   );
-  for (const r of settled) if (r.status === 'rejected' && !(r.reason instanceof StanceParseError)) throw r.reason;
-  return computeOxfordResult(settled.flatMap(r => (r.status === 'fulfilled' ? [r.value] : [])));
+  const dropped: string[] = [];
+  settled.forEach((r, index) => {
+    if (r.status === 'fulfilled') return;
+    if (!(r.reason instanceof StanceParseError)) throw r.reason;
+    dropped.push(`${index}:${voters[index]}`);
+  });
+  const votes = settled.flatMap(r => (r.status === 'fulfilled' ? [r.value] : []));
+  return { ...computeOxfordResult(votes), dropped };
 }
