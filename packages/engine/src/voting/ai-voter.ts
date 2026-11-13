@@ -7,7 +7,7 @@ import { computeOxfordResult, type OxfordResult } from './oxford';
 
 export const STANCE_OUTPUT_TOKENS = 10;
 
-/** An Oxford result over AI Voters, plus the voter ids (`index:model`) left out for unparseable stances. */
+/** An Oxford result over AI Voters, plus the voter ids (`index:model`) left out because their stance failed. */
 export interface AiAudienceResult extends OxfordResult { dropped: string[] }
 
 const STANCES: readonly Stance[] = ['for', 'against', 'undecided'];
@@ -43,7 +43,7 @@ export async function castAiStance(motion: Motion, model: ModelId, client: Model
 
 /**
  * Runs every AI Voter's before- and after-stance on a finished Debate and returns the AI Audience Result.
- * A voter that never gives a valid stance is left out rather than failing the whole result, but is listed in
+ * A voter whose stance fails (unparseable reply or failed call) is left out rather than failing the whole result, but is listed in
  * `dropped` so callers can disclose it, or reject the result when too many drop (a Turn may try to cause this).
  */
 export async function runAiAudience(
@@ -60,12 +60,9 @@ export async function runAiAudience(
       after: await castAiStance(setup.motion, model, client, turns),
     })),
   );
-  const dropped: string[] = [];
-  settled.forEach((r, index) => {
-    if (r.status === 'fulfilled') return;
-    if (!(r.reason instanceof StanceParseError)) throw r.reason;
-    dropped.push(`${index}:${voters[index]}`);
-  });
+  // Any failure (unparseable stance, provider outage) drops only that voter, so one flaky model cannot fail
+  // a finished Debate; dropped voters are reported for disclosure.
+  const dropped = settled.flatMap((r, index) => (r.status === 'rejected' ? [`${index}:${voters[index]}`] : []));
   const votes = settled.flatMap(r => (r.status === 'fulfilled' ? [r.value] : []));
   return { ...computeOxfordResult(votes), dropped };
 }

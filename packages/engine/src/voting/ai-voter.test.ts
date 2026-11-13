@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import { DebateNotFinishedError, StanceParseError } from '../errors';
+import type { ModelClient } from '../models/client';
 import { FakeModelClient } from '../models/fake';
 import { setup, sixTurns } from '../testing/fixtures';
 import { castAiStance, parseStance, runAiAudience } from './ai-voter';
@@ -35,6 +36,18 @@ test('an AI Voter that never gives a valid stance is dropped, not fatal', async 
   const r = await runAiAudience(setup, sixTurns, ['x/v', 'bad/v'], client);
   expect(r.counted).toBe(1);
   expect(r.dropped).toEqual(['1:bad/v']); // surfaced, so a manipulated result can be detected and disclosed
+});
+
+test('an AI Voter whose model call fails (e.g. a provider outage) is dropped, not fatal', async () => {
+  const client: ModelClient = {
+    complete: async r => {
+      if (r.model === 'down/v') throw new Error('503 Service Unavailable');
+      return { text: 'for', inputTokens: 1, outputTokens: 1 };
+    },
+  };
+  const r = await runAiAudience(setup, sixTurns, ['x/v', 'down/v'], client);
+  expect(r.counted).toBe(1);
+  expect(r.dropped).toEqual(['1:down/v']);
 });
 
 test('retries once on a bad reply', async () => {

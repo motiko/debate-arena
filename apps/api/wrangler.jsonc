@@ -1,0 +1,53 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "debate-arena-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-13",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "debate-arena",
+      // Local-only id. The real EU-jurisdiction database is created in Plan 7:
+      // wrangler d1 create debate-arena --jurisdiction=eu
+      "database_id": "local-debate-arena",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "queues": {
+    "producers": [{ "binding": "STEP_QUEUE", "queue": "debate-steps" }],
+    "consumers": [
+      { "queue": "debate-steps", "max_batch_size": 1, "max_batch_timeout": 0, "max_retries": 3, "dead_letter_queue": "debate-steps-dlq" }
+    ]
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "DEBATE_ROOM", "class_name": "DebateRoom" }]
+  },
+  "exports": {
+    "DebateRoom": { "type": "durable-object", "storage": "sqlite" }
+  },
+  "vars": { "MODEL_PROVIDER": "fake", "DEV_AUTH": "true" },
+  // Bindings and vars are not inherited by environments, so production repeats them.
+  "env": {
+    "production": {
+      "vars": { "MODEL_PROVIDER": "openrouter", "DEV_AUTH": "false" },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "debate-arena",
+          // Replaced with the real EU-jurisdiction database id in Plan 7.
+          "database_id": "local-debate-arena",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "queues": {
+        "producers": [{ "binding": "STEP_QUEUE", "queue": "debate-steps" }],
+        "consumers": [
+          { "queue": "debate-steps", "max_batch_size": 1, "max_batch_timeout": 0, "max_retries": 3, "dead_letter_queue": "debate-steps-dlq" }
+        ]
+      },
+      "durable_objects": {
+        "bindings": [{ "name": "DEBATE_ROOM", "class_name": "DebateRoom" }]
+      }
+    }
+  }
+}
