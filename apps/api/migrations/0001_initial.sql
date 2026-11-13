@@ -28,3 +28,11 @@ CREATE TABLE turns (
   truncated INTEGER NOT NULL,
   PRIMARY KEY (debate_id, slot_index)
 );
+
+-- Quota points spent per Member per UTC day ('YYYY-MM-DD').
+CREATE TABLE quota_usage (
+  member_id TEXT NOT NULL,
+  day TEXT NOT NULL,
+  points INTEGER NOT NULL CHECK (points >= 0),
+  PRIMARY KEY (member_id, day)
+);
