@@ -1,6 +1,6 @@
 # Agent-first tooling, offline local dev and isolated PR previews
 
-All code is written by agents, so tooling is chosen for speed and for catching mistakes rather than for human style preferences. There is deliberately no formatter: oxlint is the only linter, and correctness is enforced by tsc, svelte-check, Vitest (with Cloudflare's Workers pool for API, Durable Object and D1 tests) and Playwright with axe. pnpm with Turborepo builds and tests only what changed, with a remote cache shared by local runs and CI.
+All code is written by agents, so tooling is chosen for speed and for catching mistakes rather than for human style preferences. There is deliberately no formatter: oxlint is the only linter, and correctness is enforced by tsc, svelte-check, Vitest (with Cloudflare's Workers pool for API, Durable Object and D1 tests) and Playwright with axe. The web app alone stays on TypeScript 6 for `astro check` and svelte-check, which do not support TypeScript 7 yet; everything else uses TypeScript 7. pnpm with Turborepo builds and tests only what changed, with a remote cache shared by local runs and CI.
 
 `pnpm dev` runs the whole platform offline in the real Workers runtime via Wrangler, with seeded data and a fake model provider; real OpenRouter calls are opt-in through an environment variable, so local runs and tests are free and deterministic.
 

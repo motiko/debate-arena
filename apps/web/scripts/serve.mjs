@@ -44,7 +44,7 @@ while (Date.now() < deadline) {
   try {
     const response = await fetch('http://localhost:4321/api/health');
     if (response.ok) {
-      console.log('ready');
+      console.log('serve.mjs: servers ready');
       break;
     }
   } catch {

@@ -17,3 +17,28 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+
+  # The web quality bar (ADR 0004): Playwright + axe and Lighthouse on a mobile device over slow 4G.
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @debate-arena/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @debate-arena/web build
+      - run: pnpm --filter @debate-arena/web e2e
+      - run: pnpm --filter @debate-arena/web lighthouse
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-reports
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+            apps/web/.lighthouseci
+          retention-days: 7
