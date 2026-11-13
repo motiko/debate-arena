@@ -8,6 +8,12 @@ interface Env {
   API: Fetcher;
   ASSETS: Fetcher;
 }
+declare namespace App {
+  interface Locals {
+    api: import('@debate-arena/api-client').ApiClient;
+    me: import('./lib/server-api').Me | null;
+  }
+}
 declare namespace Cloudflare {
   interface Env {
     API: Fetcher;

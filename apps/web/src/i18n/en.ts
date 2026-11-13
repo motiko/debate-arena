@@ -11,6 +11,16 @@ export const en = {
   'feed.empty': 'No finished Debates yet.',
   'feed.older': 'Older Debates',
 
+  'auth.signIn': 'Sign in with GitHub',
+  'auth.signInFailed': 'Sign-in could not start. Please try again.',
+  'auth.signOut': 'Sign out',
+  'auth.signOutFailed': 'Sign-out failed. Please try again.',
+
+  'header.nav': 'Main',
+  'header.start': 'Start a Debate',
+  'header.account': 'Your account',
+  'header.quota': '{points} Quota points left today',
+
   'notFound.title': 'Page not found',
   'notFound.body': 'There is nothing here. It may have been moved, or the link is wrong.',
   'notFound.home': 'Go to the Debates',

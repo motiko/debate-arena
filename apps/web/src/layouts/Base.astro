@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import Header from '../components/Header.astro';
 import { t } from '../i18n/t';
 
 interface Props {
@@ -31,7 +32,7 @@ const canonical = new URL(canonicalPath, Astro.site ?? Astro.url).href;
     <header class="site-header">
       <div class="wrap">
         <a class="brand" href="/">{t('site.name')}</a>
-        <slot name="header" />
+        <Header />
       </div>
     </header>
     <main id="main" tabindex="-1">

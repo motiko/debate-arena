@@ -80,9 +80,14 @@ export const app = new Hono<{ Bindings: Env }>()
   .on(['GET', 'POST'], '/auth/*', c => getAuth(c.env).handler(c.req.raw))
   .get('/me', async c => {
     const session = await getAuth(c.env).api.getSession({ headers: c.req.raw.headers });
-    if (!session) return c.json({ error: 'Not signed in' }, 401);
-    const { id, name, image } = session.user;
-    return c.json({ id, name, image: image ?? null, quotaRemaining: await quotaRemaining(c.env.DB, id, new Date()) });
+    if (session) {
+      const { id, name, image } = session.user;
+      return c.json({ id, name, image: image ?? null, quotaRemaining: await quotaRemaining(c.env.DB, id, new Date()) });
+    }
+    // Local development only (DEV_AUTH "true"): a dev Member from `x-dev-member`, named by their id.
+    const devMember = await memberResolver(c.env)(c.req.raw);
+    if (!devMember) return c.json({ error: 'Not signed in' }, 401);
+    return c.json({ id: devMember, name: devMember, image: null, quotaRemaining: await quotaRemaining(c.env.DB, devMember, new Date()) });
   })
   .get('/me/export', async c => {
     const session = await getAuth(c.env).api.getSession({ headers: c.req.raw.headers });

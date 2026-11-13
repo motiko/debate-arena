@@ -16,6 +16,13 @@ test('GET /api/me with a session returns the Member and their Quota', async () =
   expect(await res.json()).toEqual({ id: userId, name: 'Ada', image: null, quotaRemaining: 6 });
 });
 
+test('GET /api/me names a dev Member while DEV_AUTH is on', async () => {
+  // vitest.config sets DEV_AUTH "true", as `pnpm dev` does; production config has "false".
+  const res = await exports.default.fetch('https://api.test/api/me', { headers: { 'x-dev-member': 'dev-7' } });
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({ id: 'dev-7', name: 'dev-7', image: null, quotaRemaining: 6 });
+});
+
 test('the GitHub sign-in route sends the browser to GitHub', async () => {
   const res = await exports.default.fetch('https://api.test/api/auth/sign-in/social', {
     method: 'POST',
