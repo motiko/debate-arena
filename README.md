@@ -31,6 +31,23 @@ curl -s localhost:8787/api/debates/<id>          # the Debate, its Turns, Verdic
 
 `GET /api/models` lists the models you can use. To watch a Debate live, open a WebSocket to `/api/debates/<id>/live`.
 
+### Sign in with GitHub
+
+Members sign in with GitHub. Locally you can skip this and use the `x-dev-member` header; to try real sign-in:
+
+1. Create a GitHub OAuth App (GitHub → Settings → Developer settings → OAuth Apps) with homepage URL `http://localhost:8787` and callback URL `http://localhost:8787/api/auth/callback/github`.
+2. Copy `apps/api/.dev.vars.example` to `apps/api/.dev.vars` and fill in `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` and `BETTER_AUTH_SECRET` (for example `openssl rand -base64 32`).
+3. Run `pnpm dev`, then in a browser on `http://localhost:8787` run this in the console:
+
+   ```js
+   const r = await fetch('/api/auth/sign-in/social', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ provider: 'github', callbackURL: '/api/me' }) });
+   location.href = (await r.json()).url;
+   ```
+
+   After approving on GitHub you land on `/api/me`, which shows your Member profile.
+
+Signed-in Members can vote (`POST /api/debates/<id>/votes` with `{ "phase": "before" | "after", "stance": "for" | "against" | "undecided" }`), download their data (`GET /api/me/export`) and delete their account (`POST /api/auth/delete-user`).
+
 ### Real models
 
 To run against OpenRouter locally, copy `apps/api/.dev.vars.example` to `apps/api/.dev.vars`, set `OPENROUTER_API_KEY`, and change `MODEL_PROVIDER` to `"openrouter"` in `apps/api/wrangler.jsonc` `vars`. Real model calls cost money.
