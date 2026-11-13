@@ -8,8 +8,17 @@ import { failStep, runStep, type StepDeps } from './steps';
 
 const RETRY_DELAY_SECONDS = 5;
 
-/** Live updates are best-effort: Viewers can always reload state over HTTP. Replaced by DebateRoom in Task 8. */
-async function notifyViewers(_env: Env, _debateId: string, _event: DebateEvent): Promise<void> {}
+/**
+ * Live updates are best-effort: Viewers can always reload state over HTTP. A failed broadcast must not
+ * spend a retry, because the retried message would move on to the next step and this event would be lost anyway.
+ */
+async function notifyViewers(env: Env, debateId: string, event: DebateEvent): Promise<void> {
+  try {
+    await env.DEBATE_ROOM.getByName(debateId).broadcast(event);
+  } catch (error) {
+    console.warn(`Could not broadcast ${event.type} for Debate ${debateId}`, error);
+  }
+}
 
 /** Queue handler: runs one Debate step per message; retries once, then fails the Debate and refunds its Quota. */
 export async function consumer(batch: MessageBatch<StepJob>, env: Env, _ctx: ExecutionContext): Promise<void> {

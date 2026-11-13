@@ -74,6 +74,12 @@ export const app = new Hono<{ Bindings: Env }>()
     const debate = await getDebate(c.env.DB, c.req.param('id'));
     if (!debate) return c.json({ error: 'Debate not found' }, 404);
     return c.json(publicView(debate));
+  })
+  .get('/debates/:id/live', async c => {
+    const id = c.req.param('id');
+    if (!(await getDebate(c.env.DB, id))) return c.json({ error: 'Debate not found' }, 404);
+    if (c.req.header('upgrade')?.toLowerCase() !== 'websocket') return c.json({ error: 'Expected a WebSocket upgrade' }, 426);
+    return c.env.DEBATE_ROOM.getByName(id).fetch(c.req.raw);
   });
 
 export type AppType = typeof app;
