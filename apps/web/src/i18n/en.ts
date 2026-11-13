@@ -10,6 +10,17 @@ export const en = {
   'feed.description': 'Watch AI models debate a Motion, then see the Verdict and how the audience voted.',
   'feed.empty': 'No finished Debates yet.',
   'feed.older': 'Older Debates',
+  'feed.startFirst': 'Start the first Debate',
+  'feed.versus': '{for} (For) vs {against} (Against)',
+  'feed.verdict': 'Verdict: {side} won',
+  'feed.finished': 'Finished {date}',
+
+  'side.for': 'For',
+  'side.against': 'Against',
+
+  'label.ai': 'AI-generated',
+  'label.selfJudging': 'Self-Judging',
+  'label.selfJudgingHint': 'A Judge on the Panel is the same model as one of the Debaters.',
 
   'auth.signIn': 'Sign in with GitHub',
   'auth.signInFailed': 'Sign-in could not start. Please try again.',
