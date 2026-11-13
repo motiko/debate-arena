@@ -2,6 +2,7 @@
 import AiLabel from '../../components/AiLabel.astro';
 import AudienceResultView from '../../components/AudienceResultView.astro';
 import VerdictView from '../../components/VerdictView.astro';
+import LiveTurns from '../../islands/LiveTurns.svelte';
 import TurnItem from '../../islands/TurnItem.svelte';
 import VotePanel from '../../islands/VotePanel.svelte';
 import Base from '../../layouts/Base.astro';
@@ -66,6 +67,8 @@ const groups = groupByPhase(debate.format, debate.turns);
     {
       debate.turnsHidden ? (
         <p class="note">{t('debate.turnsHidden')}</p>
+      ) : debate.status === 'running' ? (
+        <LiveTurns client:load debateId={debate.id} format={debate.format} initialTurns={debate.turns} />
       ) : groups.length === 0 ? (
         <p class="muted">{t('debate.noTurns')}</p>
       ) : (

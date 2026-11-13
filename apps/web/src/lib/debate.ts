@@ -70,6 +70,23 @@ export function swingText(result: OxfordResult, voters: 'members' | 'aiVoters' =
   });
 }
 
+export interface SlotTurn {
+  slotIndex: number;
+  turn: Turn;
+}
+
+/**
+ * Live Turns merged into the known ones by slot (a Turn's slot is its index): known slots are kept, duplicates
+ * ignored, and the list stops at the first missing slot so Turns never show out of order.
+ */
+export function mergeTurns(known: Turn[], incoming: SlotTurn[]): Turn[] {
+  const slots = new Map<number, Turn>(known.map((turn, i) => [i, turn]));
+  for (const { slotIndex, turn } of incoming) if (!slots.has(slotIndex)) slots.set(slotIndex, turn);
+  const merged: Turn[] = [];
+  for (let i = 0; slots.has(i); i++) merged.push(slots.get(i)!);
+  return merged;
+}
+
 export function modelLabel(id: string, models: ModelInfo[] = []): string {
   return models.find(m => m.id === id)?.label ?? id;
 }

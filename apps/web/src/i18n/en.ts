@@ -55,6 +55,14 @@ export const en = {
   'vote.closed': 'Voting is closed for this Debate.',
   'vote.failed': 'Your vote could not be saved. Please try again.',
 
+  'live.connecting': 'Connecting…',
+  'live.open': 'Live: new Turns appear as they are written.',
+  'live.reconnecting': 'Reconnecting…',
+  'live.closed': 'Live updates stopped. Reload the page to see new Turns.',
+  'live.finished': 'The Debate is complete.',
+  'live.showVerdict': 'Show the Verdict',
+  'live.region': 'Turns as they are written',
+
   'side.for': 'For',
   'side.against': 'Against',
 
