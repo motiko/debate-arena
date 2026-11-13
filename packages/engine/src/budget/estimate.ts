@@ -1,8 +1,7 @@
-import { turnSlots, wordsToTokens } from '../debate/schedule';
+import { MAX_ATTEMPTS, turnOutputCap, turnSlots } from '../debate/schedule';
 import type { DebateSetup, ModelId } from '../domain';
 import { UnknownModelPriceError } from '../errors';
 import { JUDGE_OUTPUT_TOKENS } from '../judging/judge';
-import { countWords } from '../turns/words';
 import { STANCE_OUTPUT_TOKENS } from '../voting/ai-voter';
 
 export { JUDGE_OUTPUT_TOKENS, STANCE_OUTPUT_TOKENS };
@@ -12,24 +11,42 @@ export type PriceTable = Record<ModelId, ModelPrice>;
 
 export const PROMPT_OVERHEAD_TOKENS = 600;
 
+/** UTF-8 byte length: an upper bound on tokens for any script, since a token covers at least one byte. */
+export function utf8Length(text: string): number {
+  let bytes = 0;
+  for (const ch of text) {
+    const cp = ch.codePointAt(0)!;
+    bytes += cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+  }
+  return bytes;
+}
+
+function priceOf(prices: PriceTable, model: ModelId): ModelPrice {
+  const price = Object.hasOwn(prices, model) ? prices[model] : undefined;
+  const valid = (n: unknown) => typeof n === 'number' && Number.isFinite(n) && n >= 0;
+  if (!price || !valid(price.inputPerMTokUsd) || !valid(price.outputPerMTokUsd))
+    throw new UnknownModelPriceError(`No valid price for ${model}`);
+  return price;
+}
+
 /**
- * Worst-case AI cost of a Debate in micro-USD, assuming every Turn uses its full word limit.
- * Reserved from the Member's Quota before the Debate starts. Motion screening is added in Plan 5.
+ * Worst-case AI cost of a Debate in micro-USD: every Turn at its output cap and every call made
+ * MAX_ATTEMPTS times. Reserved from the Member's Quota before the Debate starts; unused cost is returned.
+ * Motion screening is added in Plan 5.
  */
 export function worstCaseBudgetMicroUsd(setup: DebateSetup, aiVoters: ModelId[], prices: PriceTable): number {
   // tokens × USD per million tokens = micro-USD
   const cost = (model: ModelId, input: number, output: number) => {
-    const price = prices[model];
-    if (!price) throw new UnknownModelPriceError(`No price for ${model}`);
-    return input * price.inputPerMTokUsd + output * price.outputPerMTokUsd;
+    const price = priceOf(prices, model);
+    return MAX_ATTEMPTS * (input * price.inputPerMTokUsd + output * price.outputPerMTokUsd);
   };
 
-  const base = PROMPT_OVERHEAD_TOKENS + wordsToTokens(countWords(setup.motion.text));
+  const base = PROMPT_OVERHEAD_TOKENS + utf8Length(setup.motion.text);
   let transcript = 0;
   let total = 0;
 
   for (const slot of turnSlots(setup.format)) {
-    const output = wordsToTokens(setup.format.phases[slot.phaseIndex]!.maxWords);
+    const output = turnOutputCap(setup.format.phases[slot.phaseIndex]!.maxWords);
     const debater = setup.debaters[slot.side];
     if (debater.kind === 'ai') total += cost(debater.model, base + transcript, output);
     transcript += output;

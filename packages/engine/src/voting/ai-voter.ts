@@ -1,5 +1,5 @@
 import { motionData, sideLabel, UNTRUSTED_NOTICE } from '../debate/prompts';
-import { nextSlot } from '../debate/schedule';
+import { MAX_ATTEMPTS, nextSlot } from '../debate/schedule';
 import type { DebateSetup, ModelId, Motion, Stance, Turn } from '../domain';
 import { DebateNotFinishedError, StanceParseError } from '../errors';
 import type { ModelClient, ModelMessage } from '../models/client';
@@ -30,7 +30,7 @@ function stanceMessages(motion: Motion, turns?: Turn[]): ModelMessage[] {
 /** Before-stance without `turns` (Motion only); after-stance with the full transcript. */
 export async function castAiStance(motion: Motion, model: ModelId, client: ModelClient, turns?: Turn[]): Promise<Stance> {
   const messages = stanceMessages(motion, turns);
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const response = await client.complete({ model, messages, maxOutputTokens: STANCE_OUTPUT_TOKENS });
     const stance = parseStance(response.text);
     if (stance) return stance;
@@ -38,7 +38,10 @@ export async function castAiStance(motion: Motion, model: ModelId, client: Model
   throw new StanceParseError(`${model} did not return a valid stance`);
 }
 
-/** Runs every AI Voter's before- and after-stance on a finished Debate and returns the AI Audience Result. */
+/**
+ * Runs every AI Voter's before- and after-stance on a finished Debate and returns the AI Audience Result.
+ * A voter that never gives a valid stance is left out rather than failing the whole result.
+ */
 export async function runAiAudience(
   setup: DebateSetup,
   turns: Turn[],
@@ -46,12 +49,13 @@ export async function runAiAudience(
   client: ModelClient,
 ): Promise<OxfordResult> {
   if (nextSlot(setup.format, turns)) throw new DebateNotFinishedError('The Debate still has Turns to come');
-  const votes = await Promise.all(
+  const settled = await Promise.allSettled(
     voters.map(async (model, index) => ({
       voterId: `${index}:${model}`,
       before: await castAiStance(setup.motion, model, client),
       after: await castAiStance(setup.motion, model, client, turns),
     })),
   );
-  return computeOxfordResult(votes);
+  for (const r of settled) if (r.status === 'rejected' && !(r.reason instanceof StanceParseError)) throw r.reason;
+  return computeOxfordResult(settled.flatMap(r => (r.status === 'fulfilled' ? [r.value] : [])));
 }

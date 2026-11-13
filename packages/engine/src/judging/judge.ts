@@ -1,5 +1,5 @@
 import { formatTranscript, motionData, UNTRUSTED_NOTICE } from '../debate/prompts';
-import { nextSlot } from '../debate/schedule';
+import { MAX_ATTEMPTS, nextSlot } from '../debate/schedule';
 import type { DebateSetup, ModelId, Side, Turn, Verdict } from '../domain';
 import { DebateNotFinishedError, VerdictParseError } from '../errors';
 import type { ModelClient, ModelMessage } from '../models/client';
@@ -37,7 +37,7 @@ export function parseVerdict(text: string): { winner: Side; reasoning: string } 
 
 async function askJudge(setup: DebateSetup, turns: Turn[], judge: ModelId, client: ModelClient) {
   const messages = buildJudgeMessages(setup, turns);
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const response = await client.complete({ model: judge, messages, maxOutputTokens: JUDGE_OUTPUT_TOKENS });
     const verdict = parseVerdict(response.text);
     if (verdict) return verdict;

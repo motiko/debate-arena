@@ -30,6 +30,12 @@ test('AI Audience Result is an Oxford result over all AI Voters', async () => {
   expect(r).toEqual({ counted: 2, swing: { for: 0, against: 100 }, winner: 'against' });
 });
 
+test('an AI Voter that never gives a valid stance is dropped, not fatal', async () => {
+  const client = new FakeModelClient(r => (r.model === 'bad/v' ? 'maybe' : 'for'));
+  const r = await runAiAudience(setup, sixTurns, ['x/v', 'bad/v'], client);
+  expect(r.counted).toBe(1);
+});
+
 test('retries once on a bad reply', async () => {
   const replies = ['maybe', 'for'];
   const client = new FakeModelClient(() => replies.shift() ?? '');

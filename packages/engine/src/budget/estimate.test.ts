@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { wordsToTokens } from '../debate/schedule';
 import { UnknownModelPriceError } from '../errors';
 import { setup } from '../testing/fixtures';
-import { type PriceTable, worstCaseBudgetMicroUsd } from './estimate';
+import { type PriceTable, utf8Length, worstCaseBudgetMicroUsd } from './estimate';
 
 // Every model at 1 USD per million tokens in and out, so micro-USD equals tokens.
 const unit = { inputPerMTokUsd: 1, outputPerMTokUsd: 1 };
@@ -14,26 +14,53 @@ test('word-to-token conversion is not thrown off by floating point', () => {
   expect(wordsToTokens(3)).toBe(5);
 });
 
-// Motion "Remote work beats office work" = 7 tokens; Turn outputs 420, 420, 280, 280, 210, 210.
+test('UTF-8 length bounds tokens for any script', () => {
+  expect(utf8Length('Remote work beats office work')).toBe(29);
+  expect(utf8Length('猫')).toBe(3);
+  expect(utf8Length('😀')).toBe(4);
+});
+
+// Motion "Remote work beats office work" = 29 bytes, so every call reads 600 + 29 = 629 tokens of base.
+// Output caps (2x headroom): 840, 840, 560, 560, 420, 420 (sum 3640).
+// One attempt: Turns 14554 in + 3640 out, Judge 4269 in + 800 out = 23263. Every call is reserved twice.
 test('Classic Debate with one Judge', () => {
-  expect(worstCaseBudgetMicroUsd(setup, [], unitPrices)).toBe(14079);
+  expect(worstCaseBudgetMicroUsd(setup, [], unitPrices)).toBe(46526);
 });
 
 test('each AI Voter adds a before- and after-stance', () => {
-  expect(worstCaseBudgetMicroUsd(setup, ['x/v'], unitPrices)).toBe(17133);
+  // (629 + 10) + (4269 + 10) = 4918 per attempt, twice
+  expect(worstCaseBudgetMicroUsd(setup, ['x/v'], unitPrices)).toBe(46526 + 9836);
 });
 
 test('human Debaters cost nothing', () => {
   const humanFor = { ...setup, debaters: { ...setup.debaters, for: { kind: 'human', memberId: 'm1' } as const } };
-  // Drops the three For Turns: (607+420) + (1447+280) + (2007+210)
-  expect(worstCaseBudgetMicroUsd(humanFor, [], unitPrices)).toBe(14079 - 4971);
+  // Drops the three For Turns: (629+840) + (2309+560) + (3429+420) = 8187, twice
+  expect(worstCaseBudgetMicroUsd(humanFor, [], unitPrices)).toBe(46526 - 16374);
 });
 
 test('prices scale cost', () => {
   const double = Object.fromEntries(Object.keys(unitPrices).map(k => [k, { inputPerMTokUsd: 2, outputPerMTokUsd: 2 }]));
-  expect(worstCaseBudgetMicroUsd(setup, [], double)).toBe(28158);
+  expect(worstCaseBudgetMicroUsd(setup, [], double)).toBe(93052);
+});
+
+test('a long Motion without spaces is costed by its length, not its word count', () => {
+  const short = worstCaseBudgetMicroUsd({ ...setup, motion: { text: 'x' } }, [], unitPrices);
+  const long = worstCaseBudgetMicroUsd({ ...setup, motion: { text: 'x'.repeat(3000) } }, [], unitPrices);
+  // 2999 extra bytes read by 7 calls (6 Turns + Judge), each reserved twice
+  expect(long - short).toBe(2999 * 14);
 });
 
 test('unknown model prices are an error', () => {
   expect(() => worstCaseBudgetMicroUsd(setup, [], {})).toThrow(UnknownModelPriceError);
+});
+
+test('inherited object keys are not prices', () => {
+  expect(() => worstCaseBudgetMicroUsd({ ...setup, panel: ['constructor'] }, [], unitPrices)).toThrow(UnknownModelPriceError);
+});
+
+test('invalid prices are an error, never NaN', () => {
+  for (const bad of [Number.NaN, -1, Number.POSITIVE_INFINITY]) {
+    const prices = { ...unitPrices, 'c/judge': { inputPerMTokUsd: bad, outputPerMTokUsd: 1 } };
+    expect(() => worstCaseBudgetMicroUsd(setup, [], prices)).toThrow(UnknownModelPriceError);
+  }
 });

@@ -27,7 +27,15 @@ test('first Turn uses the For Debater and the Opening limit', async () => {
   const t = await generateTurn(setup, [], client);
   expect(t).toMatchObject({ phaseIndex: 0, side: 'for', truncated: false });
   expect(client.calls[0]?.model).toBe('a/for-model');
-  expect(client.calls[0]?.maxOutputTokens).toBe(Math.ceil(300 * 1.4));
+  // 2x headroom over 300 words × 1.4 tokens, so the word limit (not the token cap) cuts the Turn
+  expect(client.calls[0]?.maxOutputTokens).toBe(840);
+});
+
+test('a Turn cut off by the token cap is marked truncated', async () => {
+  const client = new FakeModelClient(() => ({ text: 'A reply that stops mid', finishReason: 'length' }));
+  const t = await generateTurn(setup, [], client);
+  expect(t.text).toBe('A reply that stops mid');
+  expect(t.truncated).toBe(true);
 });
 
 test('second Turn uses the Against Debater', async () => {

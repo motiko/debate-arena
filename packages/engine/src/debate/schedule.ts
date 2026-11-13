@@ -8,6 +8,18 @@ export function wordsToTokens(words: number): number {
   return Math.ceil(Number((words * TOKENS_PER_WORD).toFixed(6)));
 }
 
+/**
+ * Output token cap for a Turn. Twice the average, so the Phase's word limit (not the token cap) is what
+ * cuts a Turn, even in scripts that use more tokens per word.
+ */
+export const OUTPUT_HEADROOM = 2;
+export function turnOutputCap(maxWords: number): number {
+  return wordsToTokens(maxWords) * OUTPUT_HEADROOM;
+}
+
+/** Calls per Judge or AI Voter stance (one retry on an unparseable reply); also reserved per Turn for job retries. */
+export const MAX_ATTEMPTS = 2;
+
 export function turnSlots(format: Format): TurnSlot[] {
   return format.phases.flatMap((phase, phaseIndex) => phase.order.map(side => ({ phaseIndex, side })));
 }
