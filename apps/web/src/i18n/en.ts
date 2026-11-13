@@ -83,6 +83,24 @@ export const en = {
   'new.submit': 'Start the Debate',
   'new.failed': 'The Debate could not be started. Please try again.',
 
+  'account.title': 'Your account',
+  'account.description': 'Your Member account: download your data or delete your account.',
+  'account.signIn': 'Sign in to see your account.',
+  'account.name': 'Signed in as {name}.',
+  'account.quota': 'You have {points} Quota points left today. A Debate costs {cost}.',
+  'account.dataTitle': 'Your data',
+  'account.export': 'Download my data (JSON)',
+  'account.exportHint': 'Your profile, the Debates you started, your Audience Votes, sessions, linked accounts and Quota use.',
+  'account.deleteTitle': 'Delete your account',
+  'account.deleteExplain':
+    'Deleting removes your profile, your sign-in and your sessions. Debates you started and your Audience Votes stay, under a random id that cannot be traced back to you, so past results do not change.',
+  'account.delete': 'Delete my account',
+  'account.deleteConfirm': 'I understand this cannot be undone',
+  'account.deleteFinal': 'Delete my account permanently',
+  'account.reauth': 'For your safety, deleting needs a recent sign-in. Please sign in again, then delete your account.',
+  'account.reauthButton': 'Sign in again',
+  'account.deleteFailed': 'Your account could not be deleted. Please try again.',
+
   'side.for': 'For',
   'side.against': 'Against',
 
