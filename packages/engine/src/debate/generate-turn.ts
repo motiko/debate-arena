@@ -3,7 +3,7 @@ import { DebateCompleteError, EmptyTurnError, HumanTurnNotSupportedError } from 
 import type { ModelClient } from '../models/client';
 import { truncateToWords } from '../turns/words';
 import { buildTurnMessages } from './prompts';
-import { nextSlot, TOKENS_PER_WORD } from './schedule';
+import { nextSlot, wordsToTokens } from './schedule';
 
 /** Generates the next AI Turn, cut at the Phase's word limit. */
 export async function generateTurn(setup: DebateSetup, priorTurns: Turn[], client: ModelClient): Promise<Turn> {
@@ -16,7 +16,7 @@ export async function generateTurn(setup: DebateSetup, priorTurns: Turn[], clien
   const response = await client.complete({
     model: debater.model,
     messages: buildTurnMessages(setup, slot, priorTurns),
-    maxOutputTokens: Math.ceil(phase.maxWords * TOKENS_PER_WORD),
+    maxOutputTokens: wordsToTokens(phase.maxWords),
   });
   if (!response.text.trim()) throw new EmptyTurnError(`${debater.model} returned an empty Turn`);
 
