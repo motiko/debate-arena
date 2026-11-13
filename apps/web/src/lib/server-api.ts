@@ -24,10 +24,24 @@ export interface Me {
   quotaRemaining: number;
 }
 
-/** The signed-in Member, or null for a signed-out Viewer. */
-export async function getMe(client: ApiClient): Promise<Me | null> {
-  const response = await client.api.me.$get();
-  if (response.status === 401) return null;
-  if (!response.ok) throw new Error(`GET /api/me failed (${response.status})`);
-  return (await response.json()) as Me;
+export interface Viewer {
+  me: Me | null;
+  /** Refreshed session cookies from the API, for the page response (keeps active Members signed in). */
+  setCookies: string[];
+}
+
+/**
+ * The signed-in Member (null when signed out), for the header on every page. Never throws: if the API cannot
+ * say who is signed in, the page still renders, signed out, rather than every page failing.
+ */
+export async function loadViewer(client: ApiClient): Promise<Viewer> {
+  try {
+    const response = await client.api.me.$get();
+    if (response.status === 401) return { me: null, setCookies: [] };
+    if (!response.ok) throw new Error(`GET /api/me failed (${response.status})`);
+    return { me: (await response.json()) as Me, setCookies: response.headers.getSetCookie() };
+  } catch (error) {
+    console.error('Could not load the signed-in Member; rendering signed out', error);
+    return { me: null, setCookies: [] };
+  }
 }

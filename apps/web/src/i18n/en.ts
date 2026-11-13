@@ -133,4 +133,6 @@ export const en = {
   'notFound.title': 'Page not found',
   'notFound.body': 'There is nothing here. It may have been moved, or the link is wrong.',
   'notFound.home': 'Go to the Debates',
+  'error.title': 'Something went wrong',
+  'error.body': 'This page could not be shown right now. Please try again in a moment.',
 } as const;

@@ -2,6 +2,7 @@
   // Oxford Audience Votes: one before-vote, then one after-vote once the Debate is complete, within the
   // Format's voting window. The API enforces the rules; this island shows the next allowed step.
   import type { Stance } from '@debate-arena/engine';
+  import { onMount } from 'svelte';
   import SignInButton from './SignInButton.svelte';
   import { t } from '../i18n/t';
 
@@ -30,6 +31,10 @@
   let pending = $state(false);
   let error = $state('');
   let announcement = $state('');
+  // Server HTML keeps the button disabled until the island runs: an earlier submit would reload the page
+  // and silently drop the vote.
+  let hydrated = $state(false);
+  onMount(() => (hydrated = true));
 
   const stanceLabel = (s: Stance) => (s === 'for' ? t('side.for') : s === 'against' ? t('side.against') : t('vote.undecided'));
   const closed = $derived(status === 'failed' || (votingClosesAt !== null && Date.parse(votingClosesAt) <= Date.now()));
@@ -92,7 +97,7 @@
             <label class="choice"><input type="radio" name="stance" value={stance} bind:group={choice} /> {stanceLabel(stance)}</label>
           {/each}
         </fieldset>
-        <button type="submit" disabled={pending} aria-busy={pending}>{t(phase === 'before' ? 'vote.castBefore' : 'vote.castAfter')}</button>
+        <button type="submit" disabled={pending || !hydrated} aria-busy={pending}>{t(phase === 'before' ? 'vote.castBefore' : 'vote.castAfter')}</button>
       </form>
     {:else if vote.before && !vote.after && status === 'running'}
       <p class="muted">{t('vote.waitAfter')}</p>

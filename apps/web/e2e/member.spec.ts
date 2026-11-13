@@ -57,6 +57,33 @@ test('keyboard only: start a Debate', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: motion })).toBeVisible();
 });
 
+test('long Motion and long Member name do not scroll sideways at 320px', async ({ page, request }) => {
+  await page.setExtraHTTPHeaders({ 'x-dev-member': `m${'w'.repeat(90)}${Date.now()}` });
+  const { id } = await startDebate(request, { motion: `M${'x'.repeat(299)}` });
+  await waitComplete(request, id);
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto(`/debates/${id}`);
+  await expect(page.getByRole('button', { name: 'Cast before-vote' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+});
+
+test.describe('before JavaScript loads', () => {
+  test.use({ javaScriptEnabled: false });
+
+  // A form submitted before its island hydrates would reload the page and silently drop the input.
+  test('the start form cannot be submitted', async ({ page }) => {
+    await page.goto('/new');
+    await expect(page.getByRole('button', { name: 'Start the Debate' })).toBeDisabled();
+  });
+
+  test('a vote cannot be cast', async ({ page, request }) => {
+    const { id } = await startDebate(request);
+    await waitComplete(request, id);
+    await page.goto(`/debates/${id}`);
+    await expect(page.getByRole('button', { name: 'Cast before-vote' })).toBeDisabled();
+  });
+});
+
 test.describe('axe signed in', () => {
   test('start page', async ({ page }) => {
     await page.goto('/new');

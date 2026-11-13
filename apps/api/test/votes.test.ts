@@ -61,6 +61,14 @@ test('Turns are hidden from a signed-in Member until their before-vote', async (
   expect(after.turns).toHaveLength(6);
 });
 
+test('Turns are not hidden once a before-vote is no longer possible', async () => {
+  const closed = await debate('complete', new Date(Date.now() - 8 * 86_400_000).toISOString());
+  expect(await view(closed, member())).toMatchObject({ turnsHidden: false });
+  expect((await view(closed, member())).turns).toHaveLength(6);
+  const failed = await debate('failed');
+  expect(await view(failed, member())).toMatchObject({ turnsHidden: false });
+});
+
 test('signed-out Viewers still see Turns', async () => {
   const id = await debate('complete');
   expect(await view(id)).toMatchObject({ turnsHidden: false, myVote: null });

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { t } from '../i18n/t';
   import { DEBATE_QUOTA_POINTS, MAX_MOTION_LENGTH, selfJudgingWarning } from '../lib/debate';
 
@@ -29,6 +30,10 @@
   let aiVoters = $state(false);
   let pending = $state(false);
   let error = $state('');
+  // Server HTML keeps submit disabled until the island runs: an earlier submit would reload the page and
+  // lose the Motion.
+  let hydrated = $state(false);
+  onMount(() => (hydrated = true));
 
   const noQuota = $derived(quotaRemaining < DEBATE_QUOTA_POINTS);
   const selfJudging = $derived(selfJudgingWarning({ for: forModel, against: againstModel }, judge || null));
@@ -109,6 +114,6 @@
     <p class="muted">{t('new.cost', { cost: DEBATE_QUOTA_POINTS, left: quotaRemaining })}</p>
   {/if}
 
-  <button type="submit" disabled={pending || noQuota} aria-busy={pending}>{t('new.submit')}</button>
+  <button type="submit" disabled={pending || noQuota || !hydrated} aria-busy={pending}>{t('new.submit')}</button>
   {#if error}<p role="alert" class="error">{error}</p>{/if}
 </form>
