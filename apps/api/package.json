@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@debate-arena/engine": "workspace:*",
+    "better-auth": "1.7.23",
     "hono": "^4.13.18"
   },
   "devDependencies": {

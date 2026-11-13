@@ -1,2 +1,9 @@
-# Copy to .dev.vars and set MODEL_PROVIDER=openrouter in wrangler.jsonc vars to use real models locally.
+# Copy to .dev.vars (never commit it).
+
+# Sign in with GitHub: create an OAuth App with callback http://localhost:8787/api/auth/callback/github
+BETTER_AUTH_SECRET=   # e.g. `openssl rand -base64 32`
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+
+# Real models: also set MODEL_PROVIDER to "openrouter" in wrangler.jsonc vars.
 OPENROUTER_API_KEY=

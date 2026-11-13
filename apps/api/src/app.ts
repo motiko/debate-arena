@@ -1,6 +1,8 @@
 import { isSelfJudging } from '@debate-arena/engine';
 import { Hono } from 'hono';
+import { getAuth } from './auth/auth';
 import { devMemberResolver } from './auth/member';
+import { quotaRemaining } from './db/quota';
 import { getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
 import { startDebate } from './debates/start';
 import { createModels } from './models/factory';
@@ -39,6 +41,13 @@ function summary(d: DebateRecord): DebateSummary {
 export const app = new Hono<{ Bindings: Env }>()
   .basePath('/api')
   .get('/health', c => c.json({ ok: true }))
+  .on(['GET', 'POST'], '/auth/*', c => getAuth(c.env).handler(c.req.raw))
+  .get('/me', async c => {
+    const session = await getAuth(c.env).api.getSession({ headers: c.req.raw.headers });
+    if (!session) return c.json({ error: 'Not signed in' }, 401);
+    const { id, name, image } = session.user;
+    return c.json({ id, name, image: image ?? null, quotaRemaining: await quotaRemaining(c.env.DB, id, new Date()) });
+  })
   .get('/models', c => {
     const { catalog } = createModels(c.env);
     return c.json({ models: catalog.entries.map(e => ({ id: e.id, label: e.label, roles: e.roles })) });
