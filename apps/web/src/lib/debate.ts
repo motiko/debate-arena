@@ -1,6 +1,6 @@
 // Pure view helpers for Debates, shared by pages and islands.
 import type { DebateSummary } from '@debate-arena/api-client';
-import type { OxfordResult, Phase, Side, Turn } from '@debate-arena/engine';
+import { isSelfJudging, type OxfordResult, type Phase, type Side, type Turn } from '@debate-arena/engine';
 import { t } from '../i18n/t';
 
 /** Matches the API's feed page size. */
@@ -85,6 +85,20 @@ export function mergeTurns(known: Turn[], incoming: SlotTurn[]): Turn[] {
   const merged: Turn[] = [];
   for (let i = 0; slots.has(i); i++) merged.push(slots.get(i)!);
   return merged;
+}
+
+/** Quota points a Debate costs (the API's DEBATE_QUOTA_POINTS); the API is the authority. */
+export const DEBATE_QUOTA_POINTS = 2;
+/** The API's limit on a Motion's length. */
+export const MAX_MOTION_LENGTH = 300;
+
+/** Whether the chosen Judge would be Self-Judging: the same model as one of the Debaters. */
+export function selfJudgingWarning(debaters: { for: string; against: string }, judge: string | null): boolean {
+  if (!judge) return false;
+  return isSelfJudging([judge], [
+    { kind: 'ai', model: debaters.for },
+    { kind: 'ai', model: debaters.against },
+  ]);
 }
 
 export function modelLabel(id: string, models: ModelInfo[] = []): string {

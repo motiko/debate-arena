@@ -1,5 +1,21 @@
 import { expect, test } from 'vitest';
-import { groupByPhase, modelLabel, nextFeedCursor, paragraphs, sideLabel, swingText, turnHeading } from '../src/lib/debate';
+import {
+  groupByPhase,
+  modelLabel,
+  nextFeedCursor,
+  paragraphs,
+  selfJudgingWarning,
+  sideLabel,
+  swingText,
+  turnHeading,
+} from '../src/lib/debate';
+
+test('selfJudgingWarning flags a Judge that is a Debater', () => {
+  expect(selfJudgingWarning({ for: 'a/x', against: 'b/y' }, 'a/x')).toBe(true);
+  expect(selfJudgingWarning({ for: 'a/x', against: 'b/y' }, 'b/y')).toBe(true);
+  expect(selfJudgingWarning({ for: 'a/x', against: 'b/y' }, 'c/z')).toBe(false);
+  expect(selfJudgingWarning({ for: 'a/x', against: 'b/y' }, null)).toBe(false);
+});
 
 const format = { phases: [{ name: 'Opening' }, { name: 'Rebuttal' }] };
 const turn = (phaseIndex: number, side: 'for' | 'against') => ({ phaseIndex, side, text: 'x', truncated: false });
