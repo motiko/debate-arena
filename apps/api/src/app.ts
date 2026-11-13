@@ -156,7 +156,7 @@ export const app = new Hono<{ Bindings: Env }>()
     const at = now.toISOString();
     const written =
       parsed.phase === 'before'
-        ? await castBefore(c.env.DB, debate.id, memberId, parsed.stance, at, await voterKey(c.env, memberId))
+        ? await castBefore(c.env.DB, debate.id, memberId, parsed.stance, at, await voterKey(c.env, memberId, debate.id))
         : await castAfter(c.env.DB, debate.id, memberId, parsed.stance, at);
     if (!written) {
       return c.json({ error: `You already voted ${parsed.phase} this Debate` }, 409);

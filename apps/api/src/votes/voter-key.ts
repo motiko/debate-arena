@@ -1,12 +1,16 @@
 import type { AuthEnv } from '../auth/auth';
 
 /**
- * A stable, non-reversible key for the person behind a Member: an HMAC of their linked sign-in account
- * (e.g. GitHub user id), or of the Member id when no account is linked (local dev). It survives account
- * deletion and re-sign-up, so one person cannot vote twice on a Debate; without the secret it cannot be
- * traced back to the account.
+ * A key for the person behind a Member on one Debate: an HMAC of the Debate id and their linked sign-in
+ * account (e.g. GitHub user id), or the Member id when no account is linked (local dev). It survives account
+ * deletion and re-sign-up, so one person cannot vote twice on a Debate. It differs per Debate, so votes
+ * cannot be linked across Debates, and without the secret it cannot be traced back to the account.
  */
-export async function voterKey(env: Pick<AuthEnv, 'DB' | 'BETTER_AUTH_SECRET'>, memberId: string): Promise<string> {
+export async function voterKey(
+  env: Pick<AuthEnv, 'DB' | 'BETTER_AUTH_SECRET'>,
+  memberId: string,
+  debateId: string,
+): Promise<string> {
   const account = await env.DB.prepare(
     'SELECT "providerId", "accountId" FROM account WHERE "userId" = ? ORDER BY "createdAt" LIMIT 1',
   )
@@ -20,6 +24,6 @@ export async function voterKey(env: Pick<AuthEnv, 'DB' | 'BETTER_AUTH_SECRET'>, 
     false,
     ['sign'],
   );
-  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`voter:${identity}`));
+  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`voter:${debateId}:${identity}`));
   return [...new Uint8Array(mac)].map(b => b.toString(16).padStart(2, '0')).join('');
 }

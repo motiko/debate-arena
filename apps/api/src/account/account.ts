@@ -61,16 +61,18 @@ export async function exportMember(db: D1Database, memberId: string): Promise<Me
   };
 }
 
+// SQLite evaluates randomblob() per row, so every row gets its own id and rows cannot be grouped by person.
+const FRESH_ID = `'deleted-' || lower(hex(randomblob(16)))`;
+
 /**
- * Unlinks a deleted Member's Debates and Audience Votes from them by re-assigning a fresh random id, and
- * drops their Quota rows. Results stay the same; nothing points back to the person. One D1 batch, which D1
- * runs as a single transaction.
+ * Unlinks a deleted Member's Debates and Audience Votes from them by giving each row its own random id,
+ * and drops their Quota rows. Results stay the same; nothing points back to the person or links their rows
+ * together. One D1 batch, which D1 runs as a single transaction.
  */
 export async function anonymiseMember(db: D1Database, memberId: string): Promise<void> {
-  const replacement = `deleted-${crypto.randomUUID()}`;
   await db.batch([
-    db.prepare('UPDATE debates SET member_id = ? WHERE member_id = ?').bind(replacement, memberId),
-    db.prepare('UPDATE audience_votes SET member_id = ? WHERE member_id = ?').bind(replacement, memberId),
+    db.prepare(`UPDATE debates SET member_id = ${FRESH_ID} WHERE member_id = ?`).bind(memberId),
+    db.prepare(`UPDATE audience_votes SET member_id = ${FRESH_ID} WHERE member_id = ?`).bind(memberId),
     db.prepare('DELETE FROM quota_usage WHERE member_id = ?').bind(memberId),
   ]);
 }
