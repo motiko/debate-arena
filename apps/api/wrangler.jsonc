@@ -16,7 +16,7 @@
   "queues": {
     "producers": [{ "binding": "STEP_QUEUE", "queue": "debate-steps" }],
     "consumers": [
-      { "queue": "debate-steps", "max_batch_size": 10, "max_retries": 3, "dead_letter_queue": "debate-steps-dlq" }
+      { "queue": "debate-steps", "max_batch_size": 10, "max_batch_timeout": 0, "max_retries": 3, "dead_letter_queue": "debate-steps-dlq" }
     ]
   },
   "durable_objects": {
@@ -42,7 +42,7 @@
       "queues": {
         "producers": [{ "binding": "STEP_QUEUE", "queue": "debate-steps" }],
         "consumers": [
-          { "queue": "debate-steps", "max_batch_size": 10, "max_retries": 3, "dead_letter_queue": "debate-steps-dlq" }
+          { "queue": "debate-steps", "max_batch_size": 10, "max_batch_timeout": 0, "max_retries": 3, "dead_letter_queue": "debate-steps-dlq" }
         ]
       },
       "durable_objects": {
