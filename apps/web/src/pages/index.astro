@@ -1,0 +1,9 @@
+---
+import Base from '../layouts/Base.astro';
+import { t } from '../i18n/t';
+---
+
+<Base title={t('feed.title')} description={t('feed.description')} canonicalPath="/">
+  <h1>{t('feed.title')}</h1>
+  <p>{t('site.tagline')}</p>
+</Base>

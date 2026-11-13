@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "debate-arena-web",
+  "main": "./src/worker.ts",
+  "compatibility_date": "2026-11-13",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "./dist/client", "binding": "ASSETS" },
+  // /api/* is forwarded to the API Worker (same origin). Locally the API runs in its own `wrangler dev`.
+  "services": [{ "binding": "API", "service": "debate-arena-api" }],
+  // Bindings are not inherited by environments, so production repeats them.
+  "env": {
+    "production": {
+      "assets": { "directory": "./dist/client", "binding": "ASSETS" },
+      "services": [{ "binding": "API", "service": "debate-arena-api" }]
+    }
+  }
+}

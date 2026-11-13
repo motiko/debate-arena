@@ -1,0 +1,48 @@
+---
+import '../styles/global.css';
+import { t } from '../i18n/t';
+
+interface Props {
+  title: string;
+  description: string;
+  canonicalPath: string;
+  noindex?: boolean;
+}
+
+const { title, description, canonicalPath, noindex = false } = Astro.props;
+const canonical = new URL(canonicalPath, Astro.site ?? Astro.url).href;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{`${title} · ${t('site.name')}`}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex" />}
+    <meta name="theme-color" content="#fbfaf7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151513" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">{t('site.skip')}</a>
+    <header class="site-header">
+      <div class="wrap">
+        <a class="brand" href="/">{t('site.name')}</a>
+        <slot name="header" />
+      </div>
+    </header>
+    <main id="main" tabindex="-1">
+      <div class="wrap">
+        <slot />
+      </div>
+    </main>
+    <footer class="site-footer">
+      <div class="wrap">
+        <p>{t('site.aiNotice')}</p>
+      </div>
+    </footer>
+  </body>
+</html>
