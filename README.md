@@ -22,14 +22,14 @@ pnpm dev          # applies local D1 migrations and serves the API on http://loc
 Everything runs offline with fake models. Start a Debate as a local Member by sending the `x-dev-member` header (honored only while `DEV_AUTH` is `"true"`, which is the local default):
 
 ```bash
-curl -s -X POST localhost:8787/debates \
+curl -s -X POST localhost:8787/api/debates \
   -H 'content-type: application/json' -H 'x-dev-member: dev-1' \
   -d '{"motion":"Remote work beats office work","debaters":{"for":"fake-a/one","against":"fake-b/one"},"aiVoters":true}'
 
-curl -s localhost:8787/debates/<id>          # the Debate, its Turns, Verdict and AI Audience Result
+curl -s localhost:8787/api/debates/<id>          # the Debate, its Turns, Verdict and AI Audience Result
 ```
 
-`GET /models` lists the models you can use. To watch a Debate live, open a WebSocket to `/debates/<id>/live`.
+`GET /api/models` lists the models you can use. To watch a Debate live, open a WebSocket to `/api/debates/<id>/live`.
 
 ### Real models
 

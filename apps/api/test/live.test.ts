@@ -7,7 +7,7 @@ import worker from '../src/index';
 import { newDebate } from './helpers';
 
 async function openViewer(debateId: string) {
-  const res = await exports.default.fetch(`https://api.test/debates/${debateId}/live`, { headers: { Upgrade: 'websocket' } });
+  const res = await exports.default.fetch(`https://api.test/api/debates/${debateId}/live`, { headers: { Upgrade: 'websocket' } });
   expect(res.status).toBe(101);
   const ws = res.webSocket!;
   ws.accept();
@@ -47,10 +47,10 @@ test('ping gets pong', async () => {
 test('live route: 426 without an upgrade, 404 for an unknown Debate', async () => {
   const d = newDebate();
   await createDebate(env.DB, d);
-  const plain = await exports.default.fetch(`https://api.test/debates/${d.id}/live`);
+  const plain = await exports.default.fetch(`https://api.test/api/debates/${d.id}/live`);
   expect(plain.status).toBe(426);
   expect(await plain.json()).toEqual({ error: 'Expected a WebSocket upgrade' });
-  const unknown = await exports.default.fetch('https://api.test/debates/nope/live', { headers: { Upgrade: 'websocket' } });
+  const unknown = await exports.default.fetch('https://api.test/api/debates/nope/live', { headers: { Upgrade: 'websocket' } });
   expect(unknown.status).toBe(404);
 });
 

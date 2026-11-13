@@ -37,6 +37,7 @@ function summary(d: DebateRecord): DebateSummary {
 }
 
 export const app = new Hono<{ Bindings: Env }>()
+  .basePath('/api')
   .get('/health', c => c.json({ ok: true }))
   .get('/models', c => {
     const { catalog } = createModels(c.env);
