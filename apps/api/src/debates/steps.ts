@@ -49,10 +49,15 @@ export async function runStep(deps: StepDeps, job: StepJob): Promise<StepOutcome
   return 'complete';
 }
 
-/** Marks a running Debate failed (storing the internal reason), refunds its Quota and tells Viewers, once. */
+/**
+ * Marks a running Debate failed (storing the internal reason) and tells Viewers, once. Its Quota is refunded
+ * only if no model cost was charged, so a Motion crafted to make models fail cannot spend money for free.
+ */
 export async function failStep(deps: Pick<StepDeps, 'db' | 'notify'>, debateId: string, reason: string): Promise<void> {
   if (!(await failDebate(deps.db, debateId, reason))) return;
   const debate = await getDebate(deps.db, debateId);
-  if (debate) await refundQuota(deps.db, debate.memberId, debate.quotaPoints, utcDay(debate.createdAt));
+  if (debate && debate.costMicroUsd === 0) {
+    await refundQuota(deps.db, debate.memberId, debate.quotaPoints, utcDay(debate.createdAt));
+  }
   await deps.notify(debateId, { type: 'failed', reason: PUBLIC_FAILURE_REASON });
 }

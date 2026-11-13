@@ -1,7 +1,7 @@
 import { FakeModelClient, JUDGE_OUTPUT_TOKENS, parseStance, parseVerdict, STANCE_OUTPUT_TOKENS } from '@debate-arena/engine';
 import { expect, test } from 'vitest';
 import { FAKE_CATALOG, PRODUCTION_CATALOG } from '../src/models/catalog';
-import { createModels, devFakeReply, meteredClient } from '../src/models/factory';
+import { BudgetExhaustedError, createModels, devFakeReply, meteredClient } from '../src/models/factory';
 import { OpenRouterModelClient } from '../src/models/openrouter';
 
 test('fake provider uses the fake catalog', () => {
@@ -34,6 +34,18 @@ test('metering reports cost from tokens and prices', async () => {
   });
   await client.complete({ model: 'a/x', messages: [{ role: 'user', content: 'a b c' }], maxOutputTokens: 5 });
   expect(costs).toEqual([16]); // 3 input tokens × 2 + 2 output tokens × 5
+});
+
+test('metering checks the Budget guard before every call', async () => {
+  const client = new FakeModelClient();
+  let allowed = true;
+  const metered = meteredClient(client, { 'a/x': { inputPerMTokUsd: 1, outputPerMTokUsd: 1 } }, async () => {}, async () => {
+    if (!allowed) throw new BudgetExhaustedError('spent');
+  });
+  await metered.complete({ model: 'a/x', messages: [], maxOutputTokens: 5 });
+  allowed = false;
+  await expect(metered.complete({ model: 'a/x', messages: [], maxOutputTokens: 5 })).rejects.toBeInstanceOf(BudgetExhaustedError);
+  expect(client.calls).toHaveLength(1);
 });
 
 test('metering a model without a price records nothing rather than NaN', async () => {

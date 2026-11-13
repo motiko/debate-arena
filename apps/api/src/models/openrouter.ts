@@ -1,4 +1,4 @@
-import type { ModelClient, ModelId, ModelRequest, ModelResponse } from '@debate-arena/engine';
+import { utf8Length, type ModelClient, type ModelId, type ModelRequest, type ModelResponse } from '@debate-arena/engine';
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -62,10 +62,12 @@ export class OpenRouterModelClient implements ModelClient {
     if (!choice) throw new OpenRouterError(`OpenRouter returned no choices for ${request.model}`, response.status);
     if (choice.finish_reason === 'error') throw new OpenRouterError(`OpenRouter reported an error for ${request.model}`, response.status);
 
+    // Without usage, charge the worst case (prompt bytes bound its tokens; output is at most max_tokens),
+    // so a missing field can never make a call free and slip past Budget enforcement.
     return {
       text: choice.message?.content ?? '',
-      inputTokens: body.usage?.prompt_tokens ?? 0,
-      outputTokens: body.usage?.completion_tokens ?? 0,
+      inputTokens: body.usage?.prompt_tokens ?? utf8Length(request.messages.map(m => m.content).join('')),
+      outputTokens: body.usage?.completion_tokens ?? request.maxOutputTokens,
       finishReason: choice.finish_reason === 'length' ? 'length' : 'stop',
     };
   }

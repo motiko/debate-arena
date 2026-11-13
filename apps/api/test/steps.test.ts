@@ -1,7 +1,7 @@
 import { FakeModelClient, JUDGE_OUTPUT_TOKENS, STANCE_OUTPUT_TOKENS } from '@debate-arena/engine';
 import { env } from 'cloudflare:workers';
 import { expect, test } from 'vitest';
-import { createDebate, getDebate } from '../src/db/debates';
+import { addCost, createDebate, getDebate } from '../src/db/debates';
 import { quotaRemaining, spendQuota } from '../src/db/quota';
 import { failStep, runStep, type StepDeps } from '../src/debates/steps';
 import type { StepJob } from '../src/debates/start';
@@ -80,6 +80,16 @@ test('jobs for unknown, complete or failed Debates are skipped without model cal
   expect(await runStep(deps, { debateId: d.id })).toBe('skipped');
   expect(await runStep(deps, { debateId: 'nope' })).toBe('skipped');
   expect(client.calls).toHaveLength(0);
+});
+
+test('a failed Debate that already spent money is not refunded', async () => {
+  const { deps } = makeDeps();
+  const d = newDebate({ memberId: `m-${crypto.randomUUID()}` });
+  await spendQuota(env.DB, d.memberId, 2, new Date(d.createdAt));
+  await createDebate(env.DB, d);
+  await addCost(env.DB, d.id, 1);
+  await failStep(deps, d.id, 'Judge never returned a Verdict');
+  expect(await quotaRemaining(env.DB, d.memberId, new Date(d.createdAt))).toBe(4);
 });
 
 test('failStep refunds Quota once and notifies failed once', async () => {

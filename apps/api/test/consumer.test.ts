@@ -23,6 +23,15 @@ test('a successful step is acked and writes a Turn', async () => {
   expect((await getDebate(env.DB, d.id))?.turns).toHaveLength(1);
 });
 
+test('a Debate whose Budget is used up fails at once, without a retry or model call', async () => {
+  const d = newDebate({ budgetReservedMicroUsd: 0 });
+  await createDebate(env.DB, d);
+  const { result, id } = await deliver({ debateId: d.id }, 1);
+  expect(result.explicitAcks).toContain(id);
+  expect(result.retryMessages).toHaveLength(0);
+  expect(await getDebate(env.DB, d.id)).toMatchObject({ status: 'failed', turns: [], costMicroUsd: 0 });
+});
+
 test('a first failure is retried, the second fails the Debate', async () => {
   // The engine refuses to generate a human Debater's Turn, so every attempt throws.
   const d = newDebate({ setup: { ...sampleSetup, debaters: { ...sampleSetup.debaters, for: { kind: 'human', memberId: 'h1' } } } });

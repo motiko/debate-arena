@@ -43,10 +43,23 @@ test('POST then GET returns the public view without private fields', async () =>
     motion: 'Remote work beats office work',
     debaters: { for: { kind: 'ai', model: 'fake-a/one' }, against: { kind: 'ai', model: 'fake-b/one' } },
     panel: ['fake-c/one'],
-    aiVoters: false,
+    aiVoters: [],
+    aiVotersShareDebaterModel: false,
     format: { id: 'classic', name: 'Classic' },
   });
   for (const key of ['memberId', 'budgetReservedMicroUsd', 'costMicroUsd', 'quotaPoints']) expect(view).not.toHaveProperty(key);
+});
+
+test('the public view lists AI Voters and discloses ones sharing a Debater model', async () => {
+  const created = await post('/debates', { ...body, aiVoters: true }, { 'x-dev-member': uniqueId('m') });
+  const { id } = (await created.json()) as { id: string };
+  const view = (await (await exports.default.fetch(`${base}/debates/${id}`)).json()) as {
+    aiVoters: string[];
+    aiVotersShareDebaterModel: boolean;
+  };
+  expect(view.aiVoters).toHaveLength(10);
+  expect(view.aiVoters).toContain('fake-a/one'); // also the For Debater
+  expect(view.aiVotersShareDebaterModel).toBe(true);
 });
 
 test('GET /debates/:id for an unknown id is 404', async () => {

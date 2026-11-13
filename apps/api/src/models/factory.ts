@@ -36,14 +36,24 @@ export function createModels(env: ModelEnv): Models {
   return { client, catalog };
 }
 
-/** Wraps a client so each successful call reports its cost in micro-USD (tokens × price per million tokens). */
+/** Thrown when a Debate has spent its reserved Budget; not worth retrying. */
+export class BudgetExhaustedError extends Error {
+  override name = 'BudgetExhaustedError';
+}
+
+/**
+ * Wraps a client so each successful call reports its cost in micro-USD (tokens × price per million tokens).
+ * `guard` runs before every call and throws (e.g. BudgetExhaustedError) to stop spending.
+ */
 export function meteredClient(
   client: ModelClient,
   prices: PriceTable,
   onCost: (microUsd: number) => Promise<void>,
+  guard: () => Promise<void> = async () => {},
 ): ModelClient {
   return {
     async complete(request) {
+      await guard();
       const response = await client.complete(request);
       const price = Object.hasOwn(prices, request.model) ? prices[request.model] : undefined;
       if (price) {

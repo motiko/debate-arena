@@ -46,12 +46,12 @@ test('maps text, usage and a length stop', async () => {
   });
 });
 
-test('null content becomes empty text and missing usage becomes zero', async () => {
+test('null content becomes empty text, and missing usage is charged at its worst case', async () => {
   const { fetcher } = stub(200, { choices: [{ message: { content: null }, finish_reason: 'stop' }] });
   expect(await new OpenRouterModelClient('k', { fetcher }).complete(req)).toEqual({
     text: '',
-    inputTokens: 0,
-    outputTokens: 0,
+    inputTokens: 2, // UTF-8 bytes of the prompt ("hi"), an upper bound on its tokens
+    outputTokens: 10, // the full max_tokens
     finishReason: 'stop',
   });
 });

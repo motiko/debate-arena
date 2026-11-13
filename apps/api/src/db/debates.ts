@@ -157,6 +157,14 @@ export async function failDebate(db: D1Database, id: string, reason: string): Pr
   return changed(result);
 }
 
+export async function getBudget(db: D1Database, id: string): Promise<{ reservedMicroUsd: number; spentMicroUsd: number } | null> {
+  const row = await db
+    .prepare('SELECT budget_reserved_micro_usd, cost_micro_usd FROM debates WHERE id = ?')
+    .bind(id)
+    .first<{ budget_reserved_micro_usd: number; cost_micro_usd: number }>();
+  return row ? { reservedMicroUsd: row.budget_reserved_micro_usd, spentMicroUsd: row.cost_micro_usd } : null;
+}
+
 export async function addCost(db: D1Database, id: string, microUsd: number): Promise<void> {
   await db
     .prepare('UPDATE debates SET cost_micro_usd = cost_micro_usd + ? WHERE id = ?')

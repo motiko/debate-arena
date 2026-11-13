@@ -1,3 +1,4 @@
+import { isSelfJudging } from '@debate-arena/engine';
 import { Hono } from 'hono';
 import { devMemberResolver } from './auth/member';
 import { getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
@@ -16,7 +17,9 @@ function publicView(d: DebateRecord) {
     debaters: d.setup.debaters,
     panel: d.setup.panel,
     selfJudging: d.selfJudging,
-    aiVoters: d.aiVoters.length > 0,
+    aiVoters: d.aiVoters,
+    // Disclosed like Self-Judging: an AI Voter that is the same model as a Debater (GLOSSARY: AI Voter).
+    aiVotersShareDebaterModel: isSelfJudging(d.aiVoters, [d.setup.debaters.for, d.setup.debaters.against]),
     turns: d.turns,
     verdict: d.verdict,
     aiAudience: d.aiAudience,
