@@ -1,0 +1,24 @@
+---
+import type { PublicDebate } from '@debate-arena/api-client';
+import AiLabel from './AiLabel.astro';
+import SelfJudgingBadge from './SelfJudgingBadge.astro';
+import { t } from '../i18n/t';
+import { modelLabel, paragraphs, sideLabel, type ModelInfo } from '../lib/debate';
+
+interface Props {
+  verdict: NonNullable<PublicDebate['verdict']>;
+  selfJudging: boolean;
+  models: ModelInfo[];
+}
+
+const { verdict, selfJudging, models } = Astro.props;
+---
+
+<section class="card stack" aria-labelledby="verdict-title">
+  <h2 id="verdict-title">{t('verdict.title')} <AiLabel /> {selfJudging && <SelfJudgingBadge />}</h2>
+  <p>
+    <strong class={`side-${verdict.winner}`}>{t('verdict.winner', { side: sideLabel(verdict.winner) })}</strong>
+  </p>
+  {paragraphs(verdict.reasoning).map(p => <p>{p}</p>)}
+  <p class="muted">{t('verdict.judges', { judges: verdict.judges.map(j => modelLabel(j, models)).join(', ') })}</p>
+</section>
