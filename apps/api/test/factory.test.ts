@@ -1,7 +1,7 @@
 import { FakeModelClient, JUDGE_OUTPUT_TOKENS, parseStance, parseVerdict, STANCE_OUTPUT_TOKENS } from '@debate-arena/engine';
-import { expect, test } from 'vitest';
-import { FAKE_CATALOG, PRODUCTION_CATALOG } from '../src/models/catalog';
-import { BudgetExhaustedError, createModels, devFakeReply, meteredClient } from '../src/models/factory';
+import { expect, test, vi } from 'vitest';
+import { FAKE_CATALOG, hasRole, PRODUCTION_CATALOG } from '../src/models/catalog';
+import { BudgetExhaustedError, createModels, devFakeReply, meteredClient, SLOW_FAKE_DELAY_MS } from '../src/models/factory';
 import { OpenRouterModelClient } from '../src/models/openrouter';
 
 test('fake provider uses the fake catalog', () => {
@@ -55,4 +55,27 @@ test('metering a model without a price records nothing rather than NaN', async (
   });
   await client.complete({ model: 'a/x', messages: [], maxOutputTokens: 5 });
   expect(costs).toEqual([]);
+});
+
+test('fake-slow Debater replies after the slow delay', async () => {
+  vi.useFakeTimers();
+  try {
+    const { client } = createModels({ MODEL_PROVIDER: 'fake' });
+    let done = false;
+    const reply = client.complete({ model: 'fake-slow/one', messages: [{ role: 'user', content: 'x' }], maxOutputTokens: 100 }).then(r => {
+      done = true;
+      return r;
+    });
+    await vi.advanceTimersByTimeAsync(SLOW_FAKE_DELAY_MS - 1);
+    expect(done).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect((await reply).text).toContain('fake-slow/one');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('fake-slow is a Debater only', () => {
+  expect(hasRole(FAKE_CATALOG, 'fake-slow/one', 'debater')).toBe(true);
+  expect(hasRole(FAKE_CATALOG, 'fake-slow/one', 'judge')).toBe(false);
 });
