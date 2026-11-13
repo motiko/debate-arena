@@ -1,7 +1,7 @@
 import { isSelfJudging } from '@debate-arena/engine';
 import { Hono } from 'hono';
 import { getAuth } from './auth/auth';
-import { devMemberResolver } from './auth/member';
+import { memberResolver } from './auth/member';
 import { quotaRemaining } from './db/quota';
 import { getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
 import { startDebate } from './debates/start';
@@ -53,7 +53,7 @@ export const app = new Hono<{ Bindings: Env }>()
     return c.json({ models: catalog.entries.map(e => ({ id: e.id, label: e.label, roles: e.roles })) });
   })
   .post('/debates', async c => {
-    const memberId = await devMemberResolver(c.env)(c.req.raw);
+    const memberId = await memberResolver(c.env)(c.req.raw);
     if (!memberId) return c.json({ error: 'Sign in to start a Debate' }, 401);
     let input: unknown;
     try {
