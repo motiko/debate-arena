@@ -43,5 +43,5 @@ test('hasRole checks catalog membership and role', () => {
 });
 
 test('priceTable covers exactly the catalog', () => {
-  expect(Object.keys(priceTable(FAKE_CATALOG)).sort()).toEqual(FAKE_CATALOG.entries.map(e => e.id).sort());
+  expect(Object.keys(priceTable(FAKE_CATALOG)).toSorted()).toEqual(FAKE_CATALOG.entries.map(e => e.id).toSorted());
 });

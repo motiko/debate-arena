@@ -17,8 +17,10 @@ test('openrouter provider uses the production catalog and requires a key', () =>
   expect(models.client).toBeInstanceOf(OpenRouterModelClient);
 });
 
+const ask = (maxOutputTokens: number, content = 'x') =>
+  devFakeReply({ model: 'fake-a/one', messages: [{ role: 'user', content }], maxOutputTokens });
+
 test('dev fake replies parse as a Verdict and as stances', () => {
-  const ask = (maxOutputTokens: number, content = 'x') => devFakeReply({ model: 'fake-a/one', messages: [{ role: 'user', content }], maxOutputTokens });
   expect(parseVerdict(ask(JUDGE_OUTPUT_TOKENS))).not.toBeNull();
   expect(parseStance(ask(STANCE_OUTPUT_TOKENS))).toBe('undecided');
   expect(parseStance(ask(STANCE_OUTPUT_TOKENS, 'You have heard the whole debate.'))).toMatch(/^(for|against)$/);

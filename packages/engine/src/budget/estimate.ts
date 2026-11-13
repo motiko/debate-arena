@@ -21,10 +21,11 @@ export function utf8Length(text: string): number {
   return bytes;
 }
 
+const isValidPrice = (n: unknown) => typeof n === 'number' && Number.isFinite(n) && n >= 0;
+
 function priceOf(prices: PriceTable, model: ModelId): ModelPrice {
   const price = Object.hasOwn(prices, model) ? prices[model] : undefined;
-  const valid = (n: unknown) => typeof n === 'number' && Number.isFinite(n) && n >= 0;
-  if (!price || !valid(price.inputPerMTokUsd) || !valid(price.outputPerMTokUsd))
+  if (!price || !isValidPrice(price.inputPerMTokUsd) || !isValidPrice(price.outputPerMTokUsd))
     throw new UnknownModelPriceError(`No valid price for ${model}`);
   return price;
 }
