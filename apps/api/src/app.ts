@@ -1,5 +1,6 @@
 import { isSelfJudging, type Stance } from '@debate-arena/engine';
 import { Hono } from 'hono';
+import { exportMember } from './account/account';
 import { getAuth } from './auth/auth';
 import { memberResolver } from './auth/member';
 import { quotaRemaining } from './db/quota';
@@ -76,6 +77,13 @@ export const app = new Hono<{ Bindings: Env }>()
     if (!session) return c.json({ error: 'Not signed in' }, 401);
     const { id, name, image } = session.user;
     return c.json({ id, name, image: image ?? null, quotaRemaining: await quotaRemaining(c.env.DB, id, new Date()) });
+  })
+  .get('/me/export', async c => {
+    const session = await getAuth(c.env).api.getSession({ headers: c.req.raw.headers });
+    if (!session) return c.json({ error: 'Not signed in' }, 401);
+    const data = await exportMember(c.env.DB, session.user.id);
+    if (!data) return c.json({ error: 'Not signed in' }, 401);
+    return c.json(data);
   })
   .get('/models', c => {
     const { catalog } = createModels(c.env);

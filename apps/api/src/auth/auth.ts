@@ -1,4 +1,5 @@
 import { betterAuth, type BetterAuthOptions } from 'better-auth';
+import { anonymiseMember } from '../account/account';
 
 export interface AuthEnv {
   DB: D1Database;
@@ -22,7 +23,15 @@ export function authOptions(env: AuthEnv) {
     advanced: { ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] } },
     // In-memory limits reset per isolate on Workers, so counts live in D1.
     rateLimit: { enabled: true, storage: 'database' },
-    user: { deleteUser: { enabled: true } },
+    user: {
+      deleteUser: {
+        enabled: true,
+        // Runs before the user row goes; if it throws, the deletion is aborted.
+        beforeDelete: async user => {
+          await anonymiseMember(env.DB, user.id);
+        },
+      },
+    },
   } satisfies BetterAuthOptions;
 }
 
