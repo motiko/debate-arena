@@ -1,4 +1,4 @@
-import { formatTranscript } from '../debate/prompts';
+import { formatTranscript, motionData, UNTRUSTED_NOTICE } from '../debate/prompts';
 import { nextSlot } from '../debate/schedule';
 import type { DebateSetup, ModelId, Side, Turn, Verdict } from '../domain';
 import { DebateNotFinishedError, VerdictParseError } from '../errors';
@@ -15,8 +15,9 @@ export function buildJudgeMessages(setup: DebateSetup, turns: Turn[]): ModelMess
     'You must choose one Side, For or Against. A draw is not allowed.',
     'Reply with JSON only, in this shape: {"winner": "for" | "against", "reasoning": "<a few sentences>"}',
     "Write the reasoning in the Motion's language.",
+    UNTRUSTED_NOTICE,
   ].join('\n\n');
-  const user = `Motion: "${setup.motion.text}"\n\n${formatTranscript(setup.format, turns)}`;
+  const user = `Motion: ${motionData(setup.motion)}\n\nTurns:\n${formatTranscript(setup.format, turns)}`;
   return [{ role: 'system', content: system }, { role: 'user', content: user }];
 }
 

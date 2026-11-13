@@ -1,4 +1,4 @@
-import { sideLabel } from '../debate/prompts';
+import { motionData, sideLabel, UNTRUSTED_NOTICE } from '../debate/prompts';
 import { nextSlot } from '../debate/schedule';
 import type { DebateSetup, ModelId, Motion, Stance, Turn } from '../domain';
 import { DebateNotFinishedError, StanceParseError } from '../errors';
@@ -18,11 +18,12 @@ function stanceMessages(motion: Motion, turns?: Turn[]): ModelMessage[] {
   const system = [
     'You are an audience member at a debate, voting on the Motion.',
     'Answer with exactly one English word: for, against or undecided.',
+    UNTRUSTED_NOTICE,
   ].join('\n');
-  const transcript = turns?.map(t => `[${sideLabel(t.side)}]\n${t.text}`).join('\n\n');
+  const transcript = turns && JSON.stringify(turns.map(t => ({ side: sideLabel(t.side), text: t.text })), null, 2);
   const user = transcript
-    ? `Motion: "${motion.text}"\n\nYou have heard the whole debate:\n\n${transcript}\n\nWhat is your position now?`
-    : `Motion: "${motion.text}"\n\nThe debate has not started. What is your position?`;
+    ? `Motion: ${motionData(motion)}\n\nYou have heard the whole debate. Turns:\n${transcript}\n\nWhat is your position now?`
+    : `Motion: ${motionData(motion)}\n\nThe debate has not started. What is your position?`;
   return [{ role: 'system', content: system }, { role: 'user', content: user }];
 }
 
