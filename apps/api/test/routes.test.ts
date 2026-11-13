@@ -2,7 +2,7 @@ import { exports } from 'cloudflare:workers';
 import { expect, test } from 'vitest';
 import { uniqueId } from './helpers';
 
-const base = 'https://api.test';
+const base = 'https://api.test/api';
 const body = { motion: 'Remote work beats office work', debaters: { for: 'fake-a/one', against: 'fake-b/one' }, aiVoters: false };
 
 function post(path: string, payload: unknown, headers: Record<string, string> = {}) {

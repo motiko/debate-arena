@@ -3,6 +3,7 @@
   "name": "debate-arena-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-11-13",
+  "compatibility_flags": ["nodejs_compat"],
   "d1_databases": [
     {
       "binding": "DB",
@@ -25,11 +26,11 @@
   "exports": {
     "DebateRoom": { "type": "durable-object", "storage": "sqlite" }
   },
-  "vars": { "MODEL_PROVIDER": "fake", "DEV_AUTH": "true" },
+  "vars": { "MODEL_PROVIDER": "fake", "DEV_AUTH": "false", "BETTER_AUTH_URL": "http://localhost:8787" },
   // Bindings and vars are not inherited by environments, so production repeats them.
   "env": {
     "production": {
-      "vars": { "MODEL_PROVIDER": "openrouter", "DEV_AUTH": "false" },
+      "vars": { "MODEL_PROVIDER": "openrouter", "DEV_AUTH": "false", "BETTER_AUTH_URL": "https://debate-arena.invalid" },
       "d1_databases": [
         {
           "binding": "DB",

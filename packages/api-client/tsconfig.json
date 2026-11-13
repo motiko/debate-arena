@@ -4,5 +4,5 @@
     "lib": ["ES2023", "DOM"]
   },
   // The API's route types refer to Workers globals (Env, D1Database), so their declarations are loaded too.
-  "include": ["src", "../../apps/api/worker-configuration.d.ts"]
+  "include": ["src", "../../apps/api/worker-configuration.d.ts", "../../apps/api/src/secrets.d.ts"]
 }

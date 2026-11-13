@@ -8,13 +8,14 @@
     "./events": "./src/live/events.ts"
   },
   "scripts": {
-    "dev": "wrangler d1 migrations apply DB --local && wrangler dev",
+    "dev": "wrangler d1 migrations apply DB --local && wrangler dev --var DEV_AUTH:true",
     "types": "wrangler types",
     "typecheck": "wrangler types && tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
     "@debate-arena/engine": "workspace:*",
+    "better-auth": "1.7.23",
     "hono": "^4.13.18"
   },
   "devDependencies": {
