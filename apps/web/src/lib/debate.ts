@@ -118,6 +118,12 @@ export function motionSize(text: string): MotionSize {
   return text.length <= 120 ? 'l' : text.length <= 200 ? 'm' : 's';
 }
 
+/** The slot after `count` Turns in the Format's speaking order, or null once every slot is filled. */
+export function nextSpeaker(format: { phases: { order: Side[] }[] }, count: number): { phaseIndex: number; side: Side } | null {
+  const slots = format.phases.flatMap((phase, phaseIndex) => phase.order.map(side => ({ phaseIndex, side })));
+  return slots[count] ?? null;
+}
+
 export function spokeCount(turns: Pick<Turn, 'side'>[], side: Side): number {
   return turns.filter(turn => turn.side === side).length;
 }

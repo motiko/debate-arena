@@ -4,12 +4,12 @@ import AudienceResultView from '../../components/AudienceResultView.astro';
 import BatchBadge from '../../components/BatchBadge.astro';
 import VerdictView from '../../components/VerdictView.astro';
 import LiveTurns from '../../islands/LiveTurns.svelte';
+import PhaseFloor from '../../islands/PhaseFloor.svelte';
 import ReportForm from '../../islands/ReportForm.svelte';
-import TurnItem from '../../islands/TurnItem.svelte';
 import VotePanel from '../../islands/VotePanel.svelte';
 import Base from '../../layouts/Base.astro';
 import { t } from '../../i18n/t';
-import { groupByPhase, modelLabel, swingText, turnHeading, type ModelInfo } from '../../lib/debate';
+import { debaterLabel, modelLabel, swingText, type ModelInfo } from '../../lib/debate';
 import { formatDate } from '../../lib/format';
 
 const { api, me } = Astro.locals;
@@ -22,11 +22,8 @@ if (!debateRes.ok) throw new Error(`GET /api/debates/${id} failed (${debateRes.s
 const debate = await debateRes.json();
 const models: ModelInfo[] = modelsRes.ok ? (await modelsRes.json()).models : [];
 
-const debater = (side: 'for' | 'against') => {
-  const d = debate.debaters[side];
-  return d.kind === 'ai' ? modelLabel(d.model, models) : d.memberId;
-};
-const groups = groupByPhase(debate.format, debate.turns);
+const debater = (side: 'for' | 'against') => debaterLabel(debate.debaters[side], models);
+const speakers = { for: debater('for'), against: debater('against') };
 const isBatch = debate.kind === 'batch';
 ---
 
@@ -76,17 +73,11 @@ const isBatch = debate.kind === 'batch';
       debate.turnsHidden ? (
         <p class="note">{t('debate.turnsHidden')}</p>
       ) : debate.status === 'running' && !isBatch ? (
-        <LiveTurns client:load debateId={debate.id} format={debate.format} initialTurns={debate.turns} />
-      ) : groups.length === 0 ? (
+        <LiveTurns client:load debateId={debate.id} format={debate.format} speakers={speakers} initialTurns={debate.turns} />
+      ) : debate.turns.length === 0 ? (
         <p class="muted">{t('debate.noTurns')}</p>
       ) : (
-        groups.map(group => (
-          <div class="stack">
-            {group.turns.map(turn => (
-              <TurnItem heading={turnHeading(debate.format, turn)} text={turn.text} truncated={turn.truncated} side={turn.side} />
-            ))}
-          </div>
-        ))
+        <PhaseFloor format={debate.format} turns={debate.turns} speakers={speakers} />
       )
     }
   </section>

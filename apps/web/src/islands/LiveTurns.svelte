@@ -2,23 +2,24 @@
   // A running Debate's Turns, kept up to date over the Debate's WebSocket. After each (re)connect the Debate is
   // fetched once, so Turns written between page render and socket open still appear, exactly once.
   import type { DebateEvent } from '@debate-arena/api-client';
-  import type { Turn } from '@debate-arena/engine';
+  import type { Side, Turn } from '@debate-arena/engine';
   import { onMount } from 'svelte';
-  import TurnItem from './TurnItem.svelte';
+  import PhaseFloor from './PhaseFloor.svelte';
   import { t } from '../i18n/t';
-  import { groupByPhase, mergeTurns, turnHeading, type SlotTurn } from '../lib/debate';
+  import { mergeTurns, nextSpeaker, type SlotTurn } from '../lib/debate';
   import { connectLive, liveUrl, type LiveStatus } from '../lib/live';
 
   interface Props {
     debateId: string;
-    format: { phases: { name: string }[] };
+    format: { phases: { name: string; order: Side[]; maxWords: number }[] };
+    speakers: Record<Side, string>;
     initialTurns: Turn[];
     fetcher?: typeof fetch;
     WebSocketImpl?: typeof WebSocket;
     reload?: () => void;
   }
 
-  let { debateId, format, initialTurns, fetcher = fetch, WebSocketImpl, reload = () => location.reload() }: Props = $props();
+  let { debateId, format, speakers, initialTurns, fetcher = fetch, WebSocketImpl, reload = () => location.reload() }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   let turns = $state<Turn[]>(initialTurns);
@@ -26,7 +27,7 @@
   let status = $state<LiveStatus>('connecting');
   let outcome = $state<'running' | 'complete' | 'failed'>('running');
 
-  const groups = $derived(groupByPhase(format, turns));
+  const next = $derived(outcome === 'running' ? nextSpeaker(format, turns.length) : null);
   const statusText = $derived(
     outcome === 'complete' ? t('live.finished') : outcome === 'failed' ? t('debate.failed') : t(`live.${status}`),
   );
@@ -84,11 +85,7 @@
 </script>
 
 <div role="log" aria-live="polite" aria-relevant="additions" aria-label={t('live.region')} class="stack">
-  {#each groups as group (group.index)}
-    {#each group.turns as turn, i (`${group.index}-${i}`)}
-      <TurnItem heading={turnHeading(format, turn)} text={turn.text} truncated={turn.truncated} side={turn.side} />
-    {/each}
-  {/each}
+  <PhaseFloor {format} {turns} {speakers} {next} />
 </div>
 
 <p class="live-status" role="status">
