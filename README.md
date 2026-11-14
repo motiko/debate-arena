@@ -53,7 +53,7 @@ Every Motion is screened by an AI model first (Llama Guard 4 in production). A F
 
 ### Batch Debates
 
-Tick **Batch Debate** on the start form (or send `"batch": true` to `POST /api/debates`). A Batch Debate costs 1 Quota point instead of 2. It is generated through OpenRouter's Batch API at batch prices (about half price for most models), using only batch-capable models: Claude Haiku 5.5, GPT-6.1 Terra, Gemini 3.8 Flash and DeepSeek V4.1 Flash.
+Tick **Batch Debate** on the start form (or send `"batch": true` to `POST /api/debates`). A Batch Debate costs 1 Quota point instead of 2. It is generated through OpenRouter's Batch API at batch prices (about half price for most models), using only batch-capable models: Claude Haiku 5.5, GPT-6.1 Terra and DeepSeek V4.1 Flash.
 
 - Each model call is sent as its own batch, and its step is queued again with a growing delay (from 1 minute to at most 15) until the result is in. A Batch Debate usually takes about an hour, and at worst a day or more.
 - Until it is complete, only the Member who started it can see it. It has no live stream and takes no Audience Votes; with AI Voters it gets an AI Audience Result.
