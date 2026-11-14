@@ -146,7 +146,14 @@ a { color: var(--green); text-underline-offset: 0.18em; }
   padding-block: 0.6rem;
 }
 .site-header nav { display: flex; flex-wrap: wrap; align-items: center; gap: 0 1rem; margin-left: auto; font-size: 0.95rem; }
-@media (min-width: 48rem) { .site-header nav { gap: 0 1.25rem; } }
+/* Phone: brand and Sign out on the first row, the nav on the second. Wide: one row, Sign out at the end. */
+.site-header .session { margin-left: auto; }
+.session + nav { flex-basis: 100%; }
+@media (min-width: 48rem) {
+  .site-header nav { gap: 0 1.25rem; }
+  .session + nav { flex-basis: auto; }
+  .site-header .session { order: 1; margin-left: 0; }
+}
 .site-header nav a,
 .site-header nav button { min-height: 2.75rem; }
 .site-header nav a { display: inline-flex; align-items: center; }

@@ -7,6 +7,14 @@ const { me } = Astro.locals;
 const callbackPath = Astro.url.pathname + Astro.url.search;
 ---
 
+{/* Sign out comes first: on a phone it shares the brand's row, so the nav keeps one row of its own. */}
+{
+  me && (
+    <div class="session">
+      <SignOutButton client:idle />
+    </div>
+  )
+}
 <nav aria-label={t('header.nav')}>
   <a href="/new">{t('header.start')}</a>
   {
@@ -22,7 +30,6 @@ const callbackPath = Astro.url.pathname + Astro.url.search;
             <span class="quota-short">{t('header.quotaShort', { points: me.quotaRemaining })}</span>
           </span>
         </a>
-        <SignOutButton client:idle />
       </>
     ) : (
       <SignInButton client:idle callbackPath={callbackPath} />
