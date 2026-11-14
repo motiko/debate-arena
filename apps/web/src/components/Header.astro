@@ -12,6 +12,7 @@ const callbackPath = Astro.url.pathname + Astro.url.search;
   {
     me ? (
       <>
+        {me.isModerator && <a href="/moderation">{t('header.moderation')}</a>}
         <a href="/account" aria-label={`${t('header.account')}: ${me.name}`}>
           {me.name}
         </a>

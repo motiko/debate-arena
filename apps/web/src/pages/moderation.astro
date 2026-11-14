@@ -1,0 +1,107 @@
+---
+import DecisionForm from '../islands/DecisionForm.svelte';
+import SignInButton from '../islands/SignInButton.svelte';
+import Base from '../layouts/Base.astro';
+import { t, type MessageKey } from '../i18n/t';
+import { formatDate } from '../lib/format';
+
+interface QueueItem {
+  id: string;
+  motion: string;
+  status: string;
+  visibility: string;
+  flagged: boolean;
+  screen: { flagged: boolean; categories: string[] } | null;
+  createdAt: string;
+  memberReports: number;
+  anonymousReports: number;
+  reports: { reason: string; explanation: string; reporterName: string | null; reporterEmail: string | null; byMember: boolean; createdAt: string }[];
+}
+
+const { api, me } = Astro.locals;
+let items: QueueItem[] = [];
+if (me && !me.isModerator) Astro.response.status = 403;
+if (me?.isModerator) {
+  const res = await api.api.moderation.queue.$get();
+  if (!res.ok) throw new Error(`GET /api/moderation/queue failed (${res.status})`);
+  items = ((await res.json()) as { items: QueueItem[] }).items;
+}
+
+const KNOWN_CATEGORIES = ['S1', 'S3', 'S4', 'S9', 'S10', 'S11', 'S12', 'unscreened'];
+const category = (code: string) => (KNOWN_CATEGORIES.includes(code) ? t(`moderation.category.${code}` as MessageKey) : code);
+const reason = (r: string) => t(`report.reason.${r}` as MessageKey);
+---
+
+<Base title={t('moderation.title')} description={t('moderation.description')} canonicalPath="/moderation" noindex>
+  <h1>{t('moderation.title')}</h1>
+  {
+    !me ? (
+      <div class="card stack">
+        <p>{t('moderation.signIn')}</p>
+        <SignInButton client:load callbackPath="/moderation" />
+      </div>
+    ) : !me.isModerator ? (
+      <p class="note">{t('moderation.forbidden')}</p>
+    ) : items.length === 0 ? (
+      <p>{t('moderation.empty')}</p>
+    ) : (
+      <>
+        <p class="muted">{t('moderation.intro')}</p>
+        <ol class="queue stack" role="list">
+          {items.map(item => (
+            <li class="card stack">
+              <h2>
+                <a href={`/debates/${item.id}`}>{item.motion}</a>
+              </h2>
+              <p class="muted">
+                {t('moderation.status', { status: item.status, visibility: item.visibility })} ·{' '}
+                <time datetime={item.createdAt}>{formatDate(item.createdAt)}</time>
+              </p>
+              {item.flagged && item.screen && (
+                <p class="note">{t('moderation.flagged', { categories: item.screen.categories.map(category).join(', ') })}</p>
+              )}
+              {item.memberReports + item.anonymousReports > 0 && (
+                <>
+                  <p>{t('moderation.reports', { members: item.memberReports, anonymous: item.anonymousReports })}</p>
+                  <ul class="reports stack" role="list">
+                    {item.reports.map(r => (
+                      <li>
+                        <p class="muted">
+                          {t('moderation.reportBy', {
+                            reason: reason(r.reason),
+                            who: r.byMember ? t('moderation.byMember') : t('moderation.anonymous'),
+                            date: formatDate(r.createdAt),
+                          })}
+                        </p>
+                        <p>{r.explanation}</p>
+                        {(r.reporterName || r.reporterEmail) && (
+                          <p class="muted">{t('moderation.contact', { contact: [r.reporterName, r.reporterEmail].filter(Boolean).join(', ') })}</p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <DecisionForm client:visible debateId={item.id} />
+            </li>
+          ))}
+        </ol>
+      </>
+    )
+  }
+</Base>
+
+<style>
+  .queue,
+  .reports {
+    list-style: none;
+    padding: 0;
+  }
+  .queue h2 {
+    font-size: 1.15rem;
+  }
+  .reports li {
+    border-left: 3px solid var(--border);
+    padding-left: 0.75rem;
+  }
+</style>

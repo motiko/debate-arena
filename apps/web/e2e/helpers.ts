@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, type APIRequestContext, type Page } from '@playwright/test';
+import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 
 export const uniqueMember = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -25,12 +25,13 @@ export async function waitComplete(request: APIRequestContext, id: string): Prom
 }
 
 /**
- * Waits until islands have hydrated (Astro drops the `ssr` attribute), so input reaches Svelte state.
- * `client:visible` islands hydrate only once shown, so only visible ones are waited for.
+ * Waits until islands have hydrated (Astro drops the `ssr` attribute), so input reaches Svelte state. On a page,
+ * `client:visible` islands are skipped (they hydrate only when scrolled into view); within a scope such as one
+ * queue item, all its islands are waited for.
  */
-export async function hydrated(page: Page): Promise<void> {
-  await expect(page.locator('astro-island[ssr]:not([client="visible"])')).toHaveCount(0);
-  await expect(page.locator('astro-island[ssr][client="visible"]:visible')).toHaveCount(0);
+export async function hydrated(scope: Page | Locator): Promise<void> {
+  const selector = 'page' in scope ? 'astro-island[ssr]' : 'astro-island[ssr]:not([client="visible"])';
+  await expect(scope.locator(selector)).toHaveCount(0);
 }
 
 export async function expectNoAxeViolations(page: Page): Promise<void> {
