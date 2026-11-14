@@ -162,7 +162,7 @@ export const app = new Hono<{ Bindings: Env }>()
   })
   .get('/models', c => {
     const { catalog } = createModels(c.env);
-    return c.json({ models: catalog.entries.map(e => ({ id: e.id, label: e.label, roles: e.roles })) });
+    return c.json({ models: catalog.entries.map(e => ({ id: e.id, label: e.label, roles: e.roles, batch: e.batchPrice !== undefined })) });
   })
   .post('/debates', async c => {
     if (!isJson(c.req.header('content-type'))) return c.json({ error: NOT_JSON }, 415);

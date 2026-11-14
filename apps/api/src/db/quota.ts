@@ -1,5 +1,7 @@
 export const DAILY_QUOTA_POINTS = 6;
 export const DEBATE_QUOTA_POINTS = 2;
+/** A Batch Debate counts as less than a full Debate (GLOSSARY: Quota). */
+export const BATCH_DEBATE_QUOTA_POINTS = 1;
 
 export function utcDay(at: Date | string): string {
   return new Date(at).toISOString().slice(0, 10);
