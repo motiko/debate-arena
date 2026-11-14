@@ -45,8 +45,8 @@
         "MODEL_PROVIDER": "openrouter",
         "DEV_AUTH": "false",
         // The web Worker's address, e.g. https://debate-arena-web.<subdomain>.workers.dev
-        "BETTER_AUTH_URL": "REPLACE_ME_PRODUCTION_URL",
-        "MODERATOR_GITHUB_IDS": "",
+        "BETTER_AUTH_URL": "https://debate-arena-web.motiko.workers.dev",
+        "MODERATOR_GITHUB_IDS": "875618",
         "EMAIL_PROVIDER": "none",
         "EMAIL_FROM": ""
       },
@@ -55,7 +55,7 @@
           "binding": "DB",
           "database_name": "debate-arena",
           // From `wrangler d1 create debate-arena --jurisdiction=eu` (EU jurisdiction: Member data stays in the EU).
-          "database_id": "REPLACE_ME_D1_ID",
+          "database_id": "be2f5318-26a6-4af8-ab16-7e00d580f489",
           "migrations_dir": "migrations"
         }
       ],
