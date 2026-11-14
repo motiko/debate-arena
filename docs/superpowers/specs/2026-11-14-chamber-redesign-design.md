@@ -51,8 +51,8 @@ read as a contest between two benches facing each other across the floor, and it
 
 ## The Debate page
 
-Top to bottom: band (header, Motion, benches and dispatch box), floor (Turns by phase), Verdict, Audience
-division, AI Audience Result (when present), Record.
+Top to bottom: band (header, Motion, benches and dispatch box), "How this Debate works", floor (Turns by phase),
+after-vote (when due), Verdict, Audience division, AI Audience Result (when present), Record, the way onward.
 
 ### Band
 
@@ -65,25 +65,40 @@ division, AI Audience Result (when present), Record.
 
   | State | Box shows |
   |---|---|
-  | `turnsHidden` (signed-in Member who can still cast a before-vote) | "Where do you stand?" and the before-vote form (the existing VotePanel, before phase only) |
+  | `turnsHidden` (signed-in Member who can still cast a before-vote) | the before-vote form, whose legend "Where do you stand?" is the box's only question (no inner fieldset border); while the Debate runs, "Live now" with the marker above it |
   | Batch, not complete | "Being argued through batch processing. Published when complete." |
   | Live, running | "Live now" with a pulsing marker, and "Follow the speeches below." (the floor shows who speaks next) |
   | Failed, with Turns | "Judging failed. The speeches are below; there is no Verdict." |
   | Failed, without Turns | "This Debate could not be completed." |
-  | Complete, outcome revealed (see below) | the Outcome summary |
-  | Complete, outcome not revealed | a `<details>` whose summary is "Show the result" and whose body is the Outcome summary |
+  | Complete, outcome shown (see below) | the Outcome summary |
+  | Complete, outcome hidden, after-vote due | "Voting open", "You voted {stance} before the Debate.", "Vote again after the speeches, then see the result." and a link to the after-vote at the foot of the floor |
+  | Complete, outcome hidden | "Voting open", why the result is folded away, and a "Show the result" link that opens the one folded outcome (below) |
 
-- **Outcome revealed** only for a live Debate whose reader has nothing left to vote on: they cast their
-  after-vote, or voting is closed. Otherwise (signed out, still to cast the after-vote, or any Batch Debate) the
-  outcome is behind "Show the result". (Interpretation of decision 1: revealing right after the before-vote would show
-  the result before the reader has read the Debate.)
+  Signed-out Viewers, while voting is open (running, or complete and hidden), also see the page's one sign-in
+  button in the box: "Members vote before and after the Debate." / "Sign in to vote".
+- **The hybrid rule** (`outcomeHidden` in `lib/debate.ts`, used by the Debate page and the home feed): the
+  outcome (Verdict, Audience Result, AI Audience Result, Swing, Outcome summary, home "Carried"/"Defeated") is
+  **hidden while Audience voting is open for the Debate and the reader has not cast their after-vote**. Once
+  voting has closed, or the reader cast the after-vote, or the Debate is a Batch Debate (no Audience Votes) or
+  failed, it is shown openly everywhere. While hidden, **one reveal governs the page**: the Verdict, Audience
+  Result and AI Audience Result sit in a single `<details id="outcome">` under the floor ("Show the result" /
+  "Hide the result", works without JavaScript); the dispatch box's "Show the result" link opens it and jumps
+  there (without JavaScript it jumps to its summary), and while it is open the dispatch box shows the Outcome
+  summary too (CSS `:has`).
+- **The end of a live Debate**, in place and without a reload: the floor closes with "The Debate is over." between
+  two brass rules drawn out from the middle (static under reduced motion); the page then renders its dispatch box
+  and outcome again (`lib/refresh.ts` swaps the `data-region` elements for a fresh server render), so nothing from
+  the running state remains. A reader who cast a before-vote is asked "Where do you stand now?" at the foot of the
+  floor, where the reading ends; casting it brings the outcome in the same way. Each change is announced once in a
+  polite live region. If the fresh render fails, a "Reload to see the result" link remains; without JavaScript the
+  running page says to reload.
 - **Outcome summary**:
   - Headline (serif, bench size): judge and audience agree, or the audience has no counted votes → For:
     "{model} carries the Motion"; Against: "{model} defeats the Motion". They disagree (audience winner is a
     Side, not a tie, and differs from the Verdict) → "Split decision".
   - Rows: "Judge: {side}" and, for live Debates, "Audience: {side}, {swing} points" / "Audience: tied" /
     "Audience: no paired votes yet". Batch Debates have no Audience row.
-- **Copy link** button at the top right of the Motion block (also in the Record).
+- **Copy link**: once, in the Record (never before the Motion h1 in reading order).
 - On the phone the dispatch box sits above the two benches, which sit side by side.
 
 ### Floor
@@ -99,26 +114,32 @@ division, AI Audience Result (when present), Record.
   without JavaScript). A speech cut off at the word limit shows "This Turn was cut off at the word limit." **below
   the visible text, always**, and its last visible text ends with "…".
 - Live Debates: the same structure, filled in by the existing live island; the next empty slot shows a
-  placeholder "{side} speaks next" with the live marker.
+  placeholder "{side} speaks next" with the live marker in that Side's colour.
+- Above the floor, a collapsed "How this Debate works" (`<details>`, text-style summary): the Debaters, the
+  Judge and Verdict, the Audience Vote and Swing, in plain words (Batch Debates: no Audience Votes).
 - `turnsHidden`: the floor shows the existing notice ("Cast your before-vote to read the Turns…"); the Verdict,
   Audience division and AI Audience Result are not rendered.
 
 ### Verdict, division, AI audience, record
 
-- **Verdict** at the foot of the floor under the brass lozenge: h2 "Verdict", the winner as
+- **After-vote** (when due): under a brass rule at the foot of the floor, "Where do you stand now?" as the
+  form's legend, the reader's before-vote, and "Cast after-vote".
+- **Verdict** at the foot of the floor under the brass lozenge: h2 "Verdict" (serif, heading size, with the
+  AI-generated label), the winner as
   "{side}: {model}" (serif, side colour), the reasoning paragraphs (serif), "Judged by {judges}. AI-generated."
   Self-Judging badge as today.
-- **Audience division** (live Debates only): h2 "Audience Result", the after-vote form (VotePanel, after phase
-  only) when the reader can cast it, then the swing chart: one horizontal axis, For's swing drawn left of the
-  centre and Against's to the right, length proportional to the points (max 100), each labelled outside the bar
-  ("For +13", "Against −13"). The chart is `aria-hidden`; the existing sentence from `swingText()` sits under it
-  as the text alternative. Voting-closes line as today.
+- **Audience division** (live Debates only): h2 "Audience Result", then the swing chart: one horizontal axis,
+  For's swing drawn left of the centre and Against's to the right, length proportional to the points (max 100),
+  each labelled outside the bar ("For +13", "Against −13"). The chart is `aria-hidden`; the existing sentence from
+  `swingText()` sits under it as the text alternative. With no counted votes there is no chart, only that
+  sentence and, while voting is open, what will appear. Then the reader's own votes and the voting-closes line.
 - **AI Audience Result**: same chart and sentence (AI voters), with the existing voter list and notes.
 - **Record of this Debate** (h2), two columns on desktop, stacked on the phone: a definition list (Format:
   "{name}: {phase names joined with commas}", Judge: "{labels}, picked by the platform" or "chosen by the
   starter", Started: date, Finished: date when complete, Kind: "Batch Debate" when batch), then "Copy link to
   this Debate" and, below it, the existing Report form behind a quiet disclosure whose summary is
   "Report this Debate" (flag icon, text style), with "A moderator reviews every report."
+- Last, a way onward for Viewers arriving from a shared link: "More Debates on the order paper" and "Start a Debate".
 
 ## Other pages
 
@@ -126,7 +147,8 @@ All pages share the band header (brand with the brass lozenge, nav, quota, sign 
 
 - **Home** is the order paper: h1 "Debates", the tagline, then a numbered list (`<ol>`) of Motions in serif. Each
   entry: the Motion as a link, "{For model} for, {Against model} against", the outcome in words when complete
-  ("Carried" / "Defeated" by the Verdict), the Batch badge, the date. A thin rule between entries; no cards.
+  ("Carried" / "Defeated" by the Verdict; "Voting open" instead while the hybrid rule hides the outcome, from the
+  feed's `votingClosesAt`), the Batch badge, the date. A thin rule between entries; no cards.
 - **Start a Debate**: h1, the Motion field large (serif), then the two benches side by side as the two Debater
   selects (For on cobalt-edged, Against on oxblood-edged fieldsets), the Judge and options below, the cost line,
   the submit button.
