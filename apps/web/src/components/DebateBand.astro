@@ -1,13 +1,15 @@
 ---
 // The top of a Debate page, inside the bench-green band: the Motion, the two benches and between them the
-// dispatch box, which asks the reader first and shows the outcome only when they have earned it (spec: Band).
+// dispatch box, which asks the reader first and shows the outcome by the hybrid rule (spec: Band).
+// data-region: when a live Debate ends, or after the after-vote, the page swaps in a fresh render of the
+// benches (lib/refresh); data-announce is what that swap says to screen readers.
 import type { PublicDebate } from '@debate-arena/api-client';
 import BatchBadge from './BatchBadge.astro';
 import OutcomeSummary from './OutcomeSummary.astro';
-import CopyLink from '../islands/CopyLink.svelte';
+import SignInButton from '../islands/SignInButton.svelte';
 import VotePanel from '../islands/VotePanel.svelte';
 import { t } from '../i18n/t';
-import { debaterLabel, dispatchState, motionSize, outcome, spokeCount, type ModelInfo } from '../lib/debate';
+import { debaterLabel, dispatchState, motionSize, outcome, sideLabel, spokeCount, type ModelInfo } from '../lib/debate';
 
 interface Props {
   debate: PublicDebate;
@@ -18,23 +20,24 @@ interface Props {
 const { debate, models, signedIn } = Astro.props;
 const state = dispatchState(debate);
 const result = outcome(debate, models);
-const url = new URL(`/debates/${debate.id}`, Astro.site ?? Astro.url).href;
 const benches = (['for', 'against'] as const).map(side => ({
   side,
   title: t(side === 'for' ? 'band.forBench' : 'band.againstBench'),
   model: debaterLabel(debate.debaters[side], models),
   spoke: spokeCount(debate.turns, side),
 }));
+const before = debate.myVote?.before;
+// One sign-in on the page, with its reason, while there is still something to vote on.
+const askSignIn = !signedIn && (state === 'live' || state === 'hidden');
+const announce =
+  state === 'askAfter' ? t('end.askAfter') : state === 'hidden' ? t('end.folded') : state === 'revealed' && result ? `${result.headline}.` : '';
 ---
 
 <div class="debate-band">
-  <div class="band-top">
-    <p class="band-label">{t('band.motion')} {debate.kind === 'batch' && <BatchBadge />}</p>
-    <CopyLink client:visible url={url} />
-  </div>
+  <p class="band-label">{t('band.motion')} {debate.kind === 'batch' && <BatchBadge />}</p>
   <h1 class={`motion motion-${motionSize(debate.motion)}`}>{debate.motion}</h1>
 
-  <div class="benches">
+  <div class="benches" data-region="benches" data-announce={announce}>
     {
       benches.map(bench => (
         <div class={`bench bench-${bench.side}`}>
@@ -48,7 +51,12 @@ const benches = (['for', 'against'] as const).map(side => ({
       {
         state === 'ask' ? (
           <>
-            <p class="dispatch-title">{t('dispatch.ask')}</p>
+            {debate.status === 'running' && (
+              <p class="dispatch-status">
+                <span class="live-dot" aria-hidden="true" />
+                {t('dispatch.live')}
+              </p>
+            )}
             <VotePanel
               client:load
               only="before"
@@ -80,28 +88,64 @@ const benches = (['for', 'against'] as const).map(side => ({
         ) : state === 'revealed' ? (
           <OutcomeSummary outcome={result} />
         ) : (
-          <details class="reveal">
-            <summary>
-              <span class="when-closed">{t('dispatch.show')}</span><span class="when-open">{t('dispatch.hide')}</span>
-            </summary>
-            <OutcomeSummary outcome={result} />
-          </details>
+          <>
+            {/* Folded: one reveal for the whole page. The link opens <details id="outcome"> under the floor
+                (without JavaScript it jumps there, to its "Show the result"); while that is open this box
+                shows the outcome too (CSS :has). */}
+            <div class="folded">
+              <p class="dispatch-title">{t('dispatch.votingOpen')}</p>
+              {state === 'askAfter' && before ? (
+                <>
+                  <p>{t('vote.youBefore', { stance: before === 'undecided' ? t('vote.undecided') : sideLabel(before) })}</p>
+                  <p>{t('dispatch.voteAgain')}</p>
+                  <p class="dispatch-action">
+                    <a href="#after-vote">{t('dispatch.toAfterVote')}</a>
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>{t('dispatch.folded')}</p>
+                  <p class="dispatch-action">
+                    <a href="#outcome" data-reveal>
+                      {t('dispatch.show')}
+                    </a>
+                  </p>
+                </>
+              )}
+            </div>
+            <div class="unfolded">
+              <OutcomeSummary outcome={result} />
+            </div>
+          </>
+        )
+      }
+      {
+        askSignIn && (
+          <div class="sign-in">
+            <p>{t('dispatch.signIn')}</p>
+            <SignInButton client:idle callbackPath={`/debates/${debate.id}`} label={t('dispatch.signInButton')} />
+          </div>
         )
       }
     </div>
   </div>
 </div>
 
+<script>
+  // "Show the result" in the dispatch box opens the one folded outcome under the floor, then the link jumps
+  // there. Delegated, so it keeps working after the benches are swapped in fresh (lib/refresh).
+  document.addEventListener('click', event => {
+    const link = event.target instanceof Element ? event.target.closest('a[data-reveal]') : null;
+    const fold = document.getElementById('outcome');
+    if (!link || !(fold instanceof HTMLDetailsElement)) return;
+    fold.open = true;
+    fold.querySelector('summary')?.focus({ preventScroll: true });
+  });
+</script>
+
 <style>
   .debate-band {
     padding-top: clamp(1.5rem, 1rem + 2vw, 3rem);
-  }
-  .band-top {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem 1rem;
   }
   .band-label {
     color: var(--band-muted);
@@ -109,10 +153,6 @@ const benches = (['for', 'against'] as const).map(side => ({
   }
   .band-label :global(.badge) {
     color: var(--band-ink);
-  }
-  .band-top :global(button.secondary) {
-    color: var(--band-ink);
-    border-color: var(--band-ink);
   }
   .motion {
     margin-top: 0.75rem;
@@ -141,15 +181,15 @@ const benches = (['for', 'against'] as const).map(side => ({
   }
   .bench {
     padding: 0.9rem 1rem 1rem;
-    color: var(--on-side);
+    color: var(--on-fill);
   }
   .bench-for {
     grid-area: for;
-    background: var(--for);
+    background: var(--for-fill);
   }
   .bench-against {
     grid-area: against;
-    background: var(--against);
+    background: var(--against-fill);
     text-align: right;
   }
   .bench-title {
@@ -180,44 +220,78 @@ const benches = (['for', 'against'] as const).map(side => ({
   }
   .dispatch :global(a) {
     color: var(--green);
+    font-weight: 600;
   }
   .dispatch :global(.vote) {
     text-align: left;
+  }
+  /* The before-vote's legend is the box's one question: no inner border, no second card inside the box. */
+  .dispatch :global(fieldset) {
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+  }
+  .dispatch :global(legend),
+  .dispatch-title {
+    font-family: var(--font-serif);
+    font-size: 1.35rem;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+  .dispatch :global(legend) {
+    width: 100%;
+    margin-bottom: 0.35rem;
+    padding: 0;
+    text-align: center;
   }
   .dispatch-title {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    font-family: var(--font-serif);
-    font-size: 1.35rem;
-    font-weight: 600;
   }
-  .dispatch > p + p {
-    margin-top: 0.35rem;
-  }
-  .reveal summary {
-    display: inline-flex;
+  .dispatch-status {
+    display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 2.75rem;
-    padding: 0.4rem 1.1rem;
-    border: 1.5px solid var(--green);
-    border-radius: var(--radius);
-    color: var(--green);
+    gap: 0.45rem;
+    margin-bottom: 0.6rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.9rem;
     font-weight: 600;
-    cursor: pointer;
   }
-  /* The summary stays put when open (keyboard focus stays on it) and offers to hide the result again. */
-  .reveal summary .when-open,
-  .reveal[open] summary .when-closed {
+  .dispatch p + p,
+  .folded > * + * {
+    margin-top: 0.35rem;
+  }
+  .dispatch-action {
+    display: flex;
+    justify-content: center;
+  }
+  .dispatch-action a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+  }
+  /* One reveal for the page: while the folded outcome under the floor is open, this box shows it too. */
+  .unfolded {
     display: none;
   }
-  .reveal[open] summary .when-open {
-    display: inline;
+  :global(body:has(#outcome[open])) .unfolded {
+    display: block;
   }
-  .reveal[open] summary {
-    margin-bottom: 0.75rem;
+  :global(body:has(#outcome[open])) .folded {
+    display: none;
+  }
+  .sign-in {
+    margin-top: 0.85rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--line);
+  }
+  .sign-in p {
+    margin-bottom: 0.5rem;
+    font-size: 0.95rem;
   }
   .live-dot {
     width: 0.65rem;

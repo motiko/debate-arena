@@ -12,7 +12,6 @@
   --band-muted: #c2d6cc;
   --for: #2457a6;
   --against: #8e2433;
-  --on-side: #ffffff;
   /* Solid bench fills (a bench, a bar) and the text on them. --for/--against stay the side colour for text and
      lines; in dark mode those turn pastel, which reads as candy when used as a slab, so fills use these. */
   --for-fill: #2457a6;
@@ -47,7 +46,6 @@
     --band-muted: #a9c2b5;
     --for: #9bb9f2;
     --against: #f2a6b1;
-    --on-side: #0f1a15;
     --for-fill: #3462b5;
     --against-fill: #a3354a;
     --on-fill: #f4f7f5;

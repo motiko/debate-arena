@@ -65,12 +65,35 @@ test('reconnects after the socket closes', async () => {
   }
 });
 
-test('announces completion without reloading', async () => {
-  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [], fetcher: debateFetcher([]), WebSocketImpl: impl });
+test('at the end, brings the outcome into the page without reloading', async () => {
+  const refresh = vi.fn(async () => true);
+  const reload = vi.fn();
+  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [], fetcher: debateFetcher([]), WebSocketImpl: impl, refresh, reload });
   FakeSocket.last.open();
   FakeSocket.last.emit({ type: 'complete', aiAudience: null });
-  expect(await screen.findByRole('link', { name: /show the verdict/i })).toHaveAttribute('href', '/debates/d1');
-  expect(screen.getByText(/the debate is complete/i)).toBeInTheDocument();
+  await vi.waitFor(() => expect(refresh).toHaveBeenCalled());
+  expect(screen.getByRole('status')).toHaveTextContent('The Debate is over.');
+  expect(screen.queryByText(/^Live/)).toBeNull();
+  expect(screen.queryByRole('link')).toBeNull();
+  expect(reload).not.toHaveBeenCalled();
+});
+
+test('offers a reload when the outcome cannot be brought in', async () => {
+  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [], fetcher: debateFetcher([]), WebSocketImpl: impl, refresh: async () => false });
+  FakeSocket.last.open();
+  FakeSocket.last.emit({ type: 'complete', aiAudience: null });
+  expect(await screen.findByRole('link', { name: 'Reload to see the result' })).toHaveAttribute('href', '/debates/d1');
+});
+
+test('the Verdict alone does not end the Debate: voting opens only once it is complete', async () => {
+  const refresh = vi.fn(async () => true);
+  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [0, 1, 2, 3].map(turn), fetcher: debateFetcher([0, 1, 2, 3].map(turn)), WebSocketImpl: impl, refresh });
+  FakeSocket.last.open();
+  FakeSocket.last.emit({ type: 'verdict', verdict: { winner: 'for', reasoning: 'x', judges: ['j'] } });
+  expect(await screen.findByText('The speeches are over. The Panel is reaching its Verdict.')).toBeInTheDocument();
+  expect(refresh).not.toHaveBeenCalled();
+  FakeSocket.last.emit({ type: 'complete', aiAudience: null });
+  await vi.waitFor(() => expect(refresh).toHaveBeenCalled());
 });
 
 test('says so when the Debate fails', async () => {
@@ -99,8 +122,10 @@ test('a 410 while catching up also reloads', async () => {
 });
 
 test('notices a Debate that finished before the socket opened', async () => {
-  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [], fetcher: debateFetcher([turn(0), turn(1)], 'complete'), WebSocketImpl: impl });
+  const refresh = vi.fn(async () => true);
+  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [], fetcher: debateFetcher([turn(0), turn(1)], 'complete'), WebSocketImpl: impl, refresh });
   FakeSocket.last.open();
-  expect(await screen.findByRole('link', { name: /show the verdict/i })).toBeInTheDocument();
+  await vi.waitFor(() => expect(refresh).toHaveBeenCalled());
+  expect(screen.getByText('The Debate is over.')).toBeInTheDocument();
   expect(screen.getAllByRole('article')).toHaveLength(2);
 });

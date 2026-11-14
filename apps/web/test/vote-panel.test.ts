@@ -106,9 +106,26 @@ test('only="after" offers the after-vote once complete', () => {
   expect(screen.getByRole('button', { name: 'Cast after-vote' })).toBeInTheDocument();
 });
 
-test('only="before" asks without repeating the Motion', () => {
+test('only="before" asks once, without repeating the Motion', () => {
   render(VotePanel, { ...base, only: 'before' });
-  expect(screen.getByRole('group', { name: 'Before the Debate: where do you stand on the Motion?' })).toBeInTheDocument();
+  expect(screen.getByRole('group', { name: 'Where do you stand?' })).toBeInTheDocument();
+});
+
+test('only="after" asks where the reader stands now', () => {
+  render(VotePanel, { ...base, status: 'complete', myVote: { before: 'for', after: null }, only: 'after' });
+  expect(screen.getByRole('group', { name: 'Where do you stand now?' })).toBeInTheDocument();
+  expect(screen.queryByRole('heading')).toBeNull();
+});
+
+test('after the after-vote, the page brings the outcome in without a reload', async () => {
+  const { fetcher } = respond(201, { vote: { before: 'for', after: 'against' } });
+  const refresh = vi.fn(async () => true);
+  render(VotePanel, { ...base, status: 'complete', votingClosesAt: future, myVote: { before: 'for', after: null }, only: 'after', fetcher, refresh });
+  await fireEvent.click(screen.getByRole('radio', { name: 'Against' }));
+  await fireEvent.click(screen.getByRole('button', { name: /cast after-vote/i }));
+  await vi.waitFor(() =>
+    expect(refresh).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'Your after-vote is recorded: Against.', focus: true })),
+  );
 });
 
 test('only="before" leaves out the title and intro', () => {

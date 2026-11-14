@@ -22,7 +22,7 @@ import { keyedHash, parseReport, rateLimitNetwork, REPORT_UNLIST_THRESHOLD, REPO
 import { quotaRemaining } from './db/quota';
 import { getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
 import { castAfter, castBefore, getVote, listVotes, type AudienceVote } from './db/votes';
-import { audienceResult, checkVote, type VotePhase } from './votes/rules';
+import { audienceResult, checkVote, votingClosesAt, type VotePhase } from './votes/rules';
 import { voterKey } from './votes/voter-key';
 import { startDebate } from './debates/start';
 import { createModels } from './models/factory';
@@ -96,11 +96,12 @@ async function blockedDebate(db: D1Database, id: string): Promise<BlockedDebate>
     },
   };
 }
-export type DebateSummary = Omit<ReturnType<typeof publicView>, 'turns'>;
+/** A feed entry: no Turns, but when Audience voting closes (the web keeps the outcome hidden until then). */
+export type DebateSummary = Omit<ReturnType<typeof publicView>, 'turns'> & { votingClosesAt: string | null };
 
 function summary(d: DebateRecord): DebateSummary {
   const { turns: _turns, ...rest } = publicView(d);
-  return rest;
+  return { ...rest, votingClosesAt: votingClosesAt(d) };
 }
 
 // State-changing routes accept only JSON: a cross-site form or no-cors fetch cannot send it without a CORS

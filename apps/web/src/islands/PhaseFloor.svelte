@@ -96,11 +96,15 @@
     color: var(--muted);
     font-weight: 600;
   }
+  /* The marker takes the colour of the Side about to speak. */
   .live-dot {
     width: 0.6rem;
     height: 0.6rem;
     border-radius: 50%;
     background: var(--against);
+  }
+  .seat-for .live-dot {
+    background: var(--for);
   }
   @media (prefers-reduced-motion: no-preference) {
     .live-dot {

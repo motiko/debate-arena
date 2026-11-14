@@ -2,7 +2,9 @@ import { describe, expect, test } from 'vitest';
 import {
   debaterLabel,
   dispatchState,
+  feedOutcome,
   groupByPhase,
+  outcomeHidden,
   motionSize,
   outcome,
   spokeCount,
@@ -105,10 +107,40 @@ describe('chamber helpers', () => {
     expect(dispatchState({ ...base, status: 'running' }, NOW)).toBe('live');
     expect(dispatchState({ ...base, status: 'failed' }, NOW)).toBe('judgingFailed');
     expect(dispatchState({ ...base, status: 'failed', turns: [] }, NOW)).toBe('failed');
-    expect(dispatchState({ ...base, myVote: { before: 'for', after: null } }, NOW)).toBe('hidden');
+    expect(dispatchState({ ...base, myVote: { before: 'for', after: null } }, NOW)).toBe('askAfter');
+    expect(dispatchState(base, NOW)).toBe('hidden');
     expect(dispatchState({ ...base, myVote: { before: 'for', after: 'for' } }, NOW)).toBe('revealed');
     expect(dispatchState({ ...base, audienceResult: closed }, NOW)).toBe('revealed');
-    expect(dispatchState({ ...base, kind: 'batch', audienceResult: closed }, NOW)).toBe('hidden');
+    expect(dispatchState({ ...base, myVote: { before: 'for', after: null }, audienceResult: closed }, NOW)).toBe('revealed');
+  });
+
+  test('a Batch Debate takes no Audience Votes, so its outcome is open', () => {
+    expect(dispatchState({ ...base, kind: 'batch' }, NOW)).toBe('revealed');
+  });
+
+  test('outcomeHidden: hidden while voting is open and the reader has no after-vote (spec: the hybrid rule)', () => {
+    const live = { kind: 'live' as const, status: 'complete' as const, votingClosesAt: open.votingClosesAt };
+    expect(outcomeHidden(live, NOW)).toBe(true);
+    expect(outcomeHidden({ ...live, myVote: { before: 'for', after: null } }, NOW)).toBe(true);
+    expect(outcomeHidden({ ...live, myVote: { before: 'for', after: 'against' } }, NOW)).toBe(false);
+    expect(outcomeHidden({ ...live, votingClosesAt: closed.votingClosesAt }, NOW)).toBe(false);
+    // The window closes at the instant itself.
+    expect(outcomeHidden({ ...live, votingClosesAt: new Date(NOW).toISOString() }, NOW)).toBe(false);
+    expect(outcomeHidden({ ...live, kind: 'batch' }, NOW)).toBe(false);
+    expect(outcomeHidden({ ...live, status: 'failed', votingClosesAt: null }, NOW)).toBe(false);
+    // Still running: before-votes are open and nothing is decided yet.
+    expect(outcomeHidden({ ...live, status: 'running', votingClosesAt: null }, NOW)).toBe(true);
+    // An older API without the closing time: shown, never hidden for good.
+    expect(outcomeHidden({ ...live, votingClosesAt: undefined }, NOW)).toBe(false);
+  });
+
+  test('feedOutcome says "Voting open" instead of the outcome while the vote runs', () => {
+    const entry = { kind: 'live' as const, status: 'complete' as const, verdict: { winner: 'for' as const }, votingClosesAt: open.votingClosesAt };
+    expect(feedOutcome(entry, NOW)).toBe('votingOpen');
+    expect(feedOutcome({ ...entry, votingClosesAt: closed.votingClosesAt }, NOW)).toBe('carried');
+    expect(feedOutcome({ ...entry, verdict: { winner: 'against' }, votingClosesAt: closed.votingClosesAt }, NOW)).toBe('defeated');
+    expect(feedOutcome({ ...entry, kind: 'batch' }, NOW)).toBe('carried');
+    expect(feedOutcome({ ...entry, verdict: null }, NOW)).toBeNull();
   });
 
   test('a failed Batch Debate is failed, not generating', () => {

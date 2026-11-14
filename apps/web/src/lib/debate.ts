@@ -137,7 +137,33 @@ export function spokeCount(turns: Pick<Turn, 'side'>[], side: Side): number {
   return turns.filter(turn => turn.side === side).length;
 }
 
-export type DispatchState = 'ask' | 'generating' | 'live' | 'judgingFailed' | 'failed' | 'revealed' | 'hidden';
+interface RevealInput {
+  kind: 'live' | 'batch';
+  status: 'running' | 'complete' | 'failed';
+  /** When Audience voting closes (null while running or failed; missing from an older API). */
+  votingClosesAt?: string | null | undefined;
+  myVote?: { before?: unknown; after: unknown } | null | undefined;
+}
+
+/**
+ * The hybrid rule (spec: Outcome revealed): the outcome is hidden while Audience voting is open and this
+ * reader has not cast their after-vote, so it cannot sway the vote; otherwise it is shown openly everywhere.
+ * A Batch Debate takes no Audience Votes and a failed one takes no more, so theirs is never hidden.
+ */
+export function outcomeHidden(d: RevealInput, now = Date.now()): boolean {
+  if (d.kind === 'batch' || d.status === 'failed' || d.myVote?.after) return false;
+  if (d.status === 'running') return true;
+  return d.votingClosesAt != null && Date.parse(d.votingClosesAt) > now;
+}
+
+/** The order paper's outcome: "Carried" / "Defeated" by the Verdict, or "Voting open" while the outcome is hidden. */
+export function feedOutcome(d: RevealInput & { verdict: { winner: Side } | null }, now = Date.now()): 'carried' | 'defeated' | 'votingOpen' | null {
+  if (!d.verdict) return null;
+  if (outcomeHidden(d, now)) return 'votingOpen';
+  return d.verdict.winner === 'for' ? 'carried' : 'defeated';
+}
+
+export type DispatchState = 'ask' | 'generating' | 'live' | 'judgingFailed' | 'failed' | 'revealed' | 'askAfter' | 'hidden';
 
 interface DispatchInput {
   kind: 'live' | 'batch';
@@ -149,17 +175,16 @@ interface DispatchInput {
 }
 
 /**
- * What the dispatch box shows (spec: the dispatch box table, first match wins). The outcome is open only to a
- * reader of a live Debate with nothing left to vote on; everyone else asks for it ("Show the result").
+ * What the dispatch box shows (spec: the dispatch box table, first match wins). Once complete the outcome
+ * follows the hybrid rule (outcomeHidden): open, or folded away with the after-vote asked for when it is due.
  */
 export function dispatchState(d: DispatchInput, now = Date.now()): DispatchState {
   if (d.turnsHidden) return 'ask';
   if (d.kind === 'batch' && d.status === 'running') return 'generating';
   if (d.status === 'running') return 'live';
   if (d.status === 'failed') return d.turns.length > 0 ? 'judgingFailed' : 'failed';
-  const closesAt = d.audienceResult.votingClosesAt;
-  const votingClosed = closesAt !== null && Date.parse(closesAt) <= now;
-  return d.kind === 'live' && (d.myVote?.after || votingClosed) ? 'revealed' : 'hidden';
+  if (!outcomeHidden({ ...d, votingClosesAt: d.audienceResult.votingClosesAt }, now)) return 'revealed';
+  return d.myVote?.before ? 'askAfter' : 'hidden';
 }
 
 export interface Outcome {

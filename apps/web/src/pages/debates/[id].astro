@@ -1,16 +1,12 @@
 ---
-import AiLabel from '../../components/AiLabel.astro';
-import AudienceResultView from '../../components/AudienceResultView.astro';
 import DebateBand from '../../components/DebateBand.astro';
+import DebateOutcome from '../../components/DebateOutcome.astro';
 import DebateRecord from '../../components/DebateRecord.astro';
-import SwingChart from '../../components/SwingChart.astro';
-import VerdictView from '../../components/VerdictView.astro';
 import LiveTurns from '../../islands/LiveTurns.svelte';
 import PhaseFloor from '../../islands/PhaseFloor.svelte';
-import VotePanel from '../../islands/VotePanel.svelte';
 import Base from '../../layouts/Base.astro';
 import { t } from '../../i18n/t';
-import { debaterLabel, dispatchState, modelLabel, swingText, type ModelInfo } from '../../lib/debate';
+import { debaterLabel, type ModelInfo } from '../../lib/debate';
 
 const { api, me } = Astro.locals;
 const id = Astro.params.id ?? '';
@@ -25,8 +21,6 @@ const models: ModelInfo[] = modelsRes.ok ? (await modelsRes.json()).models : [];
 const debater = (side: 'for' | 'against') => debaterLabel(debate.debaters[side], models);
 const speakers = { for: debater('for'), against: debater('against') };
 const isBatch = debate.kind === 'batch';
-// A Member who voted before but still has the after-vote to cast reads the Debate first: the Verdict waits.
-const awaitingAfterVote = dispatchState(debate) === 'hidden' && !!debate.myVote?.before && !debate.myVote.after;
 ---
 
 <Base title={debate.motion} description={t('debate.description', { motion: debate.motion })} canonicalPath={`/debates/${debate.id}`} wide>
@@ -35,6 +29,14 @@ const awaitingAfterVote = dispatchState(debate) === 'hidden' && !!debate.myVote?
   {debate.visibility === 'unlisted' && debate.mine && <p class="note">{t('unlisted.mine')}</p>}
   {isBatch && debate.status === 'running' && <p class="note" role="status">{t('batch.generating')}</p>}
   {isBatch && debate.status === 'complete' && <p class="muted">{t('batch.noVotes')}</p>}
+
+  <details class="how">
+    <summary>{t('how.title')}</summary>
+    <div class="how-body">
+      <p>{t('how.debate')} {t('how.judge')}</p>
+      <p>{isBatch ? t('batch.noVotes') : `${t('how.vote')} ${t('how.apart')}`}</p>
+    </div>
+  </details>
 
   <section aria-label={t('debate.turns')}>
     {
@@ -50,84 +52,65 @@ const awaitingAfterVote = dispatchState(debate) === 'hidden' && !!debate.myVote?
     }
   </section>
 
-  {
-    !debate.turnsHidden && (
-      <>
-        {debate.verdict && awaitingAfterVote ? (
-          <details class="reveal-verdict">
-            <summary>
-              <span class="when-closed">{t('dispatch.show')}</span><span class="when-open">{t('dispatch.hide')}</span>
-            </summary>
-            <VerdictView verdict={debate.verdict} debaters={debate.debaters} selfJudging={debate.selfJudging} models={models} />
-          </details>
-        ) : debate.verdict ? (
-          <VerdictView verdict={debate.verdict} debaters={debate.debaters} selfJudging={debate.selfJudging} models={models} />
-        ) : (
-          debate.status === 'running' && <p class="muted">{t('verdict.pending')}</p>
-        )}
-
-        {!isBatch && debate.status !== 'failed' && (
-          <>
-            <AudienceResultView result={debate.audienceResult}>
-              <VotePanel
-                slot="vote"
-                client:load
-                only="after"
-                debateId={debate.id}
-                motion={debate.motion}
-                status={debate.status}
-                myVote={debate.myVote}
-                signedIn={me !== null}
-                turnsHidden={debate.turnsHidden}
-                votingClosesAt={debate.audienceResult.votingClosesAt}
-              />
-            </AudienceResultView>
-          </>
-        )}
-
-        {debate.aiAudience && (
-          <section class="ai-audience stack" aria-labelledby="ai-audience-title">
-            <h2 id="ai-audience-title">
-              {t('aiAudience.title')} <AiLabel />
-            </h2>
-            <SwingChart result={debate.aiAudience} label={swingText(debate.aiAudience, 'aiVoters')} />
-            <p class="muted">{t('aiAudience.voters', { models: debate.aiVoters.map(m => modelLabel(m, models)).join(', ') })}</p>
-            {debate.aiVotersShareDebaterModel && <p class="note">{t('aiAudience.shared')}</p>}
-            {debate.aiAudience.dropped.length > 0 && <p class="muted">{t('aiAudience.dropped', { count: debate.aiAudience.dropped.length })}</p>}
-          </section>
-        )}
-      </>
-    )
-  }
+  <DebateOutcome debate={debate} models={models} signedIn={me !== null} />
 
   <DebateRecord debate={debate} models={models} signedIn={me !== null} />
+
+  <nav class="onward" aria-label={t('debate.onward')}>
+    <a href="/">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+        ><path d="M19 12H5"></path><path d="M11 6l-6 6 6 6"></path></svg
+      >
+      {t('debate.onward')}
+    </a>
+    <a href="/new">{t('debate.startOwn')}</a>
+  </nav>
+
+  {/* What a fresh render of the page changed, said once (lib/refresh); outside every swapped region. */}
+  <p id="debate-announcer" class="visually-hidden" role="status"></p>
 </Base>
 
 <style>
-  .ai-audience {
+  .how {
     max-width: 44rem;
-    margin: calc(var(--space) * 2.5) auto 0;
+    color: var(--muted);
   }
-  .reveal-verdict {
-    margin-top: calc(var(--space) * 2);
-    text-align: center;
-  }
-  .reveal-verdict summary {
+  .how summary {
     display: inline-flex;
     align-items: center;
     min-height: 2.75rem;
-    padding: 0.4rem 1.1rem;
-    border: 1.5px solid var(--green);
-    border-radius: var(--radius);
-    color: var(--green);
+    color: var(--ink);
     font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: var(--line);
+    text-underline-offset: 0.18em;
     cursor: pointer;
   }
-  .reveal-verdict summary .when-open,
-  .reveal-verdict[open] summary .when-closed {
-    display: none;
+  .how summary:hover {
+    text-decoration-color: currentColor;
   }
-  .reveal-verdict[open] summary .when-open {
-    display: inline;
+  .how-body {
+    max-width: 38rem;
+    padding-bottom: 0.5rem;
+  }
+  .how-body p + p {
+    margin-top: 0.5rem;
+  }
+  .onward {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.5rem 1.5rem;
+    max-width: 52rem;
+    margin: calc(var(--space) * 2) auto 0;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+  .onward a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2.75rem;
+    font-weight: 600;
   }
 </style>
