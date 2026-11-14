@@ -10,6 +10,8 @@
   // Bindings are not inherited by environments, so production repeats them.
   "env": {
     "production": {
+      // Without a name of its own, the production build would be "debate-arena-web-production".
+      "name": "debate-arena-web",
       "assets": { "directory": "./dist/client", "binding": "ASSETS" },
       // `wrangler deploy --env production` deploys the API as "debate-arena-api-production".
       "services": [{ "binding": "API", "service": "debate-arena-api-production" }],

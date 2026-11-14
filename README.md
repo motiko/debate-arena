@@ -63,6 +63,10 @@ Tick **Batch Debate** on the start form (or send `"batch": true` to `POST /api/d
 
 To run against OpenRouter locally, copy `apps/api/.dev.vars.example` to `apps/api/.dev.vars`, set `OPENROUTER_API_KEY`, and change `MODEL_PROVIDER` to `"openrouter"` in `apps/api/wrangler.jsonc` `vars`. Real model calls cost money.
 
+## Deploying
+
+Production runs on Cloudflare (EU-jurisdiction D1); merging to `main` deploys it once CI passes, and pull requests get isolated previews. Both are off until set up: follow [DEPLOY.md](DEPLOY.md). `pnpm check:release` lists what still has to be filled in (operator details, database id, production URL).
+
 ## Checks
 
 ```bash

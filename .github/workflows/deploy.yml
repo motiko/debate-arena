@@ -1,0 +1,51 @@
+name: Deploy production
+
+# Merging to main deploys production (ADR 0006: no staging), after CI has passed on that commit.
+# Off until the repository variable DEPLOY_PRODUCTION is "true" (see DEPLOY.md).
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: vars.DEPLOY_PRODUCTION == 'true' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # The commit CI passed on (workflow_run), or main for a manual run.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Refuses to deploy while REPLACE_ME placeholders remain (operator details, D1 id, production URL).
+      - run: node scripts/check-release.mjs
+      # Order matters: schema first, then the API (the web Worker's service binding needs it), then the web.
+      - run: pnpm exec wrangler d1 migrations apply DB --remote --env production
+        working-directory: apps/api
+      - run: pnpm exec wrangler deploy --env production
+        working-directory: apps/api
+      # The Astro adapter picks the environment at build time; the build's config is then deployed as is.
+      - run: pnpm build
+        working-directory: apps/web
+        env:
+          CLOUDFLARE_ENV: production
+      - run: pnpm exec wrangler deploy
+        working-directory: apps/web

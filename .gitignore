@@ -10,6 +10,8 @@ coverage/
 playwright-report/
 test-results/
 .lighthouseci/
+# Generated per PR by scripts/preview.mjs
+apps/api/wrangler.preview.json
 .DS_Store
 .claude/worktrees/
 .superpowers/

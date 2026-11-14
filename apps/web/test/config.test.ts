@@ -14,6 +14,13 @@ test('the production web Worker binds the production API Worker', () => {
   expect(web.env.production.services).toEqual([{ binding: 'API', service: deployedName(api, 'production') }]);
 });
 
+test('the production web Worker is debate-arena-web, the address DEPLOY.md and BETTER_AUTH_URL use', () => {
+  const web = readJsonc('../wrangler.jsonc');
+  expect(deployedName(web, 'production')).toBe('debate-arena-web');
+  const deployDoc = '../../../DEPLOY.md'; // a variable: Vite rewrites literal `new URL('…', import.meta.url)` into asset URLs
+  expect(readFileSync(new URL(deployDoc, import.meta.url), 'utf8')).toContain('https://debate-arena-web.<subdomain>.workers.dev');
+});
+
 test('the local web Worker binds the local API Worker', () => {
   const web = readJsonc('../wrangler.jsonc');
   const api = readJsonc('../../api/wrangler.jsonc');
