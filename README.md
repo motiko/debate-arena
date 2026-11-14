@@ -44,6 +44,13 @@ Members sign in with GitHub. Locally you can skip this and use the `x-dev-member
 
 Signed-in Members can start Debates, cast Audience Votes, download their data and delete their account from the web app. The same is available over the API: `POST /api/debates/<id>/votes` with `{ "phase": "before" | "after", "stance": "for" | "against" | "undecided" }`, `GET /api/me/export` and `POST /api/auth/delete-user`.
 
+### Moderation
+
+Every Motion is screened by an AI model first (Llama Guard 4 in production). A Flag never removes anything: it takes the Debate out of the feed (Unlisted) until a Moderator reviews it. Anyone can Report a Debate from its page; five Members' Reports also Unlist it. Moderators review the queue at `/moderation` and relist a Debate or Block it with a statement of reasons.
+
+- **Who is a Moderator:** Members whose GitHub account id is in `MODERATOR_GITHUB_IDS` (comma-separated numeric ids, a var in `apps/api/wrangler.jsonc`; empty means nobody). Find your id with `curl -s https://api.github.com/users/<login>` (field `id`).
+- **Locally:** while `DEV_AUTH` is on, dev Members whose id starts with `dev-mod` (header `x-dev-member: dev-mod-1`) are Moderators. Put `[flag-test]` in a Motion to make the fake screener Flag it.
+
 ### Real models
 
 To run against OpenRouter locally, copy `apps/api/.dev.vars.example` to `apps/api/.dev.vars`, set `OPENROUTER_API_KEY`, and change `MODEL_PROVIDER` to `"openrouter"` in `apps/api/wrangler.jsonc` `vars`. Real model calls cost money.
