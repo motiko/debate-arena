@@ -18,7 +18,7 @@ Astro.response.status = 410;
 <Base title={t('blocked.title')} description={t('blocked.description')} canonicalPath={`/debates/${id}`} noindex>
   <h1>{t('blocked.title')}</h1>
   <p>{t('blocked.body', { date: formatDate(blocked.decidedAt) })}</p>
-  <section class="card stack" aria-labelledby="reasons-title">
+  <section class="panel stack" aria-labelledby="reasons-title">
     <h2 id="reasons-title">{t('blocked.reasons')}</h2>
     <dl class="reasons">
       <dt>{t('blocked.ground')}</dt>

@@ -20,7 +20,7 @@ if (me) {
     me ? (
       <StartDebateForm client:load models={models} quotaRemaining={me.quotaRemaining} />
     ) : (
-      <div class="card stack">
+      <div class="panel stack">
         <p>{t('new.signIn')}</p>
         <SignInButton client:load callbackPath="/new" />
       </div>

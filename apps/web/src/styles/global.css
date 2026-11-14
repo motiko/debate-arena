@@ -175,11 +175,10 @@ main > .wrap-wide > * + * { margin-top: var(--space); }
 .stack > * + * { margin-top: 0.75rem; }
 .muted { color: var(--muted); }
 
-.card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 1rem;
+/* A section set off by a rule, not a box. */
+.panel {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space);
 }
 
 .badge {
