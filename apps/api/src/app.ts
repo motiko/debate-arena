@@ -301,8 +301,15 @@ export const app = new Hono<{ Bindings: Env }>()
     if (memberId && (await memberReportsSince(c.env.DB, debate.id, debate.reviewedAt)) >= REPORT_UNLIST_THRESHOLD) {
       await unlistForReports(c.env.DB, debate.id);
     }
-    const reporterEmail = memberId ? null : parsed.email;
-    if (reporterEmail) afterResponse(c, deps => noticeReportReceived(deps, debate.id, reporterEmail));
+    // DSA Art. 16(4): confirm receipt to the reporter: at the email they gave, or a Member's account email.
+    const givenEmail = memberId ? null : parsed.email;
+    afterResponse(c, async deps => {
+      const account = memberId
+        ? await deps.db.prepare('SELECT email FROM "user" WHERE id = ?').bind(memberId).first<{ email: string }>()
+        : null;
+      const email = givenEmail ?? account?.email;
+      if (email) await noticeReportReceived(deps, debate.id, email);
+    });
     return c.json({ ok: true }, 201);
   })
   .get('/moderation/queue', async c => {

@@ -56,7 +56,7 @@ const block = (debateId: string): ModerationDecision => ({
   groundRef: 'Terms: Acceptable use',
   explanation: 'The Motion attacks a group of people.',
   moderatorId: 'mod-1',
-  decidedAt: '2026-11-14T10:00:00.000Z',
+  decidedAt: new Date(Date.now() + 60_000).toISOString(),
 });
 
 test('Scaleway sender posts the documented request', async () => {
@@ -139,6 +139,35 @@ test('only Reports since the last review are told about this decision', async ()
   await report(debate.id, 'new@example.test');
   await noticeDecision(deps(sender), debate, block(debate.id), reviewedAt);
   expect(sent.map(m => m.to)).toEqual(['new@example.test']);
+});
+
+test('a Member who reported gets the decision at their account email', async () => {
+  const { sender, sent } = recorder();
+  const { userId } = await signedInHeaders('Reporter');
+  const account = await env.DB.prepare('SELECT email FROM "user" WHERE id = ?').bind(userId).first<{ email: string }>();
+  const debate = await debateBy('someone');
+  await report(debate.id, null, userId);
+  await noticeDecision(deps(sender), debate, block(debate.id), null);
+  expect(sent.map(m => m.to)).toContain(account!.email);
+});
+
+test("reporters' contact details are cleared once the decision is sent", async () => {
+  const { sender } = recorder();
+  const debate = await debateBy('someone');
+  await report(debate.id, 'rae@example.test');
+  await env.DB.prepare(`UPDATE reports SET reporter_name = 'Rae' WHERE debate_id = ?`).bind(debate.id).run();
+  await noticeDecision(deps(sender), debate, { ...block(debate.id), decidedAt: new Date(Date.now() + 1000).toISOString() }, null);
+  const row = await env.DB.prepare('SELECT reporter_name, reporter_email FROM reports WHERE debate_id = ?').bind(debate.id).first();
+  expect(row).toEqual({ reporter_name: null, reporter_email: null });
+});
+
+test('a Report made after the decision is not told about it', async () => {
+  const { sender, sent } = recorder();
+  const debate = await debateBy('someone');
+  const decidedAt = new Date(Date.now() - 1000).toISOString();
+  await report(debate.id, 'late@example.test');
+  await noticeDecision(deps(sender), debate, { ...block(debate.id), decidedAt }, null);
+  expect(sent.map(m => m.to)).not.toContain('late@example.test');
 });
 
 test('a failing email never fails the decision', async () => {

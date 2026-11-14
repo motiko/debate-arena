@@ -39,13 +39,24 @@ export async function noticeDecision(
   previousReview: string | null,
 ): Promise<void> {
   const url = debateUrl(deps, debate.id);
+  // Everyone who reported since the previous review and up to this decision: by the email they gave, or, for a
+  // Member, their account's email.
   const { results: reporters } = await deps.db
-    .prepare('SELECT DISTINCT reporter_email FROM reports WHERE debate_id = ? AND reporter_email IS NOT NULL AND created_at >= ?')
-    .bind(debate.id, previousReview ?? '')
-    .all<{ reporter_email: string }>();
-  for (const { reporter_email } of reporters) {
-    await sendBestEffort(deps.sender, { to: reporter_email, ...reportDecision(url, decision.action) });
+    .prepare(
+      `SELECT DISTINCT COALESCE(r.reporter_email, u.email) AS email FROM reports r
+       LEFT JOIN "user" u ON u.id = r.reporter_member_id
+       WHERE r.debate_id = ? AND r.created_at >= ? AND r.created_at <= ? AND COALESCE(r.reporter_email, u.email) IS NOT NULL`,
+    )
+    .bind(debate.id, previousReview ?? '', decision.decidedAt)
+    .all<{ email: string }>();
+  for (const { email } of reporters) {
+    await sendBestEffort(deps.sender, { to: email, ...reportDecision(url, decision.action) });
   }
+  // Contact details were kept only to send this decision (privacy policy): drop them now.
+  await deps.db
+    .prepare('UPDATE reports SET reporter_name = NULL, reporter_email = NULL WHERE debate_id = ? AND created_at <= ?')
+    .bind(debate.id, decision.decidedAt)
+    .run();
 
   if (decision.action !== 'block') return;
   // A deleted author's Debates carry a random id, so no account (and no email) is found.

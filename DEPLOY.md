@@ -19,10 +19,18 @@ In the Cloudflare dashboard, **My Profile → API Tokens → Create Token → Cu
 | Account | Account Analytics — Read |
 | Zone | Workers Routes — Edit (only when you move to your own domain) |
 
-In GitHub, **Settings → Secrets and variables → Actions**:
+Create **two** tokens: one for production with the permissions above, and one for previews with only Workers
+Scripts, D1 and Queues (Edit). Pull-request previews run the pull request's code, so they must never hold the
+production token.
 
-- Secrets: `CLOUDFLARE_API_TOKEN` (the token) and `CLOUDFLARE_ACCOUNT_ID` (Workers overview page, right column).
-- Variable: `WORKERS_SUBDOMAIN`, your `<subdomain>.workers.dev` subdomain (Workers overview page).
+In GitHub:
+
+- **Settings → Environments → New environment** `production`, with environment secrets `CLOUDFLARE_API_TOKEN` (the
+  production token) and `CLOUDFLARE_ACCOUNT_ID` (Workers overview page, right column). Environment secrets are only
+  given to jobs that use the `production` environment, i.e. the production deploy.
+- **Settings → Secrets and variables → Actions**: repository secrets `CLOUDFLARE_API_TOKEN` (the preview token) and
+  `CLOUDFLARE_ACCOUNT_ID`, and the variable `WORKERS_SUBDOMAIN`, your `<subdomain>.workers.dev` subdomain (Workers
+  overview page).
 
 ## 2. Create the production resources
 
@@ -69,7 +77,8 @@ Optional:
 
 - **Email notices** (Report receipts and decisions; statements of reasons to authors of Blocked Debates): create a
   Scaleway account, verify your sending domain in Transactional Email (it adds SPF, DKIM and DMARC records), then set
-  `EMAIL_PROVIDER` to `"scaleway"` and `EMAIL_FROM` to your sender address in `env.production.vars`, and
+  `EMAIL_PROVIDER` to `"scaleway"` and `EMAIL_FROM` to your sender address in `env.production.vars` — a mailbox
+  someone reads, because notices tell people to reply to it to contest a decision — and
   `wrangler secret put SCALEWAY_SECRET_KEY --env production` and `SCALEWAY_PROJECT_ID`. Without them, notices are
   only shown in the app (Blocked page, data export).
 - **OpenRouter batch webhook** (Batch Debates move on as soon as results are in, instead of at the next poll): in
@@ -78,8 +87,9 @@ Optional:
 
 ## 6. Switch on production deploys
 
-First protect the deployment: **Settings → Environments → production → Deployment branches and tags → Selected
-branches**, and add `main`. Then only `main` can use the production environment, whatever triggers the workflow.
+Also restrict the environment: **Settings → Environments → production → Deployment branches and tags → Selected
+branches**, and add `main`. The workflow itself only deploys commits pushed to `main` of this repository that passed
+CI, and only the newest one (an older run that finishes late is skipped).
 
 Set the repository variable `DEPLOY_PRODUCTION` to `true`. From then on, every merge to `main` that passes CI runs
 `.github/workflows/deploy.yml`: the release check, D1 migrations, the API, then the web. You can also run it by hand
@@ -89,11 +99,11 @@ Set the repository variable `DEPLOY_PRODUCTION` to `true`. From then on, every m
 
 Set the repository variable `PREVIEWS` to `true`. Each pull request from a branch of this repository then gets its own
 API and web Workers, EU D1 database and queues (`debate-arena-*-pr-<n>`), with fake models and dev sign-in, and a
-comment with its URL. Everything is deleted when the PR closes (`node scripts/preview.mjs down <n>` does the same by
-hand). The Free plan allows 10 D1 databases, so keep few PRs open at once there.
+comment with its URL. Everything is deleted when the PR closes (`.github/workflows/preview-cleanup.yml`, which runs
+the base branch's code, also for PRs closed with merge conflicts); `node scripts/preview.mjs down <n>` does the same
+by hand and is safe to repeat. The Free plan allows 10 D1 databases, so keep few PRs open at once there.
 
 Previews accept the `x-dev-member` header as sign-in on purpose: their data is throwaway and their models are fake.
 
-A preview runs the pull request's own code with the Cloudflare token, so only people who can push to this repository
-get previews (pull requests from forks are skipped). If you ever give push access more widely, use a separate token for
-previews, limited to Workers Scripts, D1 and Queues.
+A preview runs the pull request's own code with the preview token (the repository secret from step 1, never the
+production one), so only people who can push to this repository get previews; pull requests from forks are skipped.

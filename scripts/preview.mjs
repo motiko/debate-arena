@@ -82,7 +82,8 @@ async function must(run, args, options) {
   return result;
 }
 
-const NOT_FOUND = /not found|does not exist|could not find|10007|7404|10090/i;
+// Wrangler words a missing resource in several ways ("Couldn't find a D1 DB…", "does not exist", API codes).
+const NOT_FOUND = /not found|does not exist|could ?n[o']t find|10007|7404|10090|11000/i;
 const EXISTS = /already exists|already taken|11009/i;
 
 export async function up(pr, run = runner(apiDir), runWeb = runner(webDir), subdomain = process.env.WORKERS_SUBDOMAIN) {
@@ -124,8 +125,8 @@ export async function down(pr, run = runner(apiDir)) {
   for (const args of [
     ['delete', '--name', names.web, '--force'],
     ['delete', '--name', names.api, '--force'],
-    ['queues', 'delete', names.queue, '--force'],
-    ['queues', 'delete', names.dlq, '--force'],
+    ['queues', 'delete', names.queue],
+    ['queues', 'delete', names.dlq],
     ['d1', 'delete', names.db, '--skip-confirmation'],
   ]) {
     const result = await run(args);

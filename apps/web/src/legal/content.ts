@@ -31,7 +31,7 @@ export const PRIVACY: LegalSection[] = [
   {
     heading: 'Cookies',
     paragraphs: [
-      'We set one cookie: the session cookie that keeps you signed in. It is strictly necessary for the service you ask for (§ 25(2) TDDDG), so we do not ask for consent. We use no tracking or advertising cookies.',
+      'We set only cookies that are strictly necessary for the service you ask for (§ 25(2) TDDDG), so we do not ask for consent: the session cookie that keeps you signed in, and a short-lived cookie that protects the GitHub sign-in while it is in progress. We use no tracking or advertising cookies.',
     ],
   },
   {
@@ -45,7 +45,7 @@ export const PRIVACY: LegalSection[] = [
   {
     heading: 'Reports and moderation',
     paragraphs: [
-      'Anyone can report a Debate. We store the Report, a keyed hash of your network address (deleted after one hour; used only to limit abuse) and, if you are not signed in, the name and email you choose to give, so that we can tell you our decision (Art. 6(1)(c) and (f) GDPR, Digital Services Act).',
+      'Anyone can report a Debate. We store the Report, a keyed hash of your network address (used only to limit abuse, and removed once it is more than an hour old, when the next Report reaches us) and, if you are not signed in, the name and email you choose to give, so that we can tell you our decision (Art. 6(1)(c) and (f) GDPR, Digital Services Act). If you are signed in, we send the receipt and the decision to your account’s email address instead.',
       'When a Moderator blocks a Debate, we keep the decision and its statement of reasons, and tell the Member who started it.',
     ],
   },
