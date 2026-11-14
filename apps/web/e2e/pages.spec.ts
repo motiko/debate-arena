@@ -175,6 +175,12 @@ test.describe('axe', () => {
     await expectNoAxeViolations(page);
   });
 
+  test('dark mode page heading band (404)', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto('/debates/no-such-debate');
+    await expectNoAxeViolations(page);
+  });
+
   test('dark mode Debate page', async ({ page, request }) => {
     const { id } = await startDebate(request);
     await waitComplete(request, id);
