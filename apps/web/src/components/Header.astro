@@ -2,29 +2,48 @@
 import SignInButton from '../islands/SignInButton.svelte';
 import SignOutButton from '../islands/SignOutButton.svelte';
 import { t, tn } from '../i18n/t';
+import { DAILY_QUOTA_POINTS } from '../lib/debate';
 
 const { me } = Astro.locals;
 const callbackPath = Astro.url.pathname + Astro.url.search;
+// One lozenge per Quota point in a day: filled for each point left, hollow for each spent.
+const points = me ? Array.from({ length: DAILY_QUOTA_POINTS }, (_, i) => i < me.quotaRemaining) : [];
+const initial = me ? (Array.from(me.name.trim())[0] ?? '?').toUpperCase() : '';
 ---
 
-{/* Sign out is the nav's last item, where it is drawn at every width: reading and focus order match what is seen. */}
+{/* The account is the nav's last item: one avatar button whose panel holds the name, Quota, the account page
+    and Sign out. Reading and focus order match what is seen at every width. */}
 <nav aria-label={t('header.nav')}>
   <a href="/new">{t('header.start')}</a>
   {
     me ? (
       <>
         {me.isModerator && <a href="/moderation">{t('header.moderation')}</a>}
-        {/* One account item: a label that says where it goes, the handle and Quota under it (short on a phone). */}
-        <a class="account" href="/account">
-          <span class="account-label">{t('header.account')}</span>
-          <span class="account-meta">
-            <span class="account-name">{me.name}</span>
-            <span class="quota-long">{tn('header.quota', me.quotaRemaining)}</span>
-            <span class="quota-short">{tn('header.quotaShort', me.quotaRemaining)}</span>
-          </span>
-        </a>
-        <div class="session">
-          <SignOutButton client:idle />
+        <div class="account">
+          <button
+            type="button"
+            class="avatar-button"
+            popovertarget="account-panel"
+            aria-label={`${t('header.account')}, ${tn('header.quota', me.quotaRemaining)}`}
+          >
+            <span class="avatar" aria-hidden="true">
+              {me.image ? <img src={me.image} alt="" width="36" height="36" referrerpolicy="no-referrer" /> : initial}
+            </span>
+          </button>
+          <div id="account-panel" class="account-panel" popover>
+            <p class="panel-name">{me.name}</p>
+            <div class="panel-quota">
+              <p>{tn('header.quota', me.quotaRemaining)}</p>
+              <span class="quota-lozenges" aria-hidden="true">
+                {points.map(left => <span class:list={['lozenge', { spent: !left }]} />)}
+              </span>
+              {me.quotaRemaining < DAILY_QUOTA_POINTS && (
+                <p class="muted">{t('header.quotaRefill', { total: DAILY_QUOTA_POINTS })}</p>
+              )}
+            </div>
+            <a class="panel-link" href="/account">{t('header.accountSettings')}</a>
+            <SignOutButton client:idle />
+          </div>
         </div>
       </>
     ) : (
@@ -32,3 +51,51 @@ const callbackPath = Astro.url.pathname + Astro.url.search;
     )
   }
 </nav>
+
+<script>
+  // The panel opens on a click (and stays until Esc, a click outside or the button again) or, with a mouse,
+  // while the pointer rests on the avatar or the panel. Fixed under the avatar: the popover sits in the top layer.
+  const button = document.querySelector<HTMLButtonElement>('.avatar-button');
+  const panel = document.getElementById('account-panel');
+  if (button && panel) {
+    const place = () => {
+      const box = button.getBoundingClientRect();
+      panel.style.top = `${box.bottom + 8}px`;
+      panel.style.right = `${Math.max(document.documentElement.clientWidth - box.right, 8)}px`;
+    };
+    panel.addEventListener('beforetoggle', event => {
+      if ((event as ToggleEvent).newState === 'open') place();
+    });
+
+    let byHover = false;
+    let closing: number | undefined;
+    const open = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse') return;
+      clearTimeout(closing);
+      if (!panel.matches(':popover-open')) {
+        byHover = true;
+        panel.showPopover();
+      }
+    };
+    const close = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse' || !byHover) return;
+      closing = window.setTimeout(() => {
+        if (byHover && !panel.contains(document.activeElement)) panel.hidePopover();
+      }, 300);
+    };
+    // A click on an avatar the hover already opened keeps the panel open instead of toggling it shut.
+    button.addEventListener('click', event => {
+      if (byHover && panel.matches(':popover-open')) {
+        event.preventDefault();
+        byHover = false;
+      }
+    });
+    panel.addEventListener('toggle', event => {
+      if ((event as ToggleEvent).newState === 'closed') byHover = false;
+    });
+    for (const el of [button, panel]) {
+      el.addEventListener('pointerenter', open);
+      el.addEventListener('pointerleave', close);
+    }
+  }
+</script>

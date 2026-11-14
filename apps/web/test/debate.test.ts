@@ -115,7 +115,7 @@ describe('chamber helpers', () => {
     expect(dispatchState({ ...base, myVote: { before: 'for', after: null }, audienceResult: closed }, NOW)).toBe('revealed');
   });
 
-  test('a Batch Debate takes no Audience Votes, so its outcome is open', () => {
+  test('a Slow Debate takes no Audience Votes, so its outcome is open', () => {
     expect(dispatchState({ ...base, kind: 'batch' }, NOW)).toBe('revealed');
   });
 
@@ -139,7 +139,7 @@ describe('chamber helpers', () => {
     expect(outcomeHidden({ ...live, votingClosesAt: null }, NOW)).toBe(true);
     expect(outcomeHidden({ ...live, votingClosesAt: undefined }, NOW)).toBe(true);
     expect(outcomeHidden(live, NOW)).toBe(true);
-    // The reader's own after-vote still shows it, and a Batch Debate has no voting window to wait for.
+    // The reader's own after-vote still shows it, and a Slow Debate has no voting window to wait for.
     expect(outcomeHidden({ ...live, votingClosesAt: null, myVote: { before: 'for', after: 'for' } }, NOW)).toBe(false);
     expect(outcomeHidden({ ...live, kind: 'batch', votingClosesAt: null }, NOW)).toBe(false);
     expect(dispatchState({ ...base, audienceResult: { votingClosesAt: null } }, NOW)).toBe('hidden');
@@ -165,7 +165,7 @@ describe('chamber helpers', () => {
     expect(dispatchState({ ...base, kind: 'batch', status: 'failed', verdict: { winner: 'for' } }, NOW)).toBe('audienceFailed');
   });
 
-  test('a failed Batch Debate is failed, not generating', () => {
+  test('a failed Slow Debate is failed, not generating', () => {
     expect(dispatchState({ ...base, kind: 'batch', status: 'failed', turns: [] }, NOW)).toBe('failed');
   });
 

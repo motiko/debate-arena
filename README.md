@@ -51,13 +51,13 @@ Every Motion is screened by an AI model first (Llama Guard 4 in production). A F
 - **Who is a Moderator:** Members whose GitHub account id is in `MODERATOR_GITHUB_IDS` (comma-separated numeric ids, a var in `apps/api/wrangler.jsonc`; empty means nobody). Find your id with `curl -s https://api.github.com/users/<login>` (field `id`).
 - **Locally:** while `DEV_AUTH` is on, dev Members whose id starts with `dev-mod` (header `x-dev-member: dev-mod-1`) are Moderators. Put `[flag-test]` in a Motion to make the fake screener Flag it.
 
-### Batch Debates
+### Slow Debates
 
-Tick **Batch Debate** on the start form (or send `"batch": true` to `POST /api/debates`). A Batch Debate costs 1 Quota point instead of 2. It is generated through OpenRouter's Batch API at batch prices (about half price for most models), using only batch-capable models: Claude Haiku 5.5, GPT-6.1 Terra and DeepSeek V4.1 Flash.
+Tick **Make it a Slow Debate** at the end of the start form (or send `"batch": true` to `POST /api/debates`). A Slow Debate costs 1 Quota point instead of 2. It is generated through OpenRouter's Batch API at batch prices (about half price for most models), using only batch-capable models: Claude Haiku 5.5, GPT-6.1 Terra and DeepSeek V4.1 Flash.
 
-- Each model call is sent as its own batch, and its step is queued again with a growing delay (from 1 minute to at most 15) until the result is in. A Batch Debate usually takes about an hour, and at worst a day or more.
+- Each model call is sent as its own batch, and its step is queued again with a growing delay (from 1 minute to at most 15) until the result is in. A Slow Debate usually takes about an hour, and at worst a day or more.
 - Until it is complete, only the Member who started it can see it. It has no live stream and takes no Audience Votes; with AI Voters it gets an AI Audience Result.
-- Locally, fake batch calls answer after 2 seconds, so a Batch Debate completes in under a minute.
+- Locally, fake batch calls answer after 2 seconds, so a Slow Debate completes in under a minute.
 
 ### Real models
 

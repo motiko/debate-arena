@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { expectNoAxeViolations, hydrated, uniqueMember } from './helpers';
 
-// Locally, fake batch calls answer after 2 s, so a Batch Debate completes in well under two minutes.
-test('start a Batch Debate, see it is being generated, then read it when complete', async ({ page, request }) => {
+// Locally, fake batch calls answer after 2 s, so a Slow Debate completes in well under two minutes.
+test('start a Slow Debate, see it is being generated, then read it when complete', async ({ page, request }) => {
   test.setTimeout(180_000);
   const member = uniqueMember('dev-batch');
   await page.setExtraHTTPHeaders({ 'x-dev-member': member });
@@ -11,12 +11,12 @@ test('start a Batch Debate, see it is being generated, then read it when complet
   await hydrated(page);
   await page.getByLabel('Motion').fill(motion);
   await expect(page.getByText('You have 6 Quota points left today.')).toBeVisible();
-  await page.getByRole('radio', { name: /Batch Debate/ }).check();
-  await expect(page.locator('#start-summary')).toHaveText(/^Batch Debate · .* · 1 Quota point$/);
+  await page.getByRole('checkbox', { name: /Slow Debate/ }).check();
+  await expect(page.locator('#start-summary')).toHaveText(/^Slow Debate · .* · 1 Quota point$/);
   await page.getByRole('button', { name: 'Start the Debate' }).click();
   await expect(page).toHaveURL(/\/debates\/[0-9a-f-]+$/);
   const id = new URL(page.url()).pathname.split('/').at(-1)!;
-  await expect(page.getByText(/being generated through batch processing/)).toBeVisible();
+  await expect(page.getByText(/Your Slow Debate is being argued/)).toBeVisible();
   await expect(page.getByRole('article')).toHaveCount(0);
   await expect(page.getByRole('log')).toHaveCount(0);
   await expectNoAxeViolations(page);
@@ -35,7 +35,7 @@ test('start a Batch Debate, see it is being generated, then read it when complet
   await page.setExtraHTTPHeaders({});
   await page.reload();
   await expect(page.getByRole('heading', { level: 1, name: motion })).toBeVisible();
-  await expect(page.locator('.badge', { hasText: 'Batch Debate' })).toBeVisible();
+  await expect(page.locator('.badge', { hasText: 'Slow Debate' })).toBeVisible();
   await expect(page.getByRole('article')).toHaveCount(6);
   await expect(page.getByRole('heading', { name: /Verdict/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /before-vote/ })).toHaveCount(0);

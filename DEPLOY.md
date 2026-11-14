@@ -83,7 +83,7 @@ Optional:
   someone reads, because notices tell people to reply to it to contest a decision — and
   `wrangler secret put SCALEWAY_SECRET_KEY --env production` and `SCALEWAY_PROJECT_ID`. Without them, notices are
   only shown in the app (Blocked page, data export).
-- **OpenRouter batch webhook** (Batch Debates move on as soon as results are in, instead of at the next poll): in
+- **OpenRouter batch webhook** (Slow Debates move on as soon as results are in, instead of at the next poll): in
   OpenRouter's workspace settings, **Generate signing secret**, then `wrangler secret put OPENROUTER_WEBHOOK_SECRET
   --env production`.
 

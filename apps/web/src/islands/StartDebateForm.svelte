@@ -171,27 +171,6 @@
 
   <!-- Without Quota nothing here can be used: say so above, and do not let the form be filled in for nothing. -->
   <fieldset class="body" disabled={!canAffordAny}>
-    <fieldset class="group">
-      <legend>{t('new.kind')}</legend>
-      <div class="kinds">
-        <label class="kind">
-          <input type="radio" name="kind" value="full" checked={!batch} onchange={() => (batch = false)} disabled={!canAffordFull} aria-describedby="kind-full-hint" />
-          <span class="kind-text">
-            <span class="kind-name">{t('new.kindFull')}</span>
-            <span id="kind-full-hint" class="kind-hint">{t(canAffordFull ? 'new.kindFullHint' : 'new.kindUnaffordable', { points: points(DEBATE_QUOTA_POINTS) })}</span>
-          </span>
-        </label>
-        <label class="kind">
-          <input type="radio" name="kind" value="batch" checked={batch} onchange={() => (batch = true)} aria-describedby="kind-batch-hint" />
-          <span class="kind-text">
-            <span class="kind-name">{t('new.batch')}</span>
-            <span id="kind-batch-hint" class="kind-hint">{t('new.batchHint', { points: points(BATCH_DEBATE_QUOTA_POINTS) })}</span>
-          </span>
-        </label>
-      </div>
-      <p class="visually-hidden" role="status">{unavailableStatus}</p>
-    </fieldset>
-
     <div class="group field">
       <label for="motion" class="motion-label">{t('new.motion')}</label>
       <p id="motion-hint" class="muted">{t('new.motionHint')}</p>
@@ -278,6 +257,16 @@
       </div>
     </fieldset>
 
+    <!-- Optional, and last: the same Debate, cheaper and slower. With Quota for nothing more it is ticked and
+         fixed, and the note above the form says why. -->
+    <div class="group field">
+      <label class="choice"
+        ><input type="checkbox" bind:checked={batch} disabled={!canAffordFull} aria-describedby="batch-hint" /> {t('new.batchChoice')}</label
+      >
+      <p id="batch-hint" class="muted">{t('new.batchHint', { points: points(BATCH_DEBATE_QUOTA_POINTS), full: DEBATE_QUOTA_POINTS })}</p>
+      <p class="visually-hidden" role="status" id="batch-status">{unavailableStatus}</p>
+    </div>
+
     <div class="group submit">
       <p id="start-summary" class="summary">{summary}</p>
       <div class="submit-row">
@@ -327,46 +316,6 @@
   }
   .quota-left {
     color: var(--muted);
-  }
-
-  /* The kind of Debate: two options side by side, each naming what it costs and what it gives up. */
-  .kinds {
-    display: grid;
-    gap: 0.75rem;
-  }
-  .kind {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-    padding: 0.85rem 1rem;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--surface);
-    font-weight: 400;
-    cursor: pointer;
-  }
-  .kind:has(input:checked) {
-    border-color: var(--green);
-    box-shadow: inset 0 0 0 1px var(--green);
-  }
-  .kind:has(input:disabled) {
-    cursor: not-allowed;
-    background: transparent;
-  }
-  .kind input {
-    flex: none;
-    margin: 0.15rem 0 0;
-  }
-  .kind-text {
-    display: grid;
-    gap: 0.2rem;
-  }
-  .kind-name {
-    font-weight: 600;
-  }
-  .kind-hint {
-    color: var(--muted);
-    font-size: 0.95rem;
   }
 
   #motion {
@@ -450,9 +399,6 @@
   }
 
   @media (min-width: 40rem) {
-    .kinds {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    }
     .benches {
       grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
       align-items: start;

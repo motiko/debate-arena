@@ -59,7 +59,7 @@ test('a Batch Debate is stored as one', async () => {
 
 test('a Batch Debate refuses a model without batch', async () => {
   const r = await startDebate(makeDeps(), uniqueId('m'), { ...batch, debaters: { for: 'fake-slow/one', against: 'fake-b/one' } });
-  expect(r).toEqual({ ok: false, status: 400, error: 'Model fake-slow/one has no batch processing' });
+  expect(r).toEqual({ ok: false, status: 400, error: 'Model fake-slow/one cannot take part in a Slow Debate' });
 });
 
 test("a Batch Debate's Panel and AI Voters are batch-capable", async () => {

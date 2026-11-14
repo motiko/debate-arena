@@ -91,32 +91,43 @@ test('a 300-character Motion fits a phone screen', async ({ page, request }) => 
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
-test('header controls are readable on the band for a signed-in Member', async ({ page }) => {
-  await page.setExtraHTTPHeaders({ 'x-dev-member': `band-${Date.now()}` });
+test("the account is one avatar button whose panel shows the name, Quota, the account page and Sign out", async ({ page }) => {
+  const member = `panel-${Date.now()}`;
+  await page.setExtraHTTPHeaders({ 'x-dev-member': member });
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCSS('color', 'rgb(242, 245, 241)');
+  const avatar = page.getByRole('button', { name: 'Your account, 6 Quota points left today' });
+  const panel = page.locator('#account-panel');
+  await expect(panel).toBeHidden();
+  await avatar.click();
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText(member);
+  await expect(panel).toContainText('6 Quota points left today');
+  await expect(panel.locator('.lozenge:not(.spent)')).toHaveCount(6);
+  await expect(panel.getByRole('link', { name: 'Account settings' })).toHaveAttribute('href', '/account');
+  await expect(panel.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+  await expect(avatar).toBeFocused();
 });
 
-test('a signed-in header stays at two rows on a phone, with a visible account label', async ({ page }) => {
-  await page.setExtraHTTPHeaders({ 'x-dev-member': `rows-${Date.now()}` });
-  await page.setViewportSize({ width: 412, height: 915 });
+test('hovering the avatar with a mouse opens the account panel, and leaving closes it', async ({ page }) => {
+  await page.setExtraHTTPHeaders({ 'x-dev-member': `hover-${Date.now()}` });
   await page.goto('/');
-  await expect(page.locator('.site-header').getByRole('link', { name: /^Your account/ })).toBeVisible();
-  // Two rows of 44px targets plus padding; a third row would push it past 130px.
-  expect((await page.locator('.site-header').boundingBox())?.height).toBeLessThan(130);
+  const panel = page.locator('#account-panel');
+  await page.locator('.avatar-button').hover();
+  await expect(panel).toBeVisible();
+  await page.locator('main').hover({ position: { x: 5, y: 300 } });
+  await expect(panel).toBeHidden();
 });
 
-test("Sign out is the nav's last item, drawn last, and a Moderator's header also stays at two rows", async ({ page }) => {
+test("a signed-in header stays at two rows on a phone, a Moderator's too, with the account as the nav's last item", async ({ page }) => {
   await page.setExtraHTTPHeaders({ 'x-dev-member': `dev-mod-rows-${Date.now()}` });
   await page.setViewportSize({ width: 412, height: 915 });
   await page.goto('/');
   const nav = page.getByRole('navigation', { name: 'Main' });
-  const items = nav.locator(':is(a, button)');
-  await expect(items.last()).toHaveAccessibleName('Sign out');
-  // Drawn after every other item: on the last row, at its end.
-  const boxes = await items.evaluateAll(els => els.map(el => el.getBoundingClientRect()).map(r => ({ top: r.top, right: r.right })));
-  const signOut = boxes.at(-1)!;
-  for (const box of boxes.slice(0, -1)) expect(box.top < signOut.top || box.right <= signOut.right).toBe(true);
+  const items = nav.locator(':is(a, button):visible');
+  await expect(items.last()).toHaveAccessibleName(/^Your account, /);
+  // Two rows of 44px targets plus padding; a third row would push it past 130px.
   expect((await page.locator('.site-header').boundingBox())?.height).toBeLessThan(130);
 });
 
