@@ -32,6 +32,9 @@ export async function refreshRegions(options: RefreshOptions = {}): Promise<bool
   }
   if (swaps.length === 0) return false;
 
+  const active = doc.activeElement;
+  const lost = active && swaps.find(([region]) => region.contains(active));
+
   const said: string[] = prefix ? [prefix] : [];
   for (const [region, next] of swaps) {
     next.dataset.arrived = '';
@@ -40,6 +43,21 @@ export async function refreshRegions(options: RefreshOptions = {}): Promise<bool
   }
   const announcer = doc.getElementById('debate-announcer');
   if (announcer) announcer.textContent = said.join(' ');
-  if (focus) swaps.map(([, next]) => next.querySelector<HTMLElement>('[data-focus]')).find(Boolean)?.focus();
+  const target = focus ? swaps.map(([, next]) => next.querySelector<HTMLElement>('[data-focus]')).find(Boolean) : null;
+  if (target) target.focus();
+  else if (lost) keepFocus(active, lost[1]);
   return true;
+}
+
+/**
+ * Focus was inside a region that has just been replaced, so it would fall back to the page's start: move it to
+ * the same control in the fresh render (by id, else by name), or else to the fresh region itself.
+ */
+function keepFocus(was: Element, next: HTMLElement) {
+  const all = [...next.querySelectorAll<HTMLElement>('[id], [name]')];
+  const name = was.getAttribute('name');
+  const match = (was.id && all.find(el => el.id === was.id)) || (name && all.find(el => el.getAttribute('name') === name));
+  if (match) return match.focus();
+  if (!next.hasAttribute('tabindex')) next.tabIndex = -1;
+  next.focus();
 }

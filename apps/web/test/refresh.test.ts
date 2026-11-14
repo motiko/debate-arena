@@ -53,3 +53,34 @@ test('leaves the page as it is when the fresh render fails', async () => {
   expect(await refreshRegions({ fetcher: serve('<p>No regions here</p>'), url: '/d' })).toBe(false);
   expect(document.body).toHaveTextContent('Live now');
 });
+
+test('keeps focus that was inside a swapped region: on the matching control of the fresh render', async () => {
+  document.body.innerHTML = `<div data-region="benches"><a id="to-vote" href="#v">Vote</a></div><p id="debate-announcer"></p>`;
+  document.getElementById('to-vote')?.focus();
+  await refreshRegions({ fetcher: serve('<div data-region="benches"><p>Over</p><a id="to-vote" href="#v">Vote again</a></div>'), url: '/d' });
+  expect(document.activeElement?.id).toBe('to-vote');
+  expect(document.activeElement?.textContent).toBe('Vote again');
+});
+
+test('matches a control by name when it has no id', async () => {
+  document.body.innerHTML = `<div data-region="outcome"><input type="radio" name="stance" value="for"></div>`;
+  document.querySelector('input')?.focus();
+  await refreshRegions({ fetcher: serve('<div data-region="outcome"><p>Now</p><input type="radio" name="stance" value="against"></div>'), url: '/d' });
+  expect(document.activeElement).toHaveAttribute('name', 'stance');
+});
+
+test('falls back to the fresh region itself when the focused control is gone', async () => {
+  setUp();
+  document.querySelector('button')?.focus();
+  await refreshRegions({ fetcher: serve(page('x', '<p>Verdict</p>')), url: '/d' });
+  const region = document.querySelector('[data-region="outcome"]');
+  expect(document.activeElement).toBe(region);
+  expect(region).toHaveAttribute('tabindex', '-1');
+});
+
+test('leaves focus alone when it was outside the swapped regions', async () => {
+  document.body.innerHTML = `<button id="outside">Menu</button>${page('Live now', '<button>Vote</button>')}`;
+  document.getElementById('outside')?.focus();
+  await refreshRegions({ fetcher: serve(page('x', '<p>Verdict</p>')), url: '/d' });
+  expect(document.activeElement).toHaveAttribute('id', 'outside');
+});
