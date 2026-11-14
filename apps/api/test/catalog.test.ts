@@ -45,3 +45,10 @@ test('hasRole checks catalog membership and role', () => {
 test('priceTable covers exactly the catalog', () => {
   expect(Object.keys(priceTable(FAKE_CATALOG)).toSorted()).toEqual(FAKE_CATALOG.entries.map(e => e.id).toSorted());
 });
+
+test('the production catalog has no model whose reasoning is mandatory', () => {
+  // OpenRouter refuses reasoning-off for google/gemini-3.8-flash ("Reasoning is mandatory for this endpoint and cannot
+  // be disabled", live and batch, 2026-11-14; its /models entry says reasoning.mandatory: true). Hidden reasoning
+  // tokens would break the Budget, so it must not be offered in any role.
+  expect(PRODUCTION_CATALOG.entries.map(e => e.id)).not.toContain('google/gemini-3.8-flash');
+});
