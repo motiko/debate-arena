@@ -19,8 +19,9 @@ In the Cloudflare dashboard, **My Profile → API Tokens → Create Token → Cu
 | Account | Account Analytics — Read |
 | Zone | Workers Routes — Edit (only when you move to your own domain) |
 
-Create **two** tokens: one for production with the permissions above, and one for previews with only Workers
-Scripts, D1 and Queues (Edit). Pull-request previews run the pull request's code, so they must never hold the
+Create **two** tokens: one for production with the permissions above, and one for previews with Workers Scripts, D1
+and Queues (Edit) and **Workers KV Storage — Read** (`wrangler delete`, which removes a preview, lists KV namespaces
+first and fails without it). Pull-request previews run the pull request's code, so they must never hold the
 production token.
 
 In GitHub:
@@ -43,8 +44,9 @@ pnpm exec wrangler queues create debate-steps-production-dlq
 ```
 
 Put the printed `database_id` into `apps/api/wrangler.jsonc` → `env.production` → `d1_databases` (replacing
-`REPLACE_ME_D1_ID`). Workers Analytics Engine needs no setup: the `debate_arena_pageviews` dataset is created on the
-first page view.
+`REPLACE_ME_D1_ID`). Enable Workers Analytics Engine once in the dashboard (**Workers & Pages → Analytics Engine**);
+until then the web Worker's deploy fails with code 10089. The `debate_arena_pageviews` dataset itself is created on
+the first page view.
 
 ## 3. Fill in the placeholders
 
@@ -93,7 +95,9 @@ CI, and only the newest one (an older run that finishes late is skipped).
 
 Set the repository variable `DEPLOY_PRODUCTION` to `true`. From then on, every merge to `main` that passes CI runs
 `.github/workflows/deploy.yml`: the release check, D1 migrations, the API, then the web. You can also run it by hand
-(**Actions → Deploy production → Run workflow**).
+(**Actions → Deploy production → Run workflow**). The very first deploy of a Worker can fail right after its upload
+with "This Worker does not exist on your account. [code: 10007]" (Wrangler asks before the API lists it); re-run the
+failed job. Previews retry this on their own.
 
 ## 7. Switch on PR previews
 
