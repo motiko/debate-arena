@@ -4,7 +4,7 @@ import BatchBadge from '../components/BatchBadge.astro';
 import SelfJudgingBadge from '../components/SelfJudgingBadge.astro';
 import Base from '../layouts/Base.astro';
 import { t } from '../i18n/t';
-import { debaterLabel, FEED_PAGE_SIZE, nextFeedCursor, type ModelInfo } from '../lib/debate';
+import { debaterLabel, FEED_PAGE_SIZE, feedOutcome, nextFeedCursor, type ModelInfo } from '../lib/debate';
 import { formatDate } from '../lib/format';
 
 const { api } = Astro.locals;
@@ -45,12 +45,16 @@ const cursor = nextFeedCursor(debates, FEED_PAGE_SIZE);
               {d.kind === 'batch' && <BatchBadge />}
             </p>
             <p class="entry-meta">
-              {d.verdict && (
-                <>
-                  <strong class={`side-${d.verdict.winner}`}>{t(d.verdict.winner === 'for' ? 'feed.carried' : 'feed.defeated')}</strong>
-                  <AiLabel />
-                  {d.selfJudging && <SelfJudgingBadge />}
-                </>
+              {d.verdict && feedOutcome(d) === 'votingOpen' ? (
+                <strong>{t('feed.votingOpen')}</strong>
+              ) : (
+                d.verdict && (
+                  <>
+                    <strong class={`side-${d.verdict.winner}`}>{t(d.verdict.winner === 'for' ? 'feed.carried' : 'feed.defeated')}</strong>
+                    <AiLabel />
+                    {d.selfJudging && <SelfJudgingBadge />}
+                  </>
+                )
               )}
               {d.completedAt && <time datetime={d.completedAt}>{formatDate(d.completedAt)}</time>}
             </p>

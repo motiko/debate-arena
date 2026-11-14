@@ -255,5 +255,6 @@ export const en = {
   'share.manual': 'Copy this link:',
   'feed.carried': 'Carried',
   'feed.defeated': 'Defeated',
+  'feed.votingOpen': 'Voting open',
   'feed.sides': '{for} for, {against} against',
 } as const;

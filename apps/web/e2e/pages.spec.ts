@@ -15,7 +15,9 @@ test('the order paper names the benches and the outcome', async ({ page, request
   await page.goto('/');
   const entry = page.getByRole('listitem').filter({ has: page.getByRole('link', { name: motion }) });
   await expect(entry).toContainText('Fake A for, Fake B against');
-  await expect(entry).toContainText(/Carried|Defeated/);
+  // Just finished: Audience voting is open for a week, so the outcome waits (spec: the hybrid rule).
+  await expect(entry).toContainText('Voting open');
+  await expect(entry).not.toContainText(/Carried|Defeated/);
 });
 
 test('debate page shows Turns, Verdict and AI labels', async ({ page, request }) => {
