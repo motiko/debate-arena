@@ -41,7 +41,9 @@ test('before-vote, then after-vote once complete', async ({ page, request }) => 
   await expect(page.getByText(/across 1 Member/)).toBeVisible();
   // Nothing left to vote on: the dispatch box shows the outcome without asking.
   await expect(page.locator('.dispatch .outcome-headline')).toBeVisible();
-  await expect(page.locator('.dispatch summary')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Show the result' })).toHaveCount(0);
+  await expect(page.locator('details#outcome')).toHaveCount(0);
+  await expect(page.getByRole('group', { name: 'Where do you stand now?' })).toHaveCount(0);
 });
 
 test('the starter of a live Debate votes before, follows it, and is asked again in place at the end', async ({ page }) => {
