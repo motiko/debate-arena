@@ -12,8 +12,11 @@ import {
   recordDecision,
   unlistForReports,
   type BlockGround,
+  type ModerationDecision,
 } from './db/moderation';
 import { isModerator, parseDecision } from './moderation/moderators';
+import { createEmailSender, type EmailEnv } from './notices/email';
+import { noticeDecision, noticeReportReceived, type NoticeDeps } from './notices/notify';
 import { keyedHash, parseReport, rateLimitNetwork, REPORT_UNLIST_THRESHOLD, REPORTS_PER_IP_PER_HOUR } from './moderation/reports';
 import { quotaRemaining } from './db/quota';
 import { getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
@@ -113,6 +116,21 @@ function parseVote(input: unknown): { phase: VotePhase; stance: Stance } | null 
   const p = PHASES.find(x => x === phase);
   const s = STANCES.find(x => x === stance);
   return p && s ? { phase: p, stance: s } : null;
+}
+
+/**
+ * Sends DSA notices after the response, best-effort: a missing or failing email provider never fails the request.
+ */
+function afterResponse(c: { env: Env; executionCtx: { waitUntil(promise: Promise<unknown>): void } }, notice: (deps: NoticeDeps) => Promise<void>): void {
+  const run = async () => {
+    try {
+      const env = c.env as Env & EmailEnv;
+      await notice({ db: env.DB, sender: createEmailSender(env), siteUrl: env.BETTER_AUTH_URL, contact: env.EMAIL_FROM });
+    } catch (error) {
+      console.error('Could not send notices', error);
+    }
+  };
+  c.executionCtx.waitUntil(run());
 }
 
 /** The signed-in Moderator, or why the request is refused (401 signed out, 403 not a Moderator). */
@@ -282,6 +300,8 @@ export const app = new Hono<{ Bindings: Env }>()
     if (memberId && (await memberReportsSince(c.env.DB, debate.id, debate.reviewedAt)) >= REPORT_UNLIST_THRESHOLD) {
       await unlistForReports(c.env.DB, debate.id);
     }
+    const reporterEmail = memberId ? null : parsed.email;
+    if (reporterEmail) afterResponse(c, deps => noticeReportReceived(deps, debate.id, reporterEmail));
     return c.json({ ok: true }, 201);
   })
   .get('/moderation/queue', async c => {
@@ -309,7 +329,7 @@ export const app = new Hono<{ Bindings: Env }>()
         : (await hasReportsSince(c.env.DB, debate.id, debate.reviewedAt))
           ? 'reports'
           : 'moderator';
-    const applied = await recordDecision(c.env.DB, {
+    const decision = {
       id: crypto.randomUUID(),
       debateId: debate.id,
       action: parsed.action,
@@ -321,8 +341,10 @@ export const app = new Hono<{ Bindings: Env }>()
       explanation: parsed.explanation,
       moderatorId: moderator.memberId,
       decidedAt: new Date().toISOString(),
-    });
+    } satisfies ModerationDecision;
+    const applied = await recordDecision(c.env.DB, decision);
     if (!applied) return c.json({ error: 'This Debate is already blocked' }, 409);
+    afterResponse(c, deps => noticeDecision(deps, debate, decision, debate.reviewedAt));
     if (parsed.action === 'block') {
       // Viewers already watching must stop seeing it. Best-effort: new requests are refused with 410 anyway.
       try {

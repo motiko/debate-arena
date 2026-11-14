@@ -1,9 +1,18 @@
 # Copy to .dev.vars (never commit it).
 
-# Sign in with GitHub: create an OAuth App with callback http://localhost:8787/api/auth/callback/github
+# Sign in with GitHub: create an OAuth App with homepage http://localhost:4321 and
+# callback http://localhost:4321/api/auth/callback/github
 BETTER_AUTH_SECRET=   # e.g. `openssl rand -base64 32`
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 
 # Real models: also set MODEL_PROVIDER to "openrouter" in wrangler.jsonc vars.
 OPENROUTER_API_KEY=
+
+# Optional. OpenRouter batch webhook signing secret (needs a public URL, so usually production only).
+OPENROUTER_WEBHOOK_SECRET=
+
+# Optional. Email notices through Scaleway Transactional Email: also set EMAIL_PROVIDER to "scaleway"
+# and EMAIL_FROM to a verified sender address in wrangler.jsonc vars.
+SCALEWAY_SECRET_KEY=
+SCALEWAY_PROJECT_ID=
