@@ -23,7 +23,9 @@ const judges = debate.panel.map(j => modelLabel(j, models)).join(', ');
 <section class="record" aria-labelledby="record-title">
   <div>
     <h2 id="record-title">{t('record.title')}</h2>
-    <dl>
+    {/* data-region: when a live Debate ends in place the facts gain their finish date (lib/refresh). Only the facts:
+        a Report being written below must not be swapped away. */}
+    <dl data-region="record">
       <dt>{t('record.format')}</dt>
       <dd>{format}</dd>
       <dt>{t('record.judge')}</dt>

@@ -55,10 +55,12 @@ test('the starter of a live Debate votes before, follows it, and is asked again 
   // The before-vote does not hide that the Debate is running.
   await expect(page.locator('.dispatch')).toContainText('Live now');
   await expect(page.getByRole('group', { name: 'Where do you stand?' })).toBeVisible();
+  await page.evaluate(() => ((window as unknown as { __sameLoad: boolean }).__sameLoad = true));
   await page.getByRole('radio', { name: 'For' }).check();
   await page.getByRole('button', { name: 'Cast before-vote' }).click();
+  // The Turns come in place, and the reader goes on from them rather than from the top of the page.
   await expect(page.getByRole('log')).toBeVisible();
-  await page.evaluate(() => ((window as unknown as { __sameLoad: boolean }).__sameLoad = true));
+  await expect(page.locator('#turns')).toBeFocused();
   await expect(page.getByText('The Debate is over.')).toBeVisible({ timeout: 40_000 });
   await expect(page.getByRole('group', { name: 'Where do you stand now?' })).toBeVisible();
   await expect(page.locator('.dispatch')).not.toContainText('Live now');

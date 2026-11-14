@@ -120,7 +120,7 @@
     <span class="rule" aria-hidden="true"></span>
   {:else}
     <p>
-      {#if outcome === 'running' && status === 'open'}<span class="dot" aria-hidden="true"></span>{/if}
+      {#if outcome === 'running' && status === 'open'}<span class="live-dot" aria-hidden="true"></span>{/if}
       {statusText}
     </p>
   {/if}
@@ -139,12 +139,6 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
-  }
-  .dot {
-    width: 0.6rem;
-    height: 0.6rem;
-    border-radius: 50%;
-    background: var(--against);
   }
   /* The end of the Debate: the floor closes with a brass rule drawn out from the middle, as the house rises. */
   .closing {

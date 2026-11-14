@@ -9,13 +9,18 @@ export interface RefreshOptions {
   url?: string;
   /** Said before the fresh regions' own announcements (their data-announce), e.g. that a vote is recorded. */
   prefix?: string;
-  /** Move focus to the fresh render's [data-focus] element: the control that had it is about to be replaced. */
-  focus?: boolean;
+  /**
+   * Move focus into the fresh render, since the control that had it is about to be replaced: to its [data-focus]
+   * element, or with a selector, to the element it names.
+   */
+  focus?: boolean | string;
+  /** Regions marked data-on-request to swap too (the rest of those stay as they are), e.g. the floor. */
+  include?: string[];
 }
 
 /** True when at least one region was replaced; false leaves the page exactly as it was. */
 export async function refreshRegions(options: RefreshOptions = {}): Promise<boolean> {
-  const { fetcher = fetch, doc = document, prefix = '', focus = false } = options;
+  const { fetcher = fetch, doc = document, prefix = '', focus = false, include = [] } = options;
   let html: string;
   try {
     const response = await fetcher(options.url ?? doc.location.href, { headers: { accept: 'text/html' }, cache: 'no-store' });
@@ -27,6 +32,7 @@ export async function refreshRegions(options: RefreshOptions = {}): Promise<bool
   const fresh = new DOMParser().parseFromString(html, 'text/html');
   const swaps: [HTMLElement, HTMLElement][] = [];
   for (const region of doc.querySelectorAll<HTMLElement>('[data-region]')) {
+    if (region.hasAttribute('data-on-request') && !include.includes(region.dataset.region ?? '')) continue;
     const next = fresh.querySelector<HTMLElement>(`[data-region="${region.dataset.region}"]`);
     if (next) swaps.push([region, doc.importNode(next, true)]);
   }
@@ -43,7 +49,8 @@ export async function refreshRegions(options: RefreshOptions = {}): Promise<bool
   }
   const announcer = doc.getElementById('debate-announcer');
   if (announcer) announcer.textContent = said.join(' ');
-  const target = focus ? swaps.map(([, next]) => next.querySelector<HTMLElement>('[data-focus]')).find(Boolean) : null;
+  const selector = typeof focus === 'string' ? focus : '[data-focus]';
+  const target = focus ? swaps.map(([, next]) => next.querySelector<HTMLElement>(selector)).find(Boolean) : null;
   if (target) target.focus();
   else if (lost) keepFocus(active, lost[1]);
   return true;

@@ -94,7 +94,9 @@
       vote = body.vote;
       choice = '';
       announcement = t('vote.recorded', { phase: castPhase, stance: stanceLabel(stance) });
-      if (castPhase === 'before' && turnsHidden) reload();
+      // The Turns open with the before-vote: brought in place with focus on them, so the reader carries on
+      // reading where the page now continues; a full reload only if that fails (it would start at the top).
+      if (castPhase === 'before' && turnsHidden && !(await refresh({ fetcher, prefix: announcement, include: ['turns'], focus: '#turns' }))) reload();
       // The hybrid rule: with the after-vote cast the outcome opens, so the page brings it in and moves focus
       // there (this form is replaced). If that fails, this panel still says the vote is recorded.
       if (castPhase === 'after') await refresh({ fetcher, prefix: announcement, focus: true });

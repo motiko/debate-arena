@@ -56,3 +56,22 @@ test('shows other deletion errors', async () => {
   await confirmDelete();
   expect(await screen.findByRole('alert')).toHaveTextContent('Something broke');
 });
+
+test('moves focus to the confirmation, and back to Delete on Cancel', async () => {
+  render(AccountActions, { fetcher: responder({}).fetcher, navigate: vi.fn() });
+  await fireEvent.click(screen.getByRole('button', { name: 'Delete my account' }));
+  // The button that had focus is gone: focus goes to the next decision, not the top of the page.
+  await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByRole('checkbox', { name: /cannot be undone/i })));
+  await fireEvent.click(screen.getByRole('checkbox', { name: /cannot be undone/i }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Delete my account' })));
+  // Starting again asks for the confirmation again.
+  await fireEvent.click(screen.getByRole('button', { name: 'Delete my account' }));
+  expect(screen.getByRole('button', { name: 'Delete my account permanently' })).toBeDisabled();
+});
+
+test('the final delete is drawn as destructive', async () => {
+  render(AccountActions, { fetcher: responder({}).fetcher, navigate: vi.fn() });
+  await fireEvent.click(screen.getByRole('button', { name: 'Delete my account' }));
+  expect(screen.getByRole('button', { name: 'Delete my account permanently' })).toHaveClass('danger');
+});

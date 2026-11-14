@@ -42,6 +42,7 @@
 
 <style>
   .copy-link {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -56,7 +57,13 @@
   .copied {
     font-size: 0.9rem;
   }
+  /* Empty, it takes no room but stays in the accessibility tree: a live region hidden with display: none is
+     not watched, so "Link copied." could go unsaid when it appears. */
   .copied:empty {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
   }
 </style>

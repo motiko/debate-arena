@@ -1,7 +1,7 @@
 <script lang="ts">
   // A Report (DSA Art. 16 notice): open to anyone. Members are known by their account; Viewers who are
   // signed out may leave a name and email to hear about the decision.
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { t, type MessageKey } from '../i18n/t';
 
   const REASONS = ['hate', 'harassment', 'violence', 'sexual', 'child_safety', 'illegal_other', 'other'] as const;
@@ -15,7 +15,10 @@
 
   let { debateId, signedIn, fetcher = fetch }: Props = $props();
 
-  let reason = $state<(typeof REASONS)[number]>('hate');
+  // No reason is assumed: a Report sent without looking at the list would otherwise name the wrong one.
+  let reason = $state<(typeof REASONS)[number] | ''>('');
+  let reasonMissing = $state(false);
+  let reasonField: HTMLSelectElement | undefined = $state();
   let explanation = $state('');
   let name = $state('');
   let email = $state('');
@@ -29,6 +32,13 @@
   async function submit(event: SubmitEvent) {
     event.preventDefault();
     error = '';
+    reasonMissing = reason === '';
+    if (reasonMissing) {
+      error = t('report.reasonMissing');
+      await tick();
+      reasonField?.focus();
+      return;
+    }
     if (!goodFaith) {
       error = t('report.goodFaithMissing');
       return;
@@ -67,7 +77,14 @@
     <p class="muted">{t('report.intro')}</p>
     <div class="field">
       <label for="report-reason">{t('report.reason')}</label>
-      <select id="report-reason" bind:value={reason}>
+      <select
+        id="report-reason"
+        bind:this={reasonField}
+        bind:value={reason}
+        aria-invalid={reasonMissing ? 'true' : undefined}
+        onchange={() => (reasonMissing = false)}
+      >
+        <option value="" disabled>{t('report.reasonChoose')}</option>
         {#each REASONS as r (r)}<option value={r}>{t(`report.reason.${r}` as MessageKey)}</option>{/each}
       </select>
     </div>

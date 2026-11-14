@@ -13,7 +13,7 @@ function serve(html: string, status = 200) {
 }
 
 function setUp() {
-  document.body.innerHTML = `${page('Live now', '<p>The Panel gives its Verdict when the Debate ends.</p><button>Vote</button>')}
+  document.body.innerHTML = `${page('Live now', '<p>The Judge gives the Verdict when the Debate ends.</p><button>Vote</button>')}
     <p id="debate-announcer" role="status"></p>`;
 }
 
@@ -83,4 +83,29 @@ test('leaves focus alone when it was outside the swapped regions', async () => {
   document.getElementById('outside')?.focus();
   await refreshRegions({ fetcher: serve(page('x', '<p>Verdict</p>')), url: '/d' });
   expect(document.activeElement).toHaveAttribute('id', 'outside');
+});
+
+test('moves focus to a chosen element of the fresh render', async () => {
+  setUp();
+  document.querySelector('button')?.focus();
+  await refreshRegions({
+    fetcher: serve(page('x', '<section id="turns" tabindex="-1">Turns</section><h2 data-focus tabindex="-1">Verdict</h2>')),
+    url: '/d',
+    focus: '#turns',
+  });
+  expect(document.activeElement?.id).toBe('turns');
+});
+
+const withFloor = (floor: string, outcome: string) =>
+  `<div data-region="turns" data-on-request><p>${floor}</p></div><div data-region="outcome"><p>${outcome}</p></div>`;
+
+test('swaps a region marked on-request only when the caller names it', async () => {
+  document.body.innerHTML = withFloor('Live floor', 'Pending');
+  const live = document.querySelector('[data-region="turns"]');
+  await refreshRegions({ fetcher: serve(withFloor('Server floor', 'Verdict')), url: '/d' });
+  // A live floor (or speeches the reader opened) stays as it is when only the outcome changed.
+  expect(document.querySelector('[data-region="turns"]')).toBe(live);
+  expect(document.body).toHaveTextContent('Verdict');
+  await refreshRegions({ fetcher: serve(withFloor('Server floor', 'Verdict')), url: '/d', include: ['turns'] });
+  expect(document.body).toHaveTextContent('Server floor');
 });

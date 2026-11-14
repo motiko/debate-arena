@@ -58,7 +58,8 @@ const Wrapper = hidden ? 'details' : 'div';
 
         {debate.verdict && debate.status !== 'running' && (
           <>
-            {hidden && closesAt && <p class="fold-note">{t('outcome.folded', { date: formatDate(closesAt) })}</p>}
+            {/* Why it is folded is said once: by the dispatch box, unless that box is busy asking for the after-vote. */}
+            {hidden && closesAt && <p class="fold-note">{t(askAfter ? 'outcome.folded' : 'outcome.foldedUntil', { date: formatDate(closesAt) })}</p>}
             <Wrapper id="outcome" class={hidden ? 'outcome fold' : 'outcome'}>
               {hidden && (
                 <summary>

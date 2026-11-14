@@ -54,10 +54,23 @@ test('shows the API error', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('You already voted before this Debate');
 });
 
-test('reloads to reveal Turns after the before-vote', async () => {
+test('brings the Turns in place after the before-vote and moves focus to them', async () => {
   const { fetcher } = respond(201, { vote: { before: 'against', after: null } });
   const reload = vi.fn();
-  render(VotePanel, { ...base, turnsHidden: true, fetcher, reload });
+  const refresh = vi.fn(async () => true);
+  render(VotePanel, { ...base, turnsHidden: true, fetcher, reload, refresh });
+  await fireEvent.click(screen.getByRole('radio', { name: 'Against' }));
+  await fireEvent.click(screen.getByRole('button', { name: /cast before-vote/i }));
+  await vi.waitFor(() =>
+    expect(refresh).toHaveBeenCalledWith(expect.objectContaining({ include: ['turns'], focus: '#turns', prefix: 'Your before-vote is recorded: Against.' })),
+  );
+  expect(reload).not.toHaveBeenCalled();
+});
+
+test('reloads to reveal Turns when they cannot be brought in place', async () => {
+  const { fetcher } = respond(201, { vote: { before: 'against', after: null } });
+  const reload = vi.fn();
+  render(VotePanel, { ...base, turnsHidden: true, fetcher, reload, refresh: async () => false });
   await fireEvent.click(screen.getByRole('radio', { name: 'Against' }));
   await fireEvent.click(screen.getByRole('button', { name: /cast before-vote/i }));
   await vi.waitFor(() => expect(reload).toHaveBeenCalled());

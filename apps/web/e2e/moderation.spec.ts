@@ -80,6 +80,7 @@ test.describe('Moderator queue', () => {
     await item.scrollIntoViewIfNeeded();
     await hydrated(item);
     await item.getByRole('button', { name: 'Relist' }).click();
+    await item.getByRole('button', { name: 'Yes, relist' }).click();
     await expect(item.getByRole('status')).toContainText('Relisted');
     await page.goto('/');
     await expect(page.getByRole('link', { name: motion })).toBeVisible();

@@ -70,6 +70,19 @@
   let againstField: HTMLSelectElement | undefined = $state();
   let judgeField: HTMLSelectElement | undefined = $state();
 
+  // The visible count is read with the field; out loud, only when the room left crosses a step, so a screen
+  // reader hears it once per step rather than on every keystroke.
+  const motionLeft = $derived(MAX_MOTION_LENGTH - motion.length);
+  const motionRoom = $derived(
+    motionLeft <= 0
+      ? t('new.motionFull', { max: MAX_MOTION_LENGTH })
+      : motionLeft < 10
+        ? t('new.motionRoom', { left: 10 })
+        : motionLeft < 20
+          ? t('new.motionRoom', { left: 20 })
+          : '',
+  );
+
   const cost = $derived(batch ? BATCH_DEBATE_QUOTA_POINTS : DEBATE_QUOTA_POINTS);
   const labelOf = (id: string) => models.find(m => m.id === id)?.label ?? id;
   const points = (count: number) => (count === 1 ? t('new.pointsOne') : t('new.points', { count }));
@@ -196,7 +209,8 @@
         oninput={() => (motionError = '')}
       ></textarea>
       {#if motionError}<p id="motion-error" class="error">{motionError}</p>{/if}
-      <p id="motion-count" class="muted count" aria-live="polite">{t('new.motionCount', { count: motion.length, max: MAX_MOTION_LENGTH })}</p>
+      <p id="motion-count" class="muted count">{t('new.motionCount', { count: motion.length, max: MAX_MOTION_LENGTH })}</p>
+      <p class="visually-hidden" role="status" id="motion-room">{motionRoom}</p>
     </div>
 
     <fieldset class="group">
