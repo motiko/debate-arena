@@ -26,8 +26,18 @@ export function devFakeReply(request: ModelRequest): string {
   return `A fake argument from ${request.model}, written for local development.`;
 }
 
+/** How long the `fake-slow/` Debater takes per reply, so a local Debate can be watched while live. */
+export const SLOW_FAKE_DELAY_MS = 1500;
+
+class DevFakeModelClient extends FakeModelClient {
+  override async complete(request: ModelRequest) {
+    if (request.model.startsWith('fake-slow/')) await new Promise(resolve => setTimeout(resolve, SLOW_FAKE_DELAY_MS));
+    return super.complete(request);
+  }
+}
+
 export function createModels(env: ModelEnv): Models {
-  if (env.MODEL_PROVIDER === 'fake') return { client: new FakeModelClient(devFakeReply), catalog: FAKE_CATALOG };
+  if (env.MODEL_PROVIDER === 'fake') return { client: new DevFakeModelClient(devFakeReply), catalog: FAKE_CATALOG };
   if (!env.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY is required when MODEL_PROVIDER is openrouter');
   const catalog = PRODUCTION_CATALOG;
   const client = new OpenRouterModelClient(env.OPENROUTER_API_KEY, {

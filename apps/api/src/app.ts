@@ -36,11 +36,12 @@ function publicView(d: DebateRecord) {
 
 /**
  * A Debate as one Viewer sees it: with the Audience Result, their own vote, and its Turns hidden from a
- * signed-in Member who has not cast a before-vote yet (signed-out Viewers can read freely).
+ * signed-in Member who could still cast a before-vote but has not (signed-out Viewers can read freely; once
+ * voting is closed or the Debate failed, everyone can).
  */
-function debateView(d: DebateRecord, votes: AudienceVote[], memberId: string | null) {
+function debateView(d: DebateRecord, votes: AudienceVote[], memberId: string | null, now: Date) {
   const myVote = memberId ? (votes.find(v => v.memberId === memberId) ?? null) : null;
-  const turnsHidden = memberId !== null && myVote === null;
+  const turnsHidden = memberId !== null && myVote === null && checkVote(d, null, 'before', now).ok;
   return {
     ...publicView(d),
     turns: turnsHidden ? [] : d.turns,
@@ -79,10 +80,21 @@ export const app = new Hono<{ Bindings: Env }>()
   .get('/health', c => c.json({ ok: true }))
   .on(['GET', 'POST'], '/auth/*', c => getAuth(c.env).handler(c.req.raw))
   .get('/me', async c => {
-    const session = await getAuth(c.env).api.getSession({ headers: c.req.raw.headers });
-    if (!session) return c.json({ error: 'Not signed in' }, 401);
-    const { id, name, image } = session.user;
-    return c.json({ id, name, image: image ?? null, quotaRemaining: await quotaRemaining(c.env.DB, id, new Date()) });
+    // returnHeaders: once a session is past its update age, Better Auth extends it and sets a fresh cookie.
+    // Passing that cookie on is what keeps active Members signed in (the web app reads the session only here).
+    const { response: session, headers: authHeaders } = await getAuth(c.env).api.getSession({
+      headers: c.req.raw.headers,
+      returnHeaders: true,
+    });
+    if (session) {
+      for (const cookie of authHeaders.getSetCookie()) c.header('set-cookie', cookie, { append: true });
+      const { id, name, image } = session.user;
+      return c.json({ id, name, image: image ?? null, quotaRemaining: await quotaRemaining(c.env.DB, id, new Date()) });
+    }
+    // Local development only (DEV_AUTH "true"): a dev Member from `x-dev-member`, named by their id.
+    const devMember = await memberResolver(c.env)(c.req.raw);
+    if (!devMember) return c.json({ error: 'Not signed in' }, 401);
+    return c.json({ id: devMember, name: devMember, image: null, quotaRemaining: await quotaRemaining(c.env.DB, devMember, new Date()) });
   })
   .get('/me/export', async c => {
     const session = await getAuth(c.env).api.getSession({ headers: c.req.raw.headers });
@@ -131,7 +143,7 @@ export const app = new Hono<{ Bindings: Env }>()
     const debate = await getDebate(c.env.DB, c.req.param('id'));
     if (!debate) return c.json({ error: 'Debate not found' }, 404);
     const memberId = await memberResolver(c.env)(c.req.raw);
-    return c.json(debateView(debate, await listVotes(c.env.DB, debate.id), memberId));
+    return c.json(debateView(debate, await listVotes(c.env.DB, debate.id), memberId, new Date()));
   })
   .post('/debates/:id/votes', async c => {
     if (!isJson(c.req.header('content-type'))) return c.json({ error: NOT_JSON }, 415);

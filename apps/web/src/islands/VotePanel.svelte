@@ -1,0 +1,109 @@
+<script lang="ts">
+  // Oxford Audience Votes: one before-vote, then one after-vote once the Debate is complete, within the
+  // Format's voting window. The API enforces the rules; this island shows the next allowed step.
+  import type { Stance } from '@debate-arena/engine';
+  import { onMount } from 'svelte';
+  import SignInButton from './SignInButton.svelte';
+  import { t } from '../i18n/t';
+
+  type Phase = 'before' | 'after';
+  type Vote = { before: Stance | null; after: Stance | null };
+
+  interface Props {
+    debateId: string;
+    motion: string;
+    status: 'running' | 'complete' | 'failed';
+    myVote: Vote | null;
+    signedIn: boolean;
+    turnsHidden: boolean;
+    votingClosesAt: string | null;
+    fetcher?: typeof fetch;
+    reload?: () => void;
+  }
+
+  let { debateId, motion, status, myVote, signedIn, turnsHidden, votingClosesAt, fetcher = fetch, reload = () => location.reload() }: Props =
+    $props();
+
+  // Svelte 5: the island owns its vote after hydration; props only seed it.
+  // svelte-ignore state_referenced_locally
+  let vote = $state<Vote>(myVote ?? { before: null, after: null });
+  let choice = $state<Stance | ''>('');
+  let pending = $state(false);
+  let error = $state('');
+  let announcement = $state('');
+  // Server HTML keeps the button disabled until the island runs: an earlier submit would reload the page
+  // and silently drop the vote.
+  let hydrated = $state(false);
+  onMount(() => (hydrated = true));
+
+  const stanceLabel = (s: Stance) => (s === 'for' ? t('side.for') : s === 'against' ? t('side.against') : t('vote.undecided'));
+  const closed = $derived(status === 'failed' || (votingClosesAt !== null && Date.parse(votingClosesAt) <= Date.now()));
+  const phase = $derived<Phase | null>(
+    closed ? null : vote.before === null ? 'before' : status === 'complete' && vote.after === null ? 'after' : null,
+  );
+
+  async function cast(event: SubmitEvent) {
+    event.preventDefault();
+    if (!phase) return;
+    error = '';
+    if (!choice) {
+      error = t('vote.choose');
+      return;
+    }
+    pending = true;
+    const castPhase = phase;
+    const stance = choice;
+    try {
+      const response = await fetcher(`/api/debates/${debateId}/votes`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ phase: castPhase, stance }),
+      });
+      const body = (await response.json().catch(() => ({}))) as { vote?: Vote; error?: string };
+      if (!response.ok || !body.vote) {
+        error = body.error ?? t('vote.failed');
+        return;
+      }
+      vote = body.vote;
+      choice = '';
+      announcement = t('vote.recorded', { phase: castPhase, stance: stanceLabel(stance) });
+      if (castPhase === 'before' && turnsHidden) reload();
+    } catch {
+      error = t('vote.failed');
+    } finally {
+      pending = false;
+    }
+  }
+</script>
+
+<section class="card stack" aria-labelledby="vote-title">
+  <h2 id="vote-title">{t('vote.title')}</h2>
+  <p class="muted">{t('vote.intro')}</p>
+
+  {#if !signedIn}
+    <p>{t('vote.signIn')}</p>
+    <SignInButton callbackPath={`/debates/${debateId}`} {fetcher} />
+  {:else}
+    {#if vote.before}<p>{t('vote.youBefore', { stance: stanceLabel(vote.before) })}</p>{/if}
+    {#if vote.after}<p>{t('vote.youAfter', { stance: stanceLabel(vote.after) })}</p>{/if}
+
+    {#if closed}
+      <p>{t('vote.closed')}</p>
+    {:else if phase}
+      <form onsubmit={cast} class="stack" novalidate>
+        <fieldset>
+          <legend>{t(phase === 'before' ? 'vote.before' : 'vote.after', { motion })}</legend>
+          {#each ['for', 'against', 'undecided'] as const as stance (stance)}
+            <label class="choice"><input type="radio" name="stance" value={stance} bind:group={choice} /> {stanceLabel(stance)}</label>
+          {/each}
+        </fieldset>
+        <button type="submit" disabled={pending || !hydrated} aria-busy={pending}>{t(phase === 'before' ? 'vote.castBefore' : 'vote.castAfter')}</button>
+      </form>
+    {:else if vote.before && !vote.after && status === 'running'}
+      <p class="muted">{t('vote.waitAfter')}</p>
+    {/if}
+  {/if}
+
+  <p role="status" aria-live="polite">{announcement}</p>
+  {#if error}<p role="alert" class="error">{error}</p>{/if}
+</section>

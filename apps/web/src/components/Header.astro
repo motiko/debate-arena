@@ -1,0 +1,25 @@
+---
+import SignInButton from '../islands/SignInButton.svelte';
+import SignOutButton from '../islands/SignOutButton.svelte';
+import { t } from '../i18n/t';
+
+const { me } = Astro.locals;
+const callbackPath = Astro.url.pathname + Astro.url.search;
+---
+
+<nav aria-label={t('header.nav')}>
+  <a href="/new">{t('header.start')}</a>
+  {
+    me ? (
+      <>
+        <a href="/account" aria-label={`${t('header.account')}: ${me.name}`}>
+          {me.name}
+        </a>
+        <span class="muted">{t('header.quota', { points: me.quotaRemaining })}</span>
+        <SignOutButton client:idle />
+      </>
+    ) : (
+      <SignInButton client:idle callbackPath={callbackPath} />
+    )
+  }
+</nav>

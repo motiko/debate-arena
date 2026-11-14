@@ -1,0 +1,77 @@
+---
+import AiLabel from '../components/AiLabel.astro';
+import SelfJudgingBadge from '../components/SelfJudgingBadge.astro';
+import Base from '../layouts/Base.astro';
+import { t } from '../i18n/t';
+import { FEED_PAGE_SIZE, modelLabel, nextFeedCursor, sideLabel, type ModelInfo } from '../lib/debate';
+import { formatDate } from '../lib/format';
+
+const { api } = Astro.locals;
+const beforeParam = Astro.url.searchParams.get('before');
+// Only a real date is passed on as the cursor; anything else shows the first page.
+const before = beforeParam && !Number.isNaN(Date.parse(beforeParam)) ? beforeParam : undefined;
+
+const [feedRes, modelsRes] = await Promise.all([
+  api.api.debates.$get({ query: before ? { before } : {} }),
+  api.api.models.$get(),
+]);
+if (!feedRes.ok) throw new Error(`GET /api/debates failed (${feedRes.status})`);
+const { debates } = await feedRes.json();
+const models: ModelInfo[] = modelsRes.ok ? (await modelsRes.json()).models : [];
+const cursor = nextFeedCursor(debates, FEED_PAGE_SIZE);
+const model = (d: (typeof debates)[number]['debaters']['for']) => (d.kind === 'ai' ? modelLabel(d.model, models) : d.memberId);
+---
+
+<Base title={t('feed.title')} description={t('feed.description')} canonicalPath={before ? `/?before=${encodeURIComponent(before)}` : '/'}>
+  <h1>{t('feed.title')}</h1>
+  <p class="muted">{t('site.tagline')}</p>
+  {
+    debates.length === 0 ? (
+      <div class="card stack">
+        <p>{t('feed.empty')}</p>
+        <p>
+          <a href="/new">{t('feed.startFirst')}</a>
+        </p>
+      </div>
+    ) : (
+      <ol class="feed stack" role="list">
+        {debates.map(d => (
+          <li class="card stack">
+            <h2>
+              <a href={`/debates/${d.id}`}>{d.motion}</a>
+            </h2>
+            <p class="muted">{t('feed.versus', { for: model(d.debaters.for), against: model(d.debaters.against) })}</p>
+            {d.verdict && (
+              <p>
+                <strong class={`side-${d.verdict.winner}`}>{t('feed.verdict', { side: sideLabel(d.verdict.winner) })}</strong>{' '}
+                <AiLabel /> {d.selfJudging && <SelfJudgingBadge />}
+              </p>
+            )}
+            {d.completedAt && (
+              <p class="muted">
+                <time datetime={d.completedAt}>{t('feed.finished', { date: formatDate(d.completedAt) })}</time>
+              </p>
+            )}
+          </li>
+        ))}
+      </ol>
+    )
+  }
+  {
+    cursor && (
+      <p>
+        <a href={`/?before=${encodeURIComponent(cursor)}`}>{t('feed.older')}</a>
+      </p>
+    )
+  }
+</Base>
+
+<style>
+  .feed {
+    list-style: none;
+    padding: 0;
+  }
+  .feed h2 {
+    font-size: 1.15rem;
+  }
+</style>

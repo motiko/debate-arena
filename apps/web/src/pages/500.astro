@@ -1,0 +1,10 @@
+---
+import Base from '../layouts/Base.astro';
+import { t } from '../i18n/t';
+---
+
+<Base title={t('error.title')} description={t('error.body')} canonicalPath="/500" noindex>
+  <h1>{t('error.title')}</h1>
+  <p>{t('error.body')}</p>
+  <p><a href="/">{t('notFound.home')}</a></p>
+</Base>

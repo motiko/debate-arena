@@ -41,6 +41,8 @@ export const FAKE_CATALOG: Catalog = {
       reasoning: 'unsupported' as const,
     })),
     { id: 'fake-a/debater-only', label: 'Fake A (Debater only)', price: price(1, 1), roles: ['debater'], reasoning: 'unsupported' },
+    // Replies after a delay, so a local Debate stays live long enough to watch (and to test live pages).
+    { id: 'fake-slow/one', label: 'Fake Slow (Debater only)', price: price(1, 1), roles: ['debater'], reasoning: 'unsupported' },
   ],
 };
 

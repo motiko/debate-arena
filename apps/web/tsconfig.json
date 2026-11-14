@@ -1,0 +1,12 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["@testing-library/jest-dom/vitest"]
+  },
+  // The api-client's route types refer to the API's Workers globals (Env, D1Database), so they are loaded too.
+  "include": [".astro/types.d.ts", "src", "test", "e2e", "*.ts", "../api/worker-configuration.d.ts", "../api/src/secrets.d.ts"],
+  "exclude": ["dist"]
+}

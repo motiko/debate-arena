@@ -1,0 +1,26 @@
+---
+import type { PublicDebate } from '@debate-arena/api-client';
+import { t } from '../i18n/t';
+import { swingText } from '../lib/debate';
+import { formatDate } from '../lib/format';
+
+interface Props {
+  result: PublicDebate['audienceResult'];
+}
+
+const { result } = Astro.props;
+const closesAt = result.votingClosesAt;
+const closed = closesAt !== null && Date.parse(closesAt) <= Date.now();
+---
+
+<section class="card stack" aria-labelledby="audience-title">
+  <h2 id="audience-title">{t('audience.title')}</h2>
+  <p>{swingText(result)}</p>
+  {
+    closesAt && (
+      <p class="muted">
+        <time datetime={closesAt}>{t(closed ? 'audience.closed' : 'audience.closes', { date: formatDate(closesAt) })}</time>
+      </p>
+    )
+  }
+</section>

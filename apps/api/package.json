@@ -8,7 +8,7 @@
     "./events": "./src/live/events.ts"
   },
   "scripts": {
-    "dev": "wrangler d1 migrations apply DB --local && wrangler dev --var DEV_AUTH:true",
+    "dev": "wrangler d1 migrations apply DB --local && WRANGLER_REGISTRY_PATH=../../.wrangler/dev-registry wrangler dev --var DEV_AUTH:true --var BETTER_AUTH_URL:http://localhost:4321",
     "types": "wrangler types",
     "typecheck": "wrangler types && tsc --noEmit",
     "test": "vitest run"
@@ -22,6 +22,6 @@
     "@cloudflare/vitest-plugin": "^1.8.1",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0",
-    "wrangler": "^4.161.0"
+    "wrangler": "^4.162.0"
   }
 }
