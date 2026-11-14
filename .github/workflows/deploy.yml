@@ -37,8 +37,12 @@ jobs:
         env:
           REPOSITORY: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          # The repository is private: reading main needs the job's token (contents: read).
+          GH_TOKEN: ${{ github.token }}
         run: |
-          tip=$(git ls-remote "https://github.com/$REPOSITORY" refs/heads/main | cut -f1)
+          tip=$(gh api "repos/$REPOSITORY/commits/main" --jq .sha)
+          # An unreadable tip is an error, not "older commit": never skip a deploy silently.
+          if [ -z "$tip" ]; then echo "::error::could not read the tip of main"; exit 1; fi
           if [ "$tip" = "$HEAD_SHA" ]; then echo "newest=true" >> "$GITHUB_OUTPUT"; else echo "::notice::$HEAD_SHA is not the tip of main ($tip); skipping"; fi
 
   deploy:
