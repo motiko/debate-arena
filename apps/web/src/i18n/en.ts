@@ -80,6 +80,9 @@ export const en = {
   'new.aiVotersHint': 'Ten AI models vote before and after, shown as a separate AI Audience Result.',
   'new.cost': 'Costs {cost} of your {left} Quota points left today.',
   'new.noQuota': 'There is not enough Quota left today to start a Debate. Your Quota renews at midnight UTC.',
+  'new.batch': 'Batch Debate',
+  'new.batchHint':
+    'Cheaper: costs 1 Quota point and is generated through slower batch processing, ready in minutes to hours. It is published when complete, has no live stream and takes no Audience Votes.',
   'new.submit': 'Start the Debate',
   'new.failed': 'The Debate could not be started. Please try again.',
 
@@ -170,6 +173,12 @@ export const en = {
   'moderation.category.S12': 'Sexual content',
   'moderation.category.unscreened': 'Could not be screened',
   'header.moderation': 'Moderation',
+
+  'batch.label': 'Batch Debate',
+  'batch.explain': 'generated through batch processing and published when complete; it takes no Audience Votes.',
+  'batch.generating':
+    'Your Batch Debate is being generated through batch processing. That takes from a few minutes to a few hours. It is published when complete: reload this page later to read it.',
+  'batch.noVotes': 'Batch Debates take no Audience Votes: their outcome is the Verdict and, with AI Voters, the AI Audience Result.',
 
   'side.for': 'For',
   'side.against': 'Against',

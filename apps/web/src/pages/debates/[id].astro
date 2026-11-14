@@ -1,6 +1,7 @@
 ---
 import AiLabel from '../../components/AiLabel.astro';
 import AudienceResultView from '../../components/AudienceResultView.astro';
+import BatchBadge from '../../components/BatchBadge.astro';
 import VerdictView from '../../components/VerdictView.astro';
 import LiveTurns from '../../islands/LiveTurns.svelte';
 import ReportForm from '../../islands/ReportForm.svelte';
@@ -26,11 +27,12 @@ const debater = (side: 'for' | 'against') => {
   return d.kind === 'ai' ? modelLabel(d.model, models) : d.memberId;
 };
 const groups = groupByPhase(debate.format, debate.turns);
+const isBatch = debate.kind === 'batch';
 ---
 
 <Base title={debate.motion} description={t('debate.description', { motion: debate.motion })} canonicalPath={`/debates/${debate.id}`}>
   <header class="stack">
-    <p class="muted">{t('debate.motion')}</p>
+    <p class="muted">{t('debate.motion')} {isBatch && <BatchBadge />}</p>
     <h1>{debate.motion}</h1>
     <ul class="meta" role="list">
       <li><span class="side-for">{t('debate.debaterFor', { model: debater('for') })}</span></li>
@@ -50,8 +52,11 @@ const groups = groupByPhase(debate.format, debate.turns);
   {debate.status === 'failed' && <p class="note" role="status">{t('debate.failed')}</p>}
   {debate.visibility === 'unlisted' && debate.mine && <p class="note">{t('unlisted.mine')}</p>}
 
+  {isBatch && debate.status === 'running' && <p class="note" role="status">{t('batch.generating')}</p>}
+  {isBatch && debate.status === 'complete' && <p class="muted">{t('batch.noVotes')}</p>}
+
   {
-    debate.status !== 'failed' && (
+    !isBatch && debate.status !== 'failed' && (
       <VotePanel
         client:load
         debateId={debate.id}
@@ -70,7 +75,7 @@ const groups = groupByPhase(debate.format, debate.turns);
     {
       debate.turnsHidden ? (
         <p class="note">{t('debate.turnsHidden')}</p>
-      ) : debate.status === 'running' ? (
+      ) : debate.status === 'running' && !isBatch ? (
         <LiveTurns client:load debateId={debate.id} format={debate.format} initialTurns={debate.turns} />
       ) : groups.length === 0 ? (
         <p class="muted">{t('debate.noTurns')}</p>
@@ -94,7 +99,7 @@ const groups = groupByPhase(debate.format, debate.turns);
     )
   }
 
-  {debate.status !== 'failed' && <AudienceResultView result={debate.audienceResult} />}
+  {!isBatch && debate.status !== 'failed' && <AudienceResultView result={debate.audienceResult} />}
 
   {
     debate.aiAudience && (

@@ -60,6 +60,22 @@ test('throws StanceParseError after two bad replies', async () => {
   await expect(castAiStance(setup.motion, 'x/v', new FakeModelClient(() => 'maybe'))).rejects.toBeInstanceOf(StanceParseError);
 });
 
+test('a rethrown error is not a dropped voter, and every voter was asked first', async () => {
+  class Pending extends Error {}
+  const asked: string[] = [];
+  const client: ModelClient = {
+    complete: async request => {
+      asked.push(request.model);
+      if (request.model === 'x/slow') throw new Pending('not ready');
+      return { text: 'for', inputTokens: 1, outputTokens: 1 };
+    },
+  };
+  await expect(
+    runAiAudience(setup, sixTurns, ['a/one', 'x/slow', 'b/two'], client, { rethrow: e => e instanceof Pending }),
+  ).rejects.toBeInstanceOf(Pending);
+  expect(new Set(asked)).toEqual(new Set(['a/one', 'x/slow', 'b/two']));
+});
+
 test('an unfinished Debate cannot be voted on', async () => {
   await expect(runAiAudience(setup, sixTurns.slice(0, 2), ['x/v'], new FakeModelClient(() => 'for')))
     .rejects.toBeInstanceOf(DebateNotFinishedError);

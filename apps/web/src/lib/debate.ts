@@ -89,6 +89,8 @@ export function mergeTurns(known: Turn[], incoming: SlotTurn[]): Turn[] {
 
 /** Quota points a Debate costs (the API's DEBATE_QUOTA_POINTS); the API is the authority. */
 export const DEBATE_QUOTA_POINTS = 2;
+/** Quota points a Batch Debate costs (the API's BATCH_DEBATE_QUOTA_POINTS). */
+export const BATCH_DEBATE_QUOTA_POINTS = 1;
 /** The API's limit on a Motion's length. */
 export const MAX_MOTION_LENGTH = 300;
 

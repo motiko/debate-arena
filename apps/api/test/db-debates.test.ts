@@ -31,6 +31,7 @@ test('round-trips a new Debate', async () => {
     screen: null,
     screenedAt: null,
     reviewedAt: null,
+    kind: 'live',
   });
 });
 

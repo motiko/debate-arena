@@ -8,6 +8,7 @@ import {
   type PriceTable,
 } from '@debate-arena/engine';
 import { FAKE_CATALOG, PRODUCTION_CATALOG, type Catalog } from './catalog';
+import { FakeBatchApi, OpenRouterBatchApi, type BatchApi } from './batch';
 import { OpenRouterModelClient } from './openrouter';
 
 export interface Models { client: ModelClient; catalog: Catalog }
@@ -49,6 +50,15 @@ export function createModels(env: ModelEnv): Models {
     disableReasoning: id => catalog.entries.some(e => e.id === id && e.reasoning === 'optional'),
   });
   return { client, catalog };
+}
+
+/** The Batch API for Batch Debates: OpenRouter's, or an offline fake that answers after FAKE_BATCH_DELAY_MS. */
+export function createBatchApi(env: ModelEnv): BatchApi {
+  if (env.MODEL_PROVIDER === 'fake') return new FakeBatchApi(devFakeReply);
+  if (!env.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY is required when MODEL_PROVIDER is openrouter');
+  return new OpenRouterBatchApi(env.OPENROUTER_API_KEY, {
+    disableReasoning: id => PRODUCTION_CATALOG.entries.some(e => e.id === id && e.reasoning === 'optional'),
+  });
 }
 
 /** Thrown when a Debate has spent its reserved Budget; not worth retrying. */

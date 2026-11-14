@@ -1,5 +1,6 @@
 ---
 import AiLabel from '../components/AiLabel.astro';
+import BatchBadge from '../components/BatchBadge.astro';
 import SelfJudgingBadge from '../components/SelfJudgingBadge.astro';
 import Base from '../layouts/Base.astro';
 import { t } from '../i18n/t';
@@ -40,7 +41,9 @@ const model = (d: (typeof debates)[number]['debaters']['for']) => (d.kind === 'a
             <h2>
               <a href={`/debates/${d.id}`}>{d.motion}</a>
             </h2>
-            <p class="muted">{t('feed.versus', { for: model(d.debaters.for), against: model(d.debaters.against) })}</p>
+            <p class="muted">
+              {t('feed.versus', { for: model(d.debaters.for), against: model(d.debaters.against) })} {d.kind === 'batch' && <BatchBadge />}
+            </p>
             {d.verdict && (
               <p>
                 <strong class={`side-${d.verdict.winner}`}>{t('feed.verdict', { side: sideLabel(d.verdict.winner) })}</strong>{' '}

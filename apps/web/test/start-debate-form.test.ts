@@ -97,3 +97,43 @@ test('counts Motion characters up to the limit', async () => {
   await fireEvent.input(screen.getByLabelText('Motion'), { target: { value: 'abc' } });
   expect(screen.getByText('3 / 300')).toBeInTheDocument();
 });
+
+const batchModels = [
+  { id: 'fake-a/one', label: 'Fake A', roles: ['debater', 'judge', 'voter'], batch: true },
+  { id: 'fake-b/one', label: 'Fake B', roles: ['debater', 'judge', 'voter'], batch: true },
+  { id: 'fake-c/one', label: 'Fake C', roles: ['debater', 'judge', 'voter'], batch: true },
+  { id: 'fake-slow/one', label: 'Fake Slow', roles: ['debater'], batch: false },
+];
+const optionValues = (label: string) => [...screen.getByLabelText(label).querySelectorAll('option')].map(o => o.getAttribute('value'));
+
+test('a Batch Debate lists only batch-capable models and costs one point', async () => {
+  render(StartDebateForm, { models: batchModels, quotaRemaining: 6, fetcher: respond(201, {}).fetcher, navigate: vi.fn() });
+  expect(optionValues('Debater For')).toContain('fake-slow/one');
+  await fireEvent.click(screen.getByRole('checkbox', { name: /Batch Debate/ }));
+  expect(optionValues('Debater For')).not.toContain('fake-slow/one');
+  expect(screen.getByText(/Costs 1 of your 6 Quota points/)).toBeInTheDocument();
+});
+
+test('posts batch: true for a Batch Debate', async () => {
+  const { fetcher, calls } = respond(201, { id: 'd7' });
+  render(StartDebateForm, { models: batchModels, quotaRemaining: 6, fetcher, navigate: vi.fn() });
+  await fireEvent.click(screen.getByRole('checkbox', { name: /Batch Debate/ }));
+  await fill('Cats beat dogs', 'fake-a/one', 'fake-b/one');
+  await fireEvent.click(screen.getByRole('button', { name: 'Start the Debate' }));
+  await vi.waitFor(() => expect(calls).toHaveLength(1));
+  expect(JSON.parse(String(calls[0]?.body))).toMatchObject({ batch: true, debaters: { for: 'fake-a/one', against: 'fake-b/one' } });
+});
+
+test('one Quota point is enough for a Batch Debate', async () => {
+  render(StartDebateForm, { models: batchModels, quotaRemaining: 1, fetcher: respond(201, {}).fetcher, navigate: vi.fn() });
+  expect(screen.getByRole('button', { name: 'Start the Debate' })).toBeDisabled();
+  await fireEvent.click(screen.getByRole('checkbox', { name: /Batch Debate/ }));
+  expect(screen.getByRole('button', { name: 'Start the Debate' })).toBeEnabled();
+});
+
+test('switching to a Batch Debate replaces a Debater without batch', async () => {
+  render(StartDebateForm, { models: batchModels, quotaRemaining: 6, fetcher: respond(201, {}).fetcher, navigate: vi.fn() });
+  await fireEvent.change(screen.getByLabelText('Debater For'), { target: { value: 'fake-slow/one' } });
+  await fireEvent.click(screen.getByRole('checkbox', { name: /Batch Debate/ }));
+  expect(screen.getByLabelText('Debater For')).toHaveValue('fake-a/one');
+});

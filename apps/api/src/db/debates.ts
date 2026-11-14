@@ -1,4 +1,5 @@
 import type { AiAudienceResult, DebateSetup, ModelId, ScreenResult, Turn, Verdict } from '@debate-arena/engine';
+import type { DebateKind } from '../models/catalog';
 import type { Visibility } from './moderation';
 
 export type DebateStatus = 'running' | 'complete' | 'failed';
@@ -25,12 +26,14 @@ export interface DebateRecord {
   screen: ScreenResult | null;
   screenedAt: string | null;
   reviewedAt: string | null;
+  /** 'batch': a Batch Debate, generated through batch processing and published only when complete. */
+  kind: DebateKind;
 }
 
 export type NewDebate = Pick<
   DebateRecord,
   'id' | 'memberId' | 'setup' | 'aiVoters' | 'selfJudging' | 'quotaPoints' | 'budgetReservedMicroUsd' | 'createdAt'
->;
+> & { kind?: DebateKind };
 
 interface DebateRow {
   id: string;
@@ -52,6 +55,7 @@ interface DebateRow {
   screen_json: string | null;
   screened_at: string | null;
   reviewed_at: string | null;
+  kind: DebateKind;
 }
 
 interface TurnRow { phase_index: number; side: Turn['side']; text: string; truncated: number }
@@ -78,6 +82,7 @@ function toRecord(row: DebateRow, turns: Turn[]): DebateRecord {
     screen: row.screen_json ? (JSON.parse(row.screen_json) as ScreenResult) : null,
     screenedAt: row.screened_at,
     reviewedAt: row.reviewed_at,
+    kind: row.kind,
   };
 }
 
@@ -87,8 +92,8 @@ export async function createDebate(db: D1Database, debate: NewDebate): Promise<v
   await db
     .prepare(
       `INSERT INTO debates (id, member_id, status, setup_json, ai_voters_json, self_judging, quota_points,
-         budget_reserved_micro_usd, created_at)
-       VALUES (?, ?, 'running', ?, ?, ?, ?, ?, ?)`,
+         budget_reserved_micro_usd, created_at, kind)
+       VALUES (?, ?, 'running', ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       debate.id,
@@ -99,6 +104,7 @@ export async function createDebate(db: D1Database, debate: NewDebate): Promise<v
       debate.quotaPoints,
       debate.budgetReservedMicroUsd,
       debate.createdAt,
+      debate.kind ?? 'live',
     )
     .run();
 }

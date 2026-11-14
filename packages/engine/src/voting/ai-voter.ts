@@ -51,6 +51,7 @@ export async function runAiAudience(
   turns: Turn[],
   voters: ModelId[],
   client: ModelClient,
+  options: { rethrow?: (error: unknown) => boolean } = {},
 ): Promise<AiAudienceResult> {
   if (nextSlot(setup.format, turns)) throw new DebateNotFinishedError('The Debate still has Turns to come');
   const settled = await Promise.allSettled(
@@ -60,6 +61,10 @@ export async function runAiAudience(
       after: await castAiStance(setup.motion, model, client, turns),
     })),
   );
+  // Errors the host marks (e.g. a batch result not ready yet) are not voter failures: every voter has been asked
+  // by now, so the host can wait and run the whole audience again.
+  const pending = settled.find(r => r.status === 'rejected' && options.rethrow?.(r.reason));
+  if (pending?.status === 'rejected') throw pending.reason;
   // Any failure (unparseable stance, provider outage) drops only that voter, so one flaky model cannot fail
   // a finished Debate; dropped voters are reported for disclosure.
   const dropped = settled.flatMap((r, index) => (r.status === 'rejected' ? [`${index}:${voters[index]}`] : []));
