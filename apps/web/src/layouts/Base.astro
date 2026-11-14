@@ -43,6 +43,11 @@ const canonical = new URL(canonicalPath, Astro.site ?? Astro.url).href;
     <footer class="site-footer">
       <div class="wrap">
         <p>{t('site.aiNotice')}</p>
+        <nav aria-label={t('legal.nav')} class="legal-nav">
+          <a href="/impressum">{t('legal.impressum')}</a>
+          <a href="/privacy">{t('legal.privacy')}</a>
+          <a href="/terms">{t('legal.terms')}</a>
+        </nav>
       </div>
     </footer>
   </body>

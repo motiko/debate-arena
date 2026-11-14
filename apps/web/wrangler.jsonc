@@ -12,7 +12,9 @@
     "production": {
       "assets": { "directory": "./dist/client", "binding": "ASSETS" },
       // `wrangler deploy --env production` deploys the API as "debate-arena-api-production".
-      "services": [{ "binding": "API", "service": "debate-arena-api-production" }]
+      "services": [{ "binding": "API", "service": "debate-arena-api-production" }],
+      // Cookieless page views, counted on the server (no client script, no cookie, no personal data).
+      "analytics_engine_datasets": [{ "binding": "ANALYTICS", "dataset": "debate_arena_pageviews" }]
     }
   }
 }

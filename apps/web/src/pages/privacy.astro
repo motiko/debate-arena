@@ -1,0 +1,11 @@
+---
+import LegalSections from '../components/LegalSections.astro';
+import Base from '../layouts/Base.astro';
+import { t } from '../i18n/t';
+import { PRIVACY } from '../legal/content';
+---
+
+<Base title={t('legal.privacy')} description={t('legal.privacyDescription')} canonicalPath="/privacy">
+  <h1>{t('legal.privacy')}</h1>
+  <LegalSections sections={PRIVACY} />
+</Base>
