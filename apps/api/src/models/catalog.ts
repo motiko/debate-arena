@@ -1,6 +1,6 @@
 import { modelFamily, type ModelId, type ModelPrice, type PriceTable } from '@debate-arena/engine';
 
-export type ModelRole = 'debater' | 'judge' | 'voter';
+export type ModelRole = 'debater' | 'judge' | 'voter' | 'screener';
 
 /**
  * 'optional': reasoning can be switched off, and the OpenRouter client does so.
@@ -27,6 +27,8 @@ export const PRODUCTION_CATALOG: Catalog = {
     { id: 'meta-llama/llama-4-maverick', label: 'Llama 4 Maverick', price: price(0.35, 1), roles: ['debater', 'voter'], reasoning: 'unsupported' },
     { id: 'qwen/qwen3.8-flash', label: 'Qwen 3.8 Flash', price: price(0.15, 0.47), roles: ['debater', 'voter'], reasoning: 'optional' },
     { id: 'mistralai/mistral-small-2603', label: 'Mistral Small', price: price(0.15, 0.6), roles: ['voter'], reasoning: 'optional' },
+    // Screens Motions for abuse (flag only). Answers "safe" or "unsafe" plus hazard codes.
+    { id: 'meta-llama/llama-guard-4-12b', label: 'Llama Guard 4', price: price(0.18, 0.18), roles: ['screener'], reasoning: 'unsupported' },
   ],
 };
 
@@ -42,12 +44,20 @@ export const FAKE_CATALOG: Catalog = {
     })),
     { id: 'fake-a/debater-only', label: 'Fake A (Debater only)', price: price(1, 1), roles: ['debater'], reasoning: 'unsupported' },
     // Replies after a delay, so a local Debate stays live long enough to watch (and to test live pages).
+    { id: 'fake-guard/one', label: 'Fake Guard (screener)', price: price(1, 1), roles: ['screener'], reasoning: 'unsupported' },
     { id: 'fake-slow/one', label: 'Fake Slow (Debater only)', price: price(1, 1), roles: ['debater'], reasoning: 'unsupported' },
   ],
 };
 
 export function priceTable(catalog: Catalog): PriceTable {
   return Object.fromEntries(catalog.entries.map(e => [e.id, e.price]));
+}
+
+/** The model that screens Motions. */
+export function screenerFor(catalog: Catalog): ModelId {
+  const screener = catalog.entries.find(e => e.roles.includes('screener'));
+  if (!screener) throw new Error('The catalog has no screener');
+  return screener.id;
 }
 
 export function modelsFor(catalog: Catalog, role: ModelRole): ModelId[] {

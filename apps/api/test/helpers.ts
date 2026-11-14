@@ -1,5 +1,6 @@
 import { CLASSIC_FORMAT, type DebateSetup, type Turn } from '@debate-arena/engine';
-import type { NewDebate } from '../src/db/debates';
+import { createDebate, type NewDebate } from '../src/db/debates';
+import { saveScreen } from '../src/db/moderation';
 
 export const sampleSetup: DebateSetup = {
   motion: { text: 'Remote work beats office work' },
@@ -26,6 +27,12 @@ export function newDebate(overrides: Partial<NewDebate> = {}): NewDebate {
     createdAt: '2026-11-13T12:00:00.000Z',
     ...overrides,
   };
+}
+
+/** Creates a Debate whose Motion has already been screened safe, so its next step writes the first Turn. */
+export async function createScreened(db: D1Database, debate: NewDebate): Promise<void> {
+  await createDebate(db, debate);
+  await saveScreen(db, debate.id, { flagged: false, categories: [] }, debate.createdAt);
 }
 
 export function turnAt(slotIndex: number, text = `Turn ${slotIndex}`): Turn {

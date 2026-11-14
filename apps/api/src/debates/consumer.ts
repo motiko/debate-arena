@@ -1,7 +1,7 @@
 import { MAX_ATTEMPTS } from '@debate-arena/engine';
 import { addCost, getBudget } from '../db/debates';
 import type { DebateEvent } from '../live/events';
-import { priceTable } from '../models/catalog';
+import { priceTable, screenerFor } from '../models/catalog';
 import { BudgetExhaustedError, createModels, meteredClient } from '../models/factory';
 import type { StepJob } from './start';
 import { failStep, runStep, type StepDeps } from './steps';
@@ -46,6 +46,7 @@ export async function consumer(batch: MessageBatch<StepJob>, env: Env, _ctx: Exe
         await env.STEP_QUEUE.send(job);
       },
       now: () => new Date(),
+      screener: screenerFor(models.catalog),
     };
     try {
       await runStep(deps, message.body);

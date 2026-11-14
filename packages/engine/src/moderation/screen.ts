@@ -2,8 +2,8 @@ import { UNTRUSTED_NOTICE } from '../debate/prompts';
 import type { ModelId } from '../domain';
 import type { ModelClient, ModelMessage } from '../models/client';
 
-/** A Llama Guard-style verdict is one or two short lines. */
-export const SCREEN_OUTPUT_TOKENS = 10;
+/** A Llama Guard-style verdict: "unsafe" and a few hazard codes. Distinct from the stance cap, so fakes can tell them apart. */
+export const SCREEN_OUTPUT_TOKENS = 16;
 
 /**
  * Hazard categories (MLCommons, as used by Llama Guard) that Flag a Motion: violent crimes, sex-related crimes,
@@ -34,12 +34,21 @@ export function parseScreen(text: string): ScreenResult {
   return { flagged: codes.some(code => (FLAG_CATEGORIES as readonly string[]).includes(code)), categories: codes };
 }
 
-/** Screens a Motion. Never throws: a failed call counts as unscreened, and screening never fails a Debate. */
-export async function screenMotion(motion: string, model: ModelId, client: ModelClient): Promise<ScreenResult> {
+/**
+ * Screens a Motion. A failed call counts as unscreened, so screening never fails a Debate; only errors the
+ * host marks with `rethrow` (e.g. a used-up Budget) escape.
+ */
+export async function screenMotion(
+  motion: string,
+  model: ModelId,
+  client: ModelClient,
+  options: { rethrow?: (error: unknown) => boolean } = {},
+): Promise<ScreenResult> {
   try {
     const response = await client.complete({ model, messages: buildScreenMessages(motion), maxOutputTokens: SCREEN_OUTPUT_TOKENS });
     return parseScreen(response.text);
-  } catch {
+  } catch (error) {
+    if (options.rethrow?.(error)) throw error;
     return UNSCREENED;
   }
 }

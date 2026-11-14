@@ -1,6 +1,8 @@
-import { generateTurn, judgeDebate, nextSlot, runAiAudience, type ModelClient } from '@debate-arena/engine';
+import { generateTurn, judgeDebate, nextSlot, runAiAudience, screenMotion, type ModelClient, type ModelId } from '@debate-arena/engine';
 import { appendTurn, completeDebate, failDebate, getDebate, saveVerdict } from '../db/debates';
+import { saveScreen } from '../db/moderation';
 import { refundQuota, utcDay } from '../db/quota';
+import { BudgetExhaustedError } from '../models/factory';
 import type { DebateEvent } from '../live/events';
 import type { StepJob } from './start';
 
@@ -10,9 +12,11 @@ export interface StepDeps {
   notify: (debateId: string, event: DebateEvent) => Promise<void>;
   enqueue: (job: StepJob) => Promise<void>;
   now: () => Date;
+  /** The model that screens Motions (catalog role 'screener'). */
+  screener: ModelId;
 }
 
-export type StepOutcome = 'turn' | 'verdict' | 'complete' | 'skipped';
+export type StepOutcome = 'screen' | 'turn' | 'verdict' | 'complete' | 'skipped';
 
 export const PUBLIC_FAILURE_REASON = 'The Debate could not be completed.';
 
@@ -25,6 +29,16 @@ export async function runStep(deps: StepDeps, job: StepJob): Promise<StepOutcome
   const debate = await getDebate(db, job.debateId);
   if (!debate || debate.status !== 'running') return 'skipped';
   const { id, setup, turns } = debate;
+
+  // First, screen the Motion. A Flag Unlists the Debate but it runs on; Viewers are not told.
+  if (debate.screenedAt === null) {
+    const result = await screenMotion(setup.motion.text, deps.screener, client, {
+      rethrow: error => error instanceof BudgetExhaustedError,
+    });
+    if (!(await saveScreen(db, id, result, deps.now().toISOString()))) return 'skipped';
+    await enqueue({ debateId: id });
+    return 'screen';
+  }
 
   if (nextSlot(setup.format, turns)) {
     const turn = await generateTurn(setup, turns, client);

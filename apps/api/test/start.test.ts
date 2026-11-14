@@ -3,7 +3,8 @@ import { expect, test } from 'vitest';
 import { getDebate } from '../src/db/debates';
 import { quotaRemaining } from '../src/db/quota';
 import { startDebate, type StartDeps, type StepJob } from '../src/debates/start';
-import { FAKE_CATALOG } from '../src/models/catalog';
+import { worstCaseBudgetMicroUsd } from '@debate-arena/engine';
+import { FAKE_CATALOG, priceTable } from '../src/models/catalog';
 import { uniqueId } from './helpers';
 
 const now = new Date('2026-11-13T12:00:00Z');
@@ -89,6 +90,15 @@ test('opting into AI Voters stores ten of them and raises the Budget', async () 
   if (!without.ok || !withVoters.ok) throw new Error('start failed');
   expect((await getDebate(env.DB, withVoters.id))?.aiVoters).toHaveLength(10);
   expect(withVoters.budgetReservedMicroUsd).toBeGreaterThan(without.budgetReservedMicroUsd);
+});
+
+test('the Budget reserved at start covers screening the Motion', async () => {
+  const r = await startDebate(makeDeps().deps, uniqueId('m'), valid);
+  if (!r.ok) throw new Error('start failed');
+  const stored = await getDebate(env.DB, r.id);
+  const prices = priceTable(FAKE_CATALOG);
+  expect(r.budgetReservedMicroUsd).toBe(worstCaseBudgetMicroUsd(stored!.setup, [], prices, 'fake-guard/one'));
+  expect(r.budgetReservedMicroUsd).toBeGreaterThan(worstCaseBudgetMicroUsd(stored!.setup, [], prices));
 });
 
 test('the fourth Debate of the day is refused with 429', async () => {

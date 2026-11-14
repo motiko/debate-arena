@@ -33,8 +33,8 @@ test('each AI Voter adds a before- and after-stance', () => {
 });
 
 test('budget covers screening the Motion', () => {
-  // (629 Motion prompt + 10 output) per attempt, twice
-  expect(worstCaseBudgetMicroUsd(setup, [], { ...unitPrices, 'g/guard': unit }, 'g/guard')).toBe(46526 + 1278);
+  // (629 Motion prompt + 16 output) per attempt, twice
+  expect(worstCaseBudgetMicroUsd(setup, [], { ...unitPrices, 'g/guard': unit }, 'g/guard')).toBe(46526 + 1290);
 });
 
 test('human Debaters cost nothing', () => {

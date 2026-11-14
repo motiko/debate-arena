@@ -1,6 +1,14 @@
-import { FakeModelClient, JUDGE_OUTPUT_TOKENS, parseStance, parseVerdict, STANCE_OUTPUT_TOKENS } from '@debate-arena/engine';
+import {
+  FakeModelClient,
+  JUDGE_OUTPUT_TOKENS,
+  parseScreen,
+  parseStance,
+  parseVerdict,
+  SCREEN_OUTPUT_TOKENS,
+  STANCE_OUTPUT_TOKENS,
+} from '@debate-arena/engine';
 import { expect, test, vi } from 'vitest';
-import { FAKE_CATALOG, hasRole, PRODUCTION_CATALOG } from '../src/models/catalog';
+import { FAKE_CATALOG, hasRole, PRODUCTION_CATALOG, screenerFor } from '../src/models/catalog';
 import { BudgetExhaustedError, createModels, devFakeReply, meteredClient, SLOW_FAKE_DELAY_MS } from '../src/models/factory';
 import { OpenRouterModelClient } from '../src/models/openrouter';
 
@@ -73,6 +81,21 @@ test('fake-slow Debater replies after the slow delay', async () => {
   } finally {
     vi.useRealTimers();
   }
+});
+
+test('the fake screener flags only [flag-test] Motions', () => {
+  const screen = (content: string) =>
+    devFakeReply({ model: 'fake-guard/one', messages: [{ role: 'user', content }], maxOutputTokens: SCREEN_OUTPUT_TOKENS });
+  expect(parseScreen(screen('"Cats beat dogs"'))).toEqual({ flagged: false, categories: [] });
+  expect(parseScreen(screen('"Cats [flag-test]"'))).toEqual({ flagged: true, categories: ['S10'] });
+});
+
+test('each catalog has a screener that screens only', () => {
+  for (const catalog of [FAKE_CATALOG, PRODUCTION_CATALOG]) {
+    const screener = screenerFor(catalog);
+    expect(catalog.entries.find(e => e.id === screener)?.roles).toEqual(['screener']);
+  }
+  expect(screenerFor(PRODUCTION_CATALOG)).toBe('meta-llama/llama-guard-4-12b');
 });
 
 test('fake-slow is a Debater only', () => {

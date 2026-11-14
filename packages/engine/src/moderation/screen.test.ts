@@ -41,3 +41,9 @@ test('screenMotion never throws', async () => {
   const client = { complete: async () => Promise.reject(new Error('down')) };
   expect(await screenMotion('A Motion', 'guard/x', client)).toEqual({ flagged: true, categories: ['unscreened'] });
 });
+
+test('screenMotion lets errors the host marks escape', async () => {
+  class Spent extends Error {}
+  const client = { complete: async () => Promise.reject(new Spent('budget')) };
+  await expect(screenMotion('A Motion', 'guard/x', client, { rethrow: e => e instanceof Spent })).rejects.toBeInstanceOf(Spent);
+});
