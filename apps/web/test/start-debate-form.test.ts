@@ -137,3 +137,9 @@ test('switching to a Batch Debate replaces a Debater without batch', async () =>
   await fireEvent.click(screen.getByRole('checkbox', { name: /Batch Debate/ }));
   expect(screen.getByLabelText('Debater For')).toHaveValue('fake-a/one');
 });
+
+test('the two Debaters are chosen as two benches', () => {
+  render(StartDebateForm, { models, quotaRemaining: 6 });
+  expect(screen.getByLabelText('Debater For').closest('.bench-for')).not.toBeNull();
+  expect(screen.getByLabelText('Debater Against').closest('.bench-against')).not.toBeNull();
+});
