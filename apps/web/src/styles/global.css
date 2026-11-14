@@ -136,25 +136,30 @@ a { color: var(--green); text-underline-offset: 0.18em; }
 .band a { color: var(--band-ink); }
 
 .site-header { background: var(--band); }
-.site-header .wrap-wide {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.25rem 1.5rem;
-  padding-block: 0.6rem;
+/* Phone: the nav's items flow like words, right-aligned, beside the brand and then onto a second row, so a
+   signed-in header (Moderators too) stays at two rows and Sign out, the nav's last item, is drawn last. Wide:
+   one row. Nothing is reordered: reading and focus order are what is seen at every width. */
+.site-header .wrap-wide { display: flow-root; padding-block: 0.6rem; }
+.site-header .brand { float: left; margin-right: 1rem; }
+/* font-size 0 drops the spaces between the items' tags; the items set their own size. Only the items: Astro
+   puts its island <style> and <script> in the nav too. */
+.site-header nav { font-size: 0; text-align: right; }
+.site-header nav > :is(a, .session, astro-island) {
+  display: inline-flex;
+  margin: 0.125rem 0 0.125rem 0.75rem;
+  font-size: 0.95rem;
+  vertical-align: middle;
+  text-align: left;
 }
-.site-header nav { display: flex; flex-wrap: wrap; align-items: center; gap: 0 1rem; margin-left: auto; font-size: 0.95rem; }
-/* Phone: brand and Sign out on the first row, the nav on the second. Wide: one row, Sign out at the end. */
-.site-header .session { margin-left: auto; }
-.session + nav { flex-basis: 100%; }
 @media (min-width: 48rem) {
-  .site-header nav { gap: 0 1.25rem; }
-  .session + nav { flex-basis: auto; }
-  .site-header .session { order: 1; margin-left: 0; }
+  .site-header .wrap-wide { display: flex; align-items: center; gap: 0.25rem 1.5rem; }
+  .site-header .brand { float: none; margin-right: 0; }
+  .site-header nav { display: flex; flex-wrap: wrap; align-items: center; gap: 0 1.25rem; margin-left: auto; }
+  .site-header nav > :is(a, .session, astro-island) { margin: 0; }
 }
 .site-header nav a,
 .site-header nav button { min-height: 2.75rem; }
-.site-header nav a { display: inline-flex; align-items: center; }
+.site-header nav a { align-items: center; }
 /* The account item: "Your account" over the handle and Quota. On a phone only the short Quota shows, so a
    signed-in header stays at two rows (brand, then nav). */
 .site-header nav a.account {

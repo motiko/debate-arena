@@ -1,20 +1,13 @@
 ---
 import SignInButton from '../islands/SignInButton.svelte';
 import SignOutButton from '../islands/SignOutButton.svelte';
-import { t } from '../i18n/t';
+import { t, tn } from '../i18n/t';
 
 const { me } = Astro.locals;
 const callbackPath = Astro.url.pathname + Astro.url.search;
 ---
 
-{/* Sign out comes first: on a phone it shares the brand's row, so the nav keeps one row of its own. */}
-{
-  me && (
-    <div class="session">
-      <SignOutButton client:idle />
-    </div>
-  )
-}
+{/* Sign out is the nav's last item, where it is drawn at every width: reading and focus order match what is seen. */}
 <nav aria-label={t('header.nav')}>
   <a href="/new">{t('header.start')}</a>
   {
@@ -26,10 +19,13 @@ const callbackPath = Astro.url.pathname + Astro.url.search;
           <span class="account-label">{t('header.account')}</span>
           <span class="account-meta">
             <span class="account-name">{me.name}</span>
-            <span class="quota-long">{t('header.quota', { points: me.quotaRemaining })}</span>
-            <span class="quota-short">{t('header.quotaShort', { points: me.quotaRemaining })}</span>
+            <span class="quota-long">{tn('header.quota', me.quotaRemaining)}</span>
+            <span class="quota-short">{tn('header.quotaShort', me.quotaRemaining)}</span>
           </span>
         </a>
+        <div class="session">
+          <SignOutButton client:idle />
+        </div>
       </>
     ) : (
       <SignInButton client:idle callbackPath={callbackPath} />

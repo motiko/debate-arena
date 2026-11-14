@@ -18,4 +18,7 @@ test('picks the plural form by count', () => {
   expect(tn('moderation.memberReports', 0)).toBe('0 Member Reports');
   expect(tn('moderation.memberReports', 2)).toBe('2 Member Reports');
   expect(tn('moderation.anonymousReports', 1)).toBe('1 anonymous Report');
+  expect(tn('header.quota', 1)).toBe('1 Quota point left today');
+  expect(tn('header.quotaShort', 0)).toBe('0 Quota points left');
+  expect(tn('account.quota', 1, { cost: 2 })).toBe('You have 1 Quota point left today. A Debate costs 2.');
 });

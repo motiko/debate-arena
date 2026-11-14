@@ -150,7 +150,8 @@ after-vote (when due), Verdict, Audience division, AI Audience Result (when pres
 
 ## Other pages
 
-All pages share the band header (brand with the brass lozenge, nav, quota, sign in/out) and the footer.
+All pages share the band header (brand with the brass lozenge, nav, quota, sign in/out as the nav's last item, in the
+same place in reading order as on screen) and the footer.
 
 - **Home** is the order paper: h1 "Debates", the tagline, then a list (`<ol>`, unnumbered: the feed pages by a date
   cursor, so a position means nothing) of Motions in serif. From 64rem the date sits in the left margin and the

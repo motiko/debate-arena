@@ -106,6 +106,20 @@ test('a signed-in header stays at two rows on a phone, with a visible account la
   expect((await page.locator('.site-header').boundingBox())?.height).toBeLessThan(130);
 });
 
+test("Sign out is the nav's last item, drawn last, and a Moderator's header also stays at two rows", async ({ page }) => {
+  await page.setExtraHTTPHeaders({ 'x-dev-member': `dev-mod-rows-${Date.now()}` });
+  await page.setViewportSize({ width: 412, height: 915 });
+  await page.goto('/');
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  const items = nav.locator(':is(a, button)');
+  await expect(items.last()).toHaveAccessibleName('Sign out');
+  // Drawn after every other item: on the last row, at its end.
+  const boxes = await items.evaluateAll(els => els.map(el => el.getBoundingClientRect()).map(r => ({ top: r.top, right: r.right })));
+  const signOut = boxes.at(-1)!;
+  for (const box of boxes.slice(0, -1)) expect(box.top < signOut.top || box.right <= signOut.right).toBe(true);
+  expect((await page.locator('.site-header').boundingBox())?.height).toBeLessThan(130);
+});
+
 test('the Motion and the dispatch box are inside main, where "Skip to content" lands', async ({ page, request }) => {
   const { id, motion } = await startDebate(request);
   await waitComplete(request, id);
