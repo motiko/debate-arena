@@ -49,7 +49,7 @@
   }
 </script>
 
-<section class="panel stack" aria-labelledby="delete-title">
+<section class="delete panel stack" aria-labelledby="delete-title">
   <h2 id="delete-title">{t('account.deleteTitle')}</h2>
   <p>{t('account.deleteExplain')}</p>
   {#if !confirming}
@@ -61,3 +61,10 @@
   {#if error}<p role="alert" class="error">{error}</p>{/if}
   {#if needsReauth}<button type="button" class="secondary" onclick={reauth}>{t('account.reauthButton')}</button>{/if}
 </section>
+
+<style>
+  /* The island's wrapper is display: contents, so the page's flow spacing does not reach this section. */
+  .delete {
+    margin-top: calc(var(--space) * 2);
+  }
+</style>

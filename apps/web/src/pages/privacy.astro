@@ -1,11 +1,12 @@
 ---
 import LegalSections from '../components/LegalSections.astro';
+import PageHead from '../components/PageHead.astro';
 import Base from '../layouts/Base.astro';
 import { t } from '../i18n/t';
 import { PRIVACY } from '../legal/content';
 ---
 
 <Base title={t('legal.privacy')} description={t('legal.privacyDescription')} canonicalPath="/privacy">
-  <h1>{t('legal.privacy')}</h1>
+  <PageHead slot="band" title={t('legal.privacy')}><p>{t('legal.privacyDescription')}</p></PageHead>
   <LegalSections sections={PRIVACY} />
 </Base>

@@ -69,6 +69,15 @@ test('header controls are readable on the band for a signed-in Member', async ({
   await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCSS('color', 'rgb(242, 245, 241)');
 });
 
+test('a signed-in header stays at two rows on a phone, with a visible account label', async ({ page }) => {
+  await page.setExtraHTTPHeaders({ 'x-dev-member': `rows-${Date.now()}` });
+  await page.setViewportSize({ width: 412, height: 915 });
+  await page.goto('/');
+  await expect(page.locator('.site-header').getByRole('link', { name: /^Your account/ })).toBeVisible();
+  // Two rows of 44px targets plus padding; a third row would push it past 130px.
+  expect((await page.locator('.site-header').boundingBox())?.height).toBeLessThan(130);
+});
+
 test('the Motion and the dispatch box are inside main, where "Skip to content" lands', async ({ page, request }) => {
   const { id, motion } = await startDebate(request);
   await waitComplete(request, id);
@@ -162,6 +171,12 @@ test.describe('axe', () => {
   });
 
   test('404', async ({ page }) => {
+    await page.goto('/debates/no-such-debate');
+    await expectNoAxeViolations(page);
+  });
+
+  test('dark mode page heading band (404)', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
     await page.goto('/debates/no-such-debate');
     await expectNoAxeViolations(page);
   });

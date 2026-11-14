@@ -13,6 +13,11 @@
   --for: #2457a6;
   --against: #8e2433;
   --on-side: #ffffff;
+  /* Solid bench fills (a bench, a bar) and the text on them. --for/--against stay the side colour for text and
+     lines; in dark mode those turn pastel, which reads as candy when used as a slab, so fills use these. */
+  --for-fill: #2457a6;
+  --against-fill: #8e2433;
+  --on-fill: #ffffff;
   --brass: #b8933a;
   --for-tint: rgb(36 87 166 / 0.07);
   --against-tint: rgb(142 36 51 / 0.065);
@@ -43,6 +48,9 @@
     --for: #9bb9f2;
     --against: #f2a6b1;
     --on-side: #0f1a15;
+    --for-fill: #3462b5;
+    --against-fill: #a3354a;
+    --on-fill: #f4f7f5;
     --brass: #d8b866;
     --for-tint: rgb(155 185 242 / 0.09);
     --against-tint: rgb(242 166 177 / 0.085);
@@ -137,11 +145,39 @@ a { color: var(--green); text-underline-offset: 0.18em; }
   gap: 0.25rem 1.5rem;
   padding-block: 0.6rem;
 }
-.site-header nav { display: flex; flex-wrap: wrap; align-items: center; gap: 0 1.25rem; margin-left: auto; font-size: 0.95rem; }
+.site-header nav { display: flex; flex-wrap: wrap; align-items: center; gap: 0 1rem; margin-left: auto; font-size: 0.95rem; }
+/* Phone: brand and Sign out on the first row, the nav on the second. Wide: one row, Sign out at the end. */
+.site-header .session { margin-left: auto; }
+.session + nav { flex-basis: 100%; }
+@media (min-width: 48rem) {
+  .site-header nav { gap: 0 1.25rem; }
+  .session + nav { flex-basis: auto; }
+  .site-header .session { order: 1; margin-left: 0; }
+}
 .site-header nav a,
 .site-header nav button { min-height: 2.75rem; }
 .site-header nav a { display: inline-flex; align-items: center; }
-.site-header .quota { color: var(--band-muted); }
+/* The account item: "Your account" over the handle and Quota. On a phone only the short Quota shows, so a
+   signed-in header stays at two rows (brand, then nav). */
+.site-header nav a.account {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  line-height: 1.2;
+  text-decoration: none;
+}
+.account-label { text-decoration: underline; text-underline-offset: 0.18em; }
+.account:hover .account-label { text-decoration-thickness: 2px; }
+.account-meta { display: flex; gap: 0.4rem; color: var(--band-muted); font-size: 0.8rem; }
+.account-name { max-width: 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quota-long::before { content: '·'; margin-right: 0.4rem; }
+.account-name,
+.quota-long { display: none; }
+@media (min-width: 48rem) {
+  .account-name,
+  .quota-long { display: inline-block; }
+  .quota-short { display: none; }
+}
 /* .secondary too: button.secondary comes later and would otherwise paint green on the green band. */
 .site-header button,
 .site-header button.secondary {
@@ -169,6 +205,7 @@ a { color: var(--green); text-underline-offset: 0.18em; }
   font-size: 0.9rem;
   padding-block: var(--space) calc(var(--space) * 1.5);
 }
+.site-footer p { max-width: 65ch; }
 
 .legal-nav { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; margin-top: 0.75rem; }
 .legal-nav a { display: inline-block; padding-block: 0.4rem; }
