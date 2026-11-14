@@ -14,6 +14,10 @@ export interface StepDeps {
   now: () => Date;
   /** The model that screens Motions (catalog role 'screener'). */
   screener: ModelId;
+  /** Screens Motions; defaults to `client`. A Batch Debate screens with a normal call, as the screener has no batch. */
+  screenClient?: ModelClient;
+  /** Errors meaning "not ready yet" (a Batch Debate's pending batch call): passed through, never counted as failures. */
+  isPending?: (error: unknown) => boolean;
 }
 
 export type StepOutcome = 'screen' | 'turn' | 'verdict' | 'complete' | 'skipped';
@@ -33,7 +37,7 @@ export async function runStep(deps: StepDeps, job: StepJob): Promise<StepOutcome
 
   // First, screen the Motion. A Flag Unlists the Debate but it runs on; Viewers are not told.
   if (debate.screenedAt === null) {
-    const result = await screenMotion(setup.motion.text, deps.screener, client, {
+    const result = await screenMotion(setup.motion.text, deps.screener, deps.screenClient ?? client, {
       rethrow: error => error instanceof BudgetExhaustedError,
     });
     if (!(await saveScreen(db, id, result, deps.now().toISOString()))) return 'skipped';
@@ -58,7 +62,10 @@ export async function runStep(deps: StepDeps, job: StepJob): Promise<StepOutcome
     return 'verdict';
   }
 
-  const aiAudience = debate.aiVoters.length > 0 ? await runAiAudience(setup, turns, debate.aiVoters, client) : null;
+  const aiAudience =
+    debate.aiVoters.length > 0
+      ? await runAiAudience(setup, turns, debate.aiVoters, client, deps.isPending ? { rethrow: deps.isPending } : {})
+      : null;
   if (!(await completeDebate(db, id, aiAudience, deps.now().toISOString()))) return 'skipped';
   await notify(id, { type: 'complete', aiAudience });
   return 'complete';
