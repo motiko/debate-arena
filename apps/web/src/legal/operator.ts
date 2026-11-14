@@ -2,11 +2,11 @@
 // launch: `node scripts/check-release.mjs` refuses a production deploy while any remain.
 export const OPERATOR = {
   name: 'Moti Koritz',
-  street: 'REPLACE_ME_OPERATOR_STREET',
-  postcode: 'REPLACE_ME_OPERATOR_POSTCODE',
+  street: 'Lietzenburger Straße 56',
+  postcode: '10719',
   city: 'Berlin',
   country: 'Germany',
-  email: 'REPLACE_ME_OPERATOR_EMAIL',
+  email: 'support@motik.org',
   // Optional under § 5 DDG when another fast, direct way of contact exists; leave empty to omit.
   phone: '',
   // Responsible for content (§ 18 (2) MStV): usually the operator.
