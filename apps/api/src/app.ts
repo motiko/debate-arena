@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { exportMember } from './account/account';
 import { getAuth } from './auth/auth';
 import { memberResolver } from './auth/member';
+import { getBlockDecision, type BlockGround } from './db/moderation';
 import { quotaRemaining } from './db/quota';
 import { getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
 import { castAfter, castBefore, getVote, listVotes, type AudienceVote } from './db/votes';
@@ -48,10 +49,35 @@ function debateView(d: DebateRecord, votes: AudienceVote[], memberId: string | n
     turnsHidden,
     myVote: myVote && { before: myVote.before, after: myVote.after },
     audienceResult: audienceResult(d, votes),
+    // Never 'blocked' here: a Blocked Debate is answered with its statement of reasons instead.
+    visibility: d.visibility as 'listed' | 'unlisted',
+    // The starting Member is told when their Debate is Unlisted pending review.
+    mine: memberId !== null && memberId === d.memberId,
   };
 }
 
 export type PublicDebate = ReturnType<typeof debateView>;
+
+/** All a Viewer learns of a Blocked Debate: the statement of reasons (DSA Art. 17), never its content. */
+export interface BlockedDebate {
+  id: string;
+  blocked: { decidedAt: string; ground: BlockGround; groundRef: string; explanation: string };
+}
+
+const BLOCKED = 'This Debate was blocked by a Moderator';
+
+async function blockedDebate(db: D1Database, id: string): Promise<BlockedDebate> {
+  const decision = await getBlockDecision(db, id);
+  return {
+    id,
+    blocked: {
+      decidedAt: decision?.decidedAt ?? '',
+      ground: decision?.ground ?? 'terms',
+      groundRef: decision?.groundRef ?? '',
+      explanation: decision?.explanation ?? '',
+    },
+  };
+}
 export type DebateSummary = Omit<ReturnType<typeof publicView>, 'turns'>;
 
 function summary(d: DebateRecord): DebateSummary {
@@ -142,6 +168,7 @@ export const app = new Hono<{ Bindings: Env }>()
   .get('/debates/:id', async c => {
     const debate = await getDebate(c.env.DB, c.req.param('id'));
     if (!debate) return c.json({ error: 'Debate not found' }, 404);
+    if (debate.visibility === 'blocked') return c.json(await blockedDebate(c.env.DB, debate.id), 410);
     const memberId = await memberResolver(c.env)(c.req.raw);
     return c.json(debateView(debate, await listVotes(c.env.DB, debate.id), memberId, new Date()));
   })
@@ -160,6 +187,7 @@ export const app = new Hono<{ Bindings: Env }>()
     }
     const debate = await getDebate(c.env.DB, c.req.param('id'));
     if (!debate) return c.json({ error: 'Debate not found' }, 404);
+    if (debate.visibility === 'blocked') return c.json({ error: BLOCKED }, 410);
 
     const now = new Date();
     const check = checkVote(debate, await getVote(c.env.DB, debate.id, memberId), parsed.phase, now);
@@ -178,7 +206,9 @@ export const app = new Hono<{ Bindings: Env }>()
   })
   .get('/debates/:id/live', async c => {
     const id = c.req.param('id');
-    if (!(await getDebate(c.env.DB, id))) return c.json({ error: 'Debate not found' }, 404);
+    const debate = await getDebate(c.env.DB, id);
+    if (!debate) return c.json({ error: 'Debate not found' }, 404);
+    if (debate.visibility === 'blocked') return c.json({ error: BLOCKED }, 410);
     if (c.req.header('upgrade')?.toLowerCase() !== 'websocket') return c.json({ error: 'Expected a WebSocket upgrade' }, 426);
     return c.env.DEBATE_ROOM.getByName(id).fetch(c.req.raw);
   });

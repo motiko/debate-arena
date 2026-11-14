@@ -1,8 +1,8 @@
-import type { AppType, DebateSummary, PublicDebate } from '@debate-arena/api/app-type';
+import type { AppType, BlockedDebate, DebateSummary, PublicDebate } from '@debate-arena/api/app-type';
 import { hc } from 'hono/client';
 
 export type { DebateEvent } from '@debate-arena/api/events';
-export type { DebateSummary, PublicDebate };
+export type { BlockedDebate, DebateSummary, PublicDebate };
 
 export interface ApiClientOptions {
   fetch?: typeof fetch;
