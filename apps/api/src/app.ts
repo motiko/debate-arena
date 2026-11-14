@@ -6,11 +6,15 @@ import { memberResolver } from './auth/member';
 import {
   addReport,
   getBlockDecision,
+  hasReportsSince,
   memberReportsSince,
+  moderationQueue,
+  recordDecision,
   reportsFromIpSince,
   unlistForReports,
   type BlockGround,
 } from './db/moderation';
+import { isModerator, parseDecision } from './moderation/moderators';
 import { keyedHash, parseReport, REPORT_UNLIST_THRESHOLD, REPORTS_PER_IP_PER_HOUR } from './moderation/reports';
 import { quotaRemaining } from './db/quota';
 import { getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
@@ -109,6 +113,14 @@ function parseVote(input: unknown): { phase: VotePhase; stance: Stance } | null 
   return p && s ? { phase: p, stance: s } : null;
 }
 
+/** The signed-in Moderator, or why the request is refused (401 signed out, 403 not a Moderator). */
+async function requireModerator(env: Env, request: Request): Promise<{ memberId: string } | { status: 401 | 403; error: string }> {
+  const memberId = await memberResolver(env)(request);
+  if (!memberId) return { status: 401, error: 'Sign in to moderate' };
+  if (!(await isModerator(env, memberId))) return { status: 403, error: 'Only Moderators can do this' };
+  return { memberId };
+}
+
 export const app = new Hono<{ Bindings: Env }>()
   .basePath('/api')
   .get('/health', c => c.json({ ok: true }))
@@ -123,12 +135,24 @@ export const app = new Hono<{ Bindings: Env }>()
     if (session) {
       for (const cookie of authHeaders.getSetCookie()) c.header('set-cookie', cookie, { append: true });
       const { id, name, image } = session.user;
-      return c.json({ id, name, image: image ?? null, quotaRemaining: await quotaRemaining(c.env.DB, id, new Date()) });
+      return c.json({
+        id,
+        name,
+        image: image ?? null,
+        quotaRemaining: await quotaRemaining(c.env.DB, id, new Date()),
+        isModerator: await isModerator(c.env, id),
+      });
     }
     // Local development only (DEV_AUTH "true"): a dev Member from `x-dev-member`, named by their id.
     const devMember = await memberResolver(c.env)(c.req.raw);
     if (!devMember) return c.json({ error: 'Not signed in' }, 401);
-    return c.json({ id: devMember, name: devMember, image: null, quotaRemaining: await quotaRemaining(c.env.DB, devMember, new Date()) });
+    return c.json({
+      id: devMember,
+      name: devMember,
+      image: null,
+      quotaRemaining: await quotaRemaining(c.env.DB, devMember, new Date()),
+      isModerator: await isModerator(c.env, devMember),
+    });
   })
   .get('/me/export', async c => {
     const session = await getAuth(c.env).api.getSession({ headers: c.req.raw.headers });
@@ -250,6 +274,41 @@ export const app = new Hono<{ Bindings: Env }>()
       await unlistForReports(c.env.DB, debate.id);
     }
     return c.json({ ok: true }, 201);
+  })
+  .get('/moderation/queue', async c => {
+    const denied = await requireModerator(c.env, c.req.raw);
+    if ('status' in denied) return c.json({ error: denied.error }, denied.status);
+    return c.json({ items: await moderationQueue(c.env.DB) });
+  })
+  .post('/moderation/debates/:id/decision', async c => {
+    if (!isJson(c.req.header('content-type'))) return c.json({ error: NOT_JSON }, 415);
+    const moderator = await requireModerator(c.env, c.req.raw);
+    if ('status' in moderator) return c.json({ error: moderator.error }, moderator.status);
+    let parsed: ReturnType<typeof parseDecision>;
+    try {
+      parsed = parseDecision(await c.req.json());
+    } catch {
+      parsed = 'Request body must be JSON';
+    }
+    if (typeof parsed === 'string') return c.json({ error: parsed }, 400);
+    const debate = await getDebate(c.env.DB, c.req.param('id'));
+    if (!debate) return c.json({ error: 'Debate not found' }, 404);
+    const source = debate.flagged ? 'ai_flag' : (await hasReportsSince(c.env.DB, debate.id, debate.reviewedAt)) ? 'reports' : 'moderator';
+    const applied = await recordDecision(c.env.DB, {
+      id: crypto.randomUUID(),
+      debateId: debate.id,
+      action: parsed.action,
+      source,
+      // The AI screen only detects; the decision is always a Moderator's.
+      automatedDetection: source === 'ai_flag',
+      ground: parsed.action === 'block' ? parsed.ground : null,
+      groundRef: parsed.action === 'block' ? parsed.groundRef : null,
+      explanation: parsed.explanation,
+      moderatorId: moderator.memberId,
+      decidedAt: new Date().toISOString(),
+    });
+    if (!applied) return c.json({ error: 'This Debate is already blocked' }, 409);
+    return c.json({ visibility: parsed.action === 'block' ? 'blocked' : 'listed' }, 201);
   })
   .get('/debates/:id/live', async c => {
     const id = c.req.param('id');

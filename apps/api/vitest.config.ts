@@ -17,6 +17,8 @@ export default defineConfig(async () => {
             BETTER_AUTH_SECRET: 'test-secret-at-least-32-characters-long',
             GITHUB_CLIENT_ID: 'test-github-client-id',
             GITHUB_CLIENT_SECRET: 'test-github-client-secret',
+            // GitHub user ids 1 and 2 are Moderators in tests.
+            MODERATOR_GITHUB_IDS: '1, 2',
           },
         },
       }),

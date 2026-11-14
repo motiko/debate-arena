@@ -113,6 +113,104 @@ export async function reportsFromIpSince(db: D1Database, ipHash: string, since: 
   return row?.n ?? 0;
 }
 
+export interface QueueReport {
+  reason: string;
+  explanation: string;
+  reporterName: string | null;
+  reporterEmail: string | null;
+  byMember: boolean;
+  createdAt: string;
+}
+
+export interface QueueItem {
+  id: string;
+  motion: string;
+  status: string;
+  visibility: Visibility;
+  flagged: boolean;
+  screen: ScreenResult | null;
+  createdAt: string;
+  memberReports: number;
+  anonymousReports: number;
+  reports: QueueReport[];
+}
+
+const QUEUE_LIMIT = 50;
+const QUEUE_REPORTS = 20;
+
+/**
+ * What awaits a Moderator: every Unlisted Debate, and listed ones with Reports since their last review.
+ * Oldest first. Holds reporters' contact details, so only Moderators may see it.
+ */
+export async function moderationQueue(db: D1Database): Promise<QueueItem[]> {
+  const { results: debates } = await db
+    .prepare(
+      `SELECT id, setup_json, status, visibility, flagged, screen_json, created_at, reviewed_at FROM debates d
+       WHERE visibility = 'unlisted'
+          OR (visibility = 'listed' AND EXISTS (
+                SELECT 1 FROM reports r WHERE r.debate_id = d.id AND r.created_at > COALESCE(d.reviewed_at, '')))
+       ORDER BY created_at LIMIT ?`,
+    )
+    .bind(QUEUE_LIMIT)
+    .all<{
+      id: string;
+      setup_json: string;
+      status: string;
+      visibility: Visibility;
+      flagged: number;
+      screen_json: string | null;
+      created_at: string;
+      reviewed_at: string | null;
+    }>();
+  if (debates.length === 0) return [];
+  const reportSets = await db.batch(
+    debates.map(d =>
+      db
+        .prepare(
+          `SELECT reason, explanation, reporter_name, reporter_email, reporter_member_id IS NOT NULL AS by_member, created_at
+           FROM reports WHERE debate_id = ? AND created_at > ? ORDER BY created_at DESC`,
+        )
+        .bind(d.id, d.reviewed_at ?? ''),
+    ),
+  );
+  return debates.map((d, i) => {
+    const rows = (reportSets[i]?.results ?? []) as {
+      reason: string;
+      explanation: string;
+      reporter_name: string | null;
+      reporter_email: string | null;
+      by_member: number;
+      created_at: string;
+    }[];
+    const memberReports = rows.filter(r => r.by_member === 1).length;
+    return {
+      id: d.id,
+      motion: (JSON.parse(d.setup_json) as { motion: { text: string } }).motion.text,
+      status: d.status,
+      visibility: d.visibility,
+      flagged: d.flagged === 1,
+      screen: d.screen_json ? (JSON.parse(d.screen_json) as ScreenResult) : null,
+      createdAt: d.created_at,
+      memberReports,
+      anonymousReports: rows.length - memberReports,
+      reports: rows.slice(0, QUEUE_REPORTS).map(r => ({
+        reason: r.reason,
+        explanation: r.explanation,
+        reporterName: r.reporter_name,
+        reporterEmail: r.reporter_email,
+        byMember: r.by_member === 1,
+        createdAt: r.created_at,
+      })),
+    };
+  });
+}
+
+/** Whether a Debate has any Reports since its last review. */
+export async function hasReportsSince(db: D1Database, debateId: string, since: string | null): Promise<boolean> {
+  const row = await db.prepare(`SELECT 1 AS x FROM reports WHERE debate_id = ? AND created_at > ? LIMIT 1`).bind(debateId, since ?? '').first();
+  return row !== null;
+}
+
 interface DecisionRow {
   id: string;
   debate_id: string;
