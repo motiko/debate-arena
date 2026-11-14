@@ -64,3 +64,12 @@ test.each([
   const { fetcher } = stub(status, body);
   await expect(new OpenRouterModelClient('k', { fetcher }).complete(req)).rejects.toBeInstanceOf(OpenRouterError);
 });
+
+test("keeps the provider's own error behind OpenRouter's generic one", async () => {
+  // As OpenRouter answered for mistralai/mistral-large-4-0 with reasoning disabled (2026-11-14).
+  const raw = '{"object":"error","message":"reasoning_effort none is not supported for this model"}';
+  const { fetcher } = stub(400, { error: { message: 'Provider returned error', metadata: { raw, provider_name: 'Mistral' } } });
+  await expect(new OpenRouterModelClient('k', { fetcher }).complete(req)).rejects.toThrow(
+    'OpenRouter 400: Provider returned error (Mistral: reasoning_effort none is not supported for this model)',
+  );
+});

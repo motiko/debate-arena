@@ -1,7 +1,7 @@
 // OpenRouter's Batch API (about half price; results in minutes to hours). A Batch Debate sends each model call as
 // a one-request batch and polls for its result; the engine never waits inside a Worker request.
 import type { ModelId, ModelRequest, ModelResponse } from '@debate-arena/engine';
-import { OpenRouterError, readCompletion, type CompletionBody } from './openrouter';
+import { describeError, OpenRouterError, readCompletion, type CompletionBody, type OpenRouterErrorBody } from './openrouter';
 
 const BATCHES = 'https://openrouter.ai/api/v1/batches';
 
@@ -38,7 +38,7 @@ interface BatchBody {
   status?: string;
   // Each result wraps its completion like OpenAI's Batch API: response.body, next to the call's own status_code.
   results?: { custom_id?: string; response?: { status_code?: number; body?: CompletionBody }; error?: { message?: string } | null }[];
-  error?: { message?: string };
+  error?: OpenRouterErrorBody | null;
 }
 
 export class OpenRouterBatchApi implements BatchApi {
@@ -89,7 +89,7 @@ export class OpenRouterBatchApi implements BatchApi {
     });
     const body = (await response.json().catch(() => ({}))) as BatchBody;
     if (!response.ok || !body.id) {
-      throw new OpenRouterError(`OpenRouter batch ${response.status}: ${body.error?.message ?? 'submission failed'}`, response.status);
+      throw new OpenRouterError(`OpenRouter batch ${response.status}: ${describeError(body.error ?? undefined, 'submission failed')}`, response.status);
     }
     return body.id;
   }
@@ -98,12 +98,12 @@ export class OpenRouterBatchApi implements BatchApi {
     const response = await this.fetcher(`${BATCHES}/${encodeURIComponent(id)}`, { headers: this.headers() });
     const body = (await response.json().catch(() => ({}))) as BatchBody;
     if (!response.ok) {
-      throw new OpenRouterError(`OpenRouter batch ${response.status}: ${body.error?.message ?? 'lookup failed'}`, response.status);
+      throw new OpenRouterError(`OpenRouter batch ${response.status}: ${describeError(body.error ?? undefined, 'lookup failed')}`, response.status);
     }
     if (body.status && PENDING.has(body.status)) return { status: 'pending' };
     if (body.status !== 'completed') {
       const reason = `Batch ${body.status ?? 'unknown'}`;
-      return { status: 'failed', reason: body.error?.message ? `${reason}: ${body.error.message}` : reason };
+      return { status: 'failed', reason: body.error?.message ? `${reason}: ${describeError(body.error, '')}` : reason };
     }
     const result = body.results?.find(r => r.custom_id === 'call') ?? body.results?.[0];
     const completion = result?.response?.body;

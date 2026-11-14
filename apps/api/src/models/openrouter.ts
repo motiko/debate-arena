@@ -18,10 +18,33 @@ export interface OpenRouterOptions {
   disableReasoning?: (model: ModelId) => boolean;
 }
 
+/** OpenRouter's error; a provider's own error sits in metadata.raw (often a JSON string) behind a generic message. */
+export interface OpenRouterErrorBody {
+  message?: string;
+  metadata?: { raw?: unknown; provider_name?: string };
+}
+
 export interface CompletionBody {
   choices?: { message?: { content?: string | null }; finish_reason?: string | null }[];
   usage?: { prompt_tokens?: number; completion_tokens?: number };
-  error?: { message?: string };
+  error?: OpenRouterErrorBody;
+}
+
+/** OpenRouter's error message, followed by the provider's own message when there is one. */
+export function describeError(error: OpenRouterErrorBody | undefined, fallback: string): string {
+  const message = error?.message ?? fallback;
+  let raw = error?.metadata?.raw;
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      // Not JSON: keep the text.
+    }
+  }
+  const detail = typeof raw === 'string' ? raw : (raw as { message?: unknown } | undefined)?.message;
+  if (typeof detail !== 'string' || !detail.trim()) return message;
+  const provider = error?.metadata?.provider_name;
+  return `${message} (${provider ? `${provider}: ` : ''}${detail.trim().slice(0, 300)})`;
 }
 
 export class OpenRouterModelClient implements ModelClient {
@@ -56,7 +79,7 @@ export class OpenRouterModelClient implements ModelClient {
 
     const body = (await response.json().catch(() => ({}))) as CompletionBody;
     if (!response.ok) {
-      throw new OpenRouterError(`OpenRouter ${response.status}: ${body.error?.message ?? 'request failed'}`, response.status);
+      throw new OpenRouterError(`OpenRouter ${response.status}: ${describeError(body.error, 'request failed')}`, response.status);
     }
     return readCompletion(body, request, response.status);
   }
