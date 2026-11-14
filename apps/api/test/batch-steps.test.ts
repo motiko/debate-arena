@@ -87,6 +87,6 @@ test('waiting does not use attempts: the step is acked and sent again later', as
     expect(result.retryMessages).toHaveLength(0);
     expect(result.explicitAcks).toHaveLength(1);
   }
-  expect(sent.at(-1)).toEqual({ job: { debateId: d.id, waits: 1 }, delaySeconds: 2 });
+  expect(sent.at(-1)).toEqual({ job: { debateId: d.id, waits: 1, attempt: 1 }, delaySeconds: 2 });
   expect((await getDebate(env.DB, d.id))?.status).toBe('running');
 });

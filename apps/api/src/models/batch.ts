@@ -11,7 +11,8 @@ export const FAKE_BATCH_DELAY_MS = 2000;
 export type BatchStatus =
   | { status: 'pending' }
   | { status: 'completed'; response: ModelResponse }
-  | { status: 'failed'; reason: string };
+  /** `usage`: tokens the provider spent before the result was rejected; they are paid for all the same. */
+  | { status: 'failed'; reason: string; usage?: { inputTokens: number; outputTokens: number } };
 
 export interface BatchApi {
   /** Submits one model call as a batch; returns the batch id. */
@@ -23,6 +24,11 @@ export interface BatchApi {
 /** Thrown when a batch call has been submitted but its result is not ready yet. Not a failure: wait and run again. */
 export class BatchPendingError extends Error {
   override name = 'BatchPendingError';
+}
+
+/** A batch call failed MAX_ATTEMPTS times: the Debate fails; retrying the step would only submit it again. */
+export class BatchCallFailedError extends Error {
+  override name = 'BatchCallFailedError';
 }
 
 const PENDING = new Set(['validating', 'in_progress', 'finalizing']);
@@ -96,7 +102,12 @@ export class OpenRouterBatchApi implements BatchApi {
     try {
       return { status: 'completed', response: readCompletion(result.response, request, response.status) };
     } catch (error) {
-      return { status: 'failed', reason: error instanceof Error ? error.message : String(error) };
+      const usage = result.response.usage;
+      return {
+        status: 'failed',
+        reason: error instanceof Error ? error.message : String(error),
+        ...(usage ? { usage: { inputTokens: usage.prompt_tokens ?? 0, outputTokens: usage.completion_tokens ?? 0 } } : {}),
+      };
     }
   }
 }

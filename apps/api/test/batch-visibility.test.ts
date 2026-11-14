@@ -1,6 +1,6 @@
 import { env, exports } from 'cloudflare:workers';
 import { expect, test } from 'vitest';
-import { appendTurn, completeDebate, createDebate, listCompletedDebates } from '../src/db/debates';
+import { appendTurn, completeDebate, createDebate, failDebate, listCompletedDebates } from '../src/db/debates';
 import { newDebate, turnAt, uniqueId } from './helpers';
 
 const base = 'https://api.test/api';
@@ -42,6 +42,18 @@ test('a complete Batch Debate is public and labelled batch', async () => {
   const feed = (await (await exports.default.fetch(`${base}/debates`)).json()) as { debates: { id: string; kind: string }[] };
   expect(feed.debates.find(d => d.id === id)?.kind).toBe('batch');
   expect((await listCompletedDebates(env.DB, 100)).some(d => d.id === id)).toBe(true);
+});
+
+test('a failed Batch Debate is never published', async () => {
+  const starter = uniqueId('dev-starter');
+  const d = newDebate({ kind: 'batch', memberId: starter, quotaPoints: 1 });
+  await createDebate(env.DB, d);
+  await appendTurn(env.DB, d.id, 0, turnAt(0));
+  await failDebate(env.DB, d.id, 'test');
+  expect((await view(d.id)).status).toBe(404);
+  const own = await view(d.id, starter);
+  expect(own.status).toBe(200);
+  expect(await own.json()).toMatchObject({ status: 'failed', turns: [] });
 });
 
 test('Batch Debates take no Audience Votes', async () => {

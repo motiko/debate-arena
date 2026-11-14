@@ -55,8 +55,8 @@ function publicView(d: DebateRecord) {
 function debateView(d: DebateRecord, votes: AudienceVote[], memberId: string | null, now: Date) {
   const myVote = memberId ? (votes.find(v => v.memberId === memberId) ?? null) : null;
   const turnsHidden = memberId !== null && myVote === null && checkVote(d, null, 'before', now).ok;
-  // A running Batch Debate (only its starter sees it) shows no Turns: it is published only when complete.
-  const unpublished = d.kind === 'batch' && d.status === 'running';
+  // A Batch Debate that is not complete (only its starter sees it) shows no Turns: it is published only when complete.
+  const unpublished = d.kind === 'batch' && d.status !== 'complete';
   return {
     ...publicView(d),
     turns: turnsHidden || unpublished ? [] : d.turns,
@@ -204,8 +204,8 @@ export const app = new Hono<{ Bindings: Env }>()
     if (!debate) return c.json({ error: 'Debate not found' }, 404);
     if (debate.visibility === 'blocked') return c.json(await blockedDebate(c.env.DB, debate.id), 410);
     const memberId = await memberResolver(c.env)(c.req.raw);
-    // A Batch Debate is published only when complete; until then only its starting Member can see it.
-    if (debate.kind === 'batch' && debate.status === 'running' && memberId !== debate.memberId) {
+    // A Batch Debate is published only when complete; until then (or if it failed) only its starting Member sees it.
+    if (debate.kind === 'batch' && debate.status !== 'complete' && memberId !== debate.memberId) {
       return c.json({ error: 'Debate not found' }, 404);
     }
     return c.json(debateView(debate, await listVotes(c.env.DB, debate.id), memberId, new Date()));

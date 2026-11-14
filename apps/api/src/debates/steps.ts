@@ -78,7 +78,12 @@ export async function runStep(deps: StepDeps, job: StepJob): Promise<StepOutcome
 export async function failStep(deps: Pick<StepDeps, 'db' | 'notify'>, debateId: string, reason: string): Promise<void> {
   if (!(await failDebate(deps.db, debateId, reason))) return;
   const debate = await getDebate(deps.db, debateId);
-  if (debate && debate.costMicroUsd === 0) {
+  // A Batch Debate's batches are paid when sent, but charged here only when their results arrive.
+  const sentBatches = await deps.db
+    .prepare('SELECT 1 AS x FROM batch_calls WHERE debate_id = ? AND batch_id IS NOT NULL LIMIT 1')
+    .bind(debateId)
+    .first();
+  if (debate && debate.costMicroUsd === 0 && !sentBatches) {
     await refundQuota(deps.db, debate.memberId, debate.quotaPoints, utcDay(debate.createdAt));
   }
   await deps.notify(debateId, { type: 'failed', reason: PUBLIC_FAILURE_REASON });

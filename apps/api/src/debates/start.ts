@@ -24,8 +24,11 @@ import {
 export const MAX_MOTION_LENGTH = 300;
 
 export interface StartDebateInput { motion: string; debaters: { for: ModelId; against: ModelId }; panel?: ModelId[]; aiVoters: boolean; batch: boolean }
-/** One queued step. `waits` counts how often a Batch Debate's step has already waited for batch results. */
-export interface StepJob { debateId: string; waits?: number }
+/**
+ * One queued step. For a Batch Debate's step, `waits` counts how often it has already waited for batch results
+ * and `attempt` which try of the step this is (both reset when the Debate moves on to its next step).
+ */
+export interface StepJob { debateId: string; waits?: number; attempt?: number }
 export interface StartDeps {
   db: D1Database;
   catalog: Catalog;
