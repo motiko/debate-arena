@@ -70,6 +70,7 @@ after-vote (when due), Verdict, Audience division, AI Audience Result (when pres
   | `turnsHidden` (signed-in Member who can still cast a before-vote) | the before-vote form, whose legend "Where do you stand?" is the box's only question (no inner fieldset border); while the Debate runs, "Live now" with the marker above it |
   | Batch, not complete | "Being argued through batch processing. Published when complete." |
   | Live, running | "Live now" with a pulsing marker, and "Follow the speeches below." (the floor shows who speaks next) |
+  | Failed, with a Verdict (the AI Audience step failed after the Verdict was saved) | "The AI Audience Result could not be produced. The speeches and the Verdict are below." |
   | Failed, with Turns | "Judging failed. The speeches are below; there is no Verdict." |
   | Failed, without Turns | "This Debate could not be completed." |
   | Complete, outcome shown (see below) | the Outcome summary |
@@ -82,8 +83,12 @@ after-vote (when due), Verdict, Audience division, AI Audience Result (when pres
   outcome (Verdict, Audience Result, AI Audience Result, Swing, Outcome summary, home "Carried"/"Defeated") is
   **hidden while Audience voting is open for the Debate and the reader has not cast their after-vote**. Once
   voting has closed, or the reader cast the after-vote, or the Debate is a Batch Debate (no Audience Votes) or
-  failed, it is shown openly everywhere. While hidden, **one reveal governs the page**: the Verdict, Audience
-  Result and AI Audience Result sit in a single `<details id="outcome">` under the floor ("Show the result" /
+  failed, it is shown openly on the Debate page. It fails closed: a complete live Debate without a closing time
+  keeps its outcome hidden (the API sends none only while a Debate runs or once it failed). The **home feed** is
+  public and the same for every reader, so it can be cached: its entries carry no reader's votes, so it follows
+  the public rule — hidden until voting closes, shown for Batch Debates — regardless of the reader's own votes (a
+  Member who cast their after-vote still sees "Voting open" on home until voting closes). While hidden, **one
+  reveal governs the page**: the Verdict, Audience Result and AI Audience Result sit in a single `<details id="outcome">` under the floor ("Show the result" /
   "Hide the result", works without JavaScript); the dispatch box's "Show the result" link opens it and jumps
   there (without JavaScript it jumps to its summary), and while it is open the dispatch box shows the Outcome
   summary too (CSS `:has`).
@@ -150,8 +155,8 @@ All pages share the band header (brand with the brass lozenge, nav, quota, sign 
 - **Home** is the order paper: h1 "Debates", the tagline, then a list (`<ol>`, unnumbered: the feed pages by a date
   cursor, so a position means nothing) of Motions in serif. From 64rem the date sits in the left margin and the
   outcome, AI label and Batch badge in a right gutter; on a phone it is one column. Each entry: the Motion as a link, "{For model} for, {Against model} against", the outcome in words when complete
-  ("Carried" / "Defeated" by the Verdict; "Voting open" instead while the hybrid rule hides the outcome, from the
-  feed's `votingClosesAt`), the Batch badge, the date. A thin rule between entries; no cards.
+  ("Carried" / "Defeated" by the Verdict; "Voting open" instead until voting closes, from the
+  feed's `votingClosesAt`: the public rule, whatever the reader has voted, since the feed is the same for everyone), the Batch badge, the date. A thin rule between entries; no cards.
 - **Start a Debate**: the h1 in the band, then the Quota line, the kind (Full or Batch Debate, two radio cards with
   their cost), the Motion field large (serif), the two benches side by side as the two Debater selects (For on
   cobalt-edged, Against on oxblood-edged fieldsets; the same model cannot sit on both), the Judge and AI Voters,

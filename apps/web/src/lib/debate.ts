@@ -149,21 +149,39 @@ interface RevealInput {
  * The hybrid rule (spec: Outcome revealed): the outcome is hidden while Audience voting is open and this
  * reader has not cast their after-vote, so it cannot sway the vote; otherwise it is shown openly everywhere.
  * A Batch Debate takes no Audience Votes and a failed one takes no more, so theirs is never hidden.
+ *
+ * Fails closed: a complete live Debate without a closing time keeps its outcome hidden. Every Format has an
+ * Oxford voting window and the API sends votingClosesAt null only while a Debate runs or once it failed
+ * (apps/api votes/rules.ts), so null on a complete live Debate does not mean "no voting": it is a record without
+ * a completion time, for which the API keeps voting open too (checkVote). Absent (an older API) is treated the same.
  */
 export function outcomeHidden(d: RevealInput, now = Date.now()): boolean {
   if (d.kind === 'batch' || d.status === 'failed' || d.myVote?.after) return false;
-  if (d.status === 'running') return true;
-  return d.votingClosesAt != null && Date.parse(d.votingClosesAt) > now;
+  if (d.status === 'running' || d.votingClosesAt == null) return true;
+  return Date.parse(d.votingClosesAt) > now;
 }
 
-/** The order paper's outcome: "Carried" / "Defeated" by the Verdict, or "Voting open" while the outcome is hidden. */
+/**
+ * The order paper's outcome: "Carried" / "Defeated" by the Verdict, or "Voting open" while the outcome is hidden.
+ * The home feed is public and the same for every reader (so it can be cached): it carries no votes of the reader,
+ * so it follows the public rule, hidden until voting closes and shown for Batch Debates, whatever the reader voted.
+ */
 export function feedOutcome(d: RevealInput & { verdict: { winner: Side } | null }, now = Date.now()): 'carried' | 'defeated' | 'votingOpen' | null {
   if (!d.verdict) return null;
-  if (outcomeHidden(d, now)) return 'votingOpen';
+  if (outcomeHidden({ ...d, myVote: null }, now)) return 'votingOpen';
   return d.verdict.winner === 'for' ? 'carried' : 'defeated';
 }
 
-export type DispatchState = 'ask' | 'generating' | 'live' | 'judgingFailed' | 'failed' | 'revealed' | 'askAfter' | 'hidden';
+export type DispatchState =
+  | 'ask'
+  | 'generating'
+  | 'live'
+  | 'audienceFailed'
+  | 'judgingFailed'
+  | 'failed'
+  | 'revealed'
+  | 'askAfter'
+  | 'hidden';
 
 interface DispatchInput {
   kind: 'live' | 'batch';
@@ -171,18 +189,20 @@ interface DispatchInput {
   turnsHidden: boolean;
   turns: unknown[];
   myVote: { before: unknown; after: unknown } | null;
+  verdict: unknown;
   audienceResult: { votingClosesAt: string | null };
 }
 
 /**
- * What the dispatch box shows (spec: the dispatch box table, first match wins). Once complete the outcome
- * follows the hybrid rule (outcomeHidden): open, or folded away with the after-vote asked for when it is due.
+ * What the dispatch box shows (spec: the dispatch box table, first match wins). A failed Debate can still have
+ * its Verdict (the AI Audience step failed after it was saved), which is shown under the floor. Once complete
+ * the outcome follows the hybrid rule (outcomeHidden): open, or folded away with the after-vote asked for when due.
  */
 export function dispatchState(d: DispatchInput, now = Date.now()): DispatchState {
   if (d.turnsHidden) return 'ask';
   if (d.kind === 'batch' && d.status === 'running') return 'generating';
   if (d.status === 'running') return 'live';
-  if (d.status === 'failed') return d.turns.length > 0 ? 'judgingFailed' : 'failed';
+  if (d.status === 'failed') return d.verdict ? 'audienceFailed' : d.turns.length > 0 ? 'judgingFailed' : 'failed';
   if (!outcomeHidden({ ...d, votingClosesAt: d.audienceResult.votingClosesAt }, now)) return 'revealed';
   return d.myVote?.before ? 'askAfter' : 'hidden';
 }

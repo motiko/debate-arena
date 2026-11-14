@@ -79,6 +79,8 @@ const announce =
             </p>
             <p>{t('dispatch.follow')}</p>
           </>
+        ) : state === 'audienceFailed' ? (
+          <p>{t('dispatch.audienceFailed')}</p>
         ) : state === 'judgingFailed' ? (
           <p>{t('dispatch.judgingFailed')}</p>
         ) : state === 'failed' ? (

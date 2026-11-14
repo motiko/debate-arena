@@ -264,6 +264,7 @@ export const en = {
   'dispatch.live': 'Live now',
   'dispatch.follow': 'Follow the speeches below.',
   'dispatch.judgingFailed': 'Judging failed. The speeches are below; there is no Verdict.',
+  'dispatch.audienceFailed': 'The AI Audience Result could not be produced. The speeches and the Verdict are below.',
   'dispatch.show': 'Show the result',
   'dispatch.hide': 'Hide the result',
   'floor.less': 'Show less',
