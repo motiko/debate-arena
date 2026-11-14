@@ -135,10 +135,12 @@ export async function listCompletedDebates(db: D1Database, limit: number, before
 export async function appendTurn(db: D1Database, id: string, slotIndex: number, turn: Turn): Promise<boolean> {
   const result = await db
     .prepare(
-      `INSERT INTO turns (debate_id, slot_index, phase_index, side, text, truncated) VALUES (?, ?, ?, ?, ?, ?)
+      // Only into a Debate still running and not Blocked: a Block can land while the model is writing.
+      `INSERT INTO turns (debate_id, slot_index, phase_index, side, text, truncated)
+       SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM debates WHERE id = ? AND status = 'running' AND visibility != 'blocked')
        ON CONFLICT (debate_id, slot_index) DO NOTHING`,
     )
-    .bind(id, slotIndex, turn.phaseIndex, turn.side, turn.text, turn.truncated ? 1 : 0)
+    .bind(id, slotIndex, turn.phaseIndex, turn.side, turn.text, turn.truncated ? 1 : 0, id)
     .run();
   return changed(result);
 }

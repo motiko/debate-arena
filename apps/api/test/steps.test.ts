@@ -149,6 +149,34 @@ test('a Debate Blocked while running stops: no more model calls or broadcasts', 
   expect(await getDebate(env.DB, d.id)).toMatchObject({ status: 'failed', visibility: 'blocked', turns: [expect.anything()] });
 });
 
+test('a step in flight when the Block lands writes nothing and tells no one', async () => {
+  const { deps, events } = makeDeps();
+  const d = newDebate();
+  await createScreened(env.DB, d);
+  const inner = deps.client;
+  deps.client = {
+    complete: async request => {
+      // The Moderator Blocks while the model is still writing the Turn.
+      await recordDecision(env.DB, {
+        id: crypto.randomUUID(),
+        debateId: d.id,
+        action: 'block',
+        source: 'moderator',
+        automatedDetection: false,
+        ground: 'terms',
+        groundRef: 'Terms §3',
+        explanation: 'Hateful Motion, blocked mid-Turn.',
+        moderatorId: 'mod-1',
+        decidedAt: '2026-11-13T12:31:00.000Z',
+      });
+      return inner.complete(request);
+    },
+  };
+  expect(await runStep(deps, { debateId: d.id })).toBe('skipped');
+  expect((await getDebate(env.DB, d.id))?.turns).toEqual([]);
+  expect(events).toEqual([]);
+});
+
 test('a redelivered job running concurrently writes one Turn and notifies once', async () => {
   const { deps, jobs, events } = makeDeps();
   const d = newDebate();
