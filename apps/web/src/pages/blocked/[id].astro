@@ -16,8 +16,10 @@ Astro.response.status = 410;
 ---
 
 <Base title={t('blocked.title')} description={t('blocked.description')} canonicalPath={`/debates/${id}`} noindex>
-  <h1>{t('blocked.title')}</h1>
-  <p>{t('blocked.body', { date: formatDate(blocked.decidedAt) })}</p>
+  <header class="page-head stack">
+    <h1>{t('blocked.title')}</h1>
+    <p class="muted">{t('blocked.body', { date: formatDate(blocked.decidedAt) })}</p>
+  </header>
   <section class="panel stack" aria-labelledby="reasons-title">
     <h2 id="reasons-title">{t('blocked.reasons')}</h2>
     <dl class="reasons">
@@ -26,7 +28,7 @@ Astro.response.status = 410;
       <dt>{t('blocked.reference')}</dt>
       <dd>{blocked.groundRef}</dd>
       <dt>{t('blocked.explanation')}</dt>
-      <dd>{blocked.explanation}</dd>
+      <dd class="explanation">{blocked.explanation}</dd>
     </dl>
     <p class="muted">{t('blocked.human')}</p>
   </section>
@@ -34,10 +36,31 @@ Astro.response.status = 410;
 </Base>
 
 <style>
+  .page-head {
+    padding-bottom: 0.25rem;
+  }
+  .reasons {
+    display: grid;
+    gap: 0.2rem 1.5rem;
+  }
   .reasons dt {
+    color: var(--muted);
+    font-size: 0.95rem;
     font-weight: 600;
   }
   .reasons dd {
     margin: 0 0 0.75rem;
+  }
+  .reasons .explanation {
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+  }
+  @media (min-width: 40rem) {
+    .reasons {
+      grid-template-columns: 9rem minmax(0, 1fr);
+    }
+    .reasons dt {
+      padding-top: 0.1rem;
+    }
   }
 </style>
