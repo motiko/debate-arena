@@ -9,8 +9,16 @@ import { buildTurnMessages } from './prompts';
 test('prompt names the Motion, Side, Phase, word limit and language rule', () => {
   const [system] = buildTurnMessages(setup, { phaseIndex: 0, side: 'for' }, []);
   expect(system?.role).toBe('system');
-  for (const s of ['Remote work beats office work', 'For', 'Opening', '300 words', "Motion's language"])
+  for (const s of ['Remote work beats office work', 'For', 'Opening', 'never exceed 300 words', 'same language as the Motion'])
     expect(system?.content).toContain(s);
+});
+
+test('prompt asks for a length well below the limit, since models overshoot word counts', () => {
+  const phases = setup.format.phases.map((_, phaseIndex) => buildTurnMessages(setup, { phaseIndex, side: 'for' }, sixTurns)[0]?.content);
+  // Classic: 300 / 200 / 150 words; asked for 70% of each
+  expect(phases[0]).toContain('Aim for about 210 words');
+  expect(phases[1]).toContain('Aim for about 140 words');
+  expect(phases[2]).toContain('Aim for about 105 words');
 });
 
 test('prior Turns are passed in order', () => {
@@ -35,6 +43,20 @@ test('a Turn cut off by the token cap is marked truncated', async () => {
   const client = new FakeModelClient(() => ({ text: 'A reply that stops mid', finishReason: 'length' }));
   const t = await generateTurn(setup, [], client);
   expect(t.text).toBe('A reply that stops mid');
+  expect(t.truncated).toBe(true);
+});
+
+test('a Turn cut off by the token cap ends at its last full sentence', async () => {
+  const client = new FakeModelClient(() => ({ text: 'Commutes waste hours every single day. Net zero by', finishReason: 'length' }));
+  const t = await generateTurn(setup, [], client);
+  expect(t).toMatchObject({ text: 'Commutes waste hours every single day.', truncated: true });
+});
+
+test('an over-long reply is cut at the last full sentence within the limit', async () => {
+  const reply = `${'word '.repeat(250)}ends here. Then ${'more '.repeat(100)}`;
+  const t = await generateTurn(setup, [], new FakeModelClient(() => reply));
+  expect(t.text.endsWith('ends here.')).toBe(true);
+  expect(countWords(t.text)).toBe(252);
   expect(t.truncated).toBe(true);
 });
 
