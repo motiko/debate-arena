@@ -1,6 +1,7 @@
 ---
 import DecisionForm from '../islands/DecisionForm.svelte';
 import SignInButton from '../islands/SignInButton.svelte';
+import PageHead from '../components/PageHead.astro';
 import Base from '../layouts/Base.astro';
 import { t, tn, type MessageKey } from '../i18n/t';
 import { formatDate } from '../lib/format';
@@ -38,10 +39,15 @@ const now = new Date();
 ---
 
 <Base title={t('moderation.title')} description={t('moderation.description')} canonicalPath="/moderation" noindex>
-  <header class="page-head stack">
-    <h1>{t('moderation.title')}</h1>
-    {me?.isModerator && <p class="muted">{t('moderation.intro')}</p>}
-  </header>
+  {
+    me?.isModerator ? (
+      <PageHead slot="band" title={t('moderation.title')}>
+        <p>{t('moderation.intro')}</p>
+      </PageHead>
+    ) : (
+      <PageHead slot="band" title={t('moderation.title')} />
+    )
+  }
   {
     !me ? (
       <div class="panel stack">
@@ -113,9 +119,6 @@ const now = new Date();
 </Base>
 
 <style>
-  .page-head {
-    padding-bottom: 0.25rem;
-  }
   .count {
     font-family: var(--font-serif);
     font-size: 1.125rem;

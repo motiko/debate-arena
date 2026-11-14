@@ -1,6 +1,7 @@
 ---
 import SignInButton from '../islands/SignInButton.svelte';
 import StartDebateForm from '../islands/StartDebateForm.svelte';
+import PageHead from '../components/PageHead.astro';
 import Base from '../layouts/Base.astro';
 import { t } from '../i18n/t';
 
@@ -14,10 +15,9 @@ if (me) {
 ---
 
 <Base title={t('new.title')} description={t('new.description')} canonicalPath="/new">
-  <header slot="band" class="page-head">
-    <h1>{t('new.title')}</h1>
+  <PageHead slot="band" title={t('new.title')}>
     <p>{t('new.description')}</p>
-  </header>
+  </PageHead>
   {
     me ? (
       <StartDebateForm client:load models={models} quotaRemaining={me.quotaRemaining} />
@@ -30,21 +30,3 @@ if (me) {
   }
 </Base>
 
-<style>
-  /* In the bench-green band like the top of a Debate page, kept to the form's measure so the two line up. */
-  .page-head {
-    max-width: var(--measure);
-    margin-inline: auto;
-    padding-block: clamp(1.5rem, 1rem + 2vw, 2.75rem);
-  }
-  .page-head h1 {
-    font-size: clamp(2rem, 1.3rem + 3vw, 3rem);
-    line-height: 1.1;
-    letter-spacing: -0.015em;
-  }
-  .page-head p {
-    margin-top: 0.6rem;
-    max-width: 38rem;
-    color: var(--band-muted);
-  }
-</style>
