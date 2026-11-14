@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { OPERATOR } from '../src/legal/operator';
 import { expectNoAxeViolations } from './helpers';
 
 test('the footer links to Impressum, privacy policy and terms', async ({ page }) => {
@@ -16,11 +17,10 @@ test('the footer links to Impressum, privacy policy and terms', async ({ page })
 test('legal pages show the operator', async ({ page }) => {
   await page.goto('/impressum');
   await expect(page.getByRole('heading', { level: 1, name: 'Impressum' })).toBeVisible();
-  // Placeholders until launch; the release check refuses a production deploy while they remain.
-  await expect(page.getByText('REPLACE_ME_OPERATOR_NAME').first()).toBeVisible();
+  await expect(page.getByText(OPERATOR.name).first()).toBeVisible();
   await page.goto('/privacy');
   await expect(page.getByRole('heading', { name: 'Who is responsible' })).toBeVisible();
-  await expect(page.getByText(/REPLACE_ME_OPERATOR_EMAIL/)).toBeVisible();
+  await expect(page.getByText(OPERATOR.email).first()).toBeVisible();
   await page.goto('/terms');
   await expect(page.getByRole('heading', { level: 1, name: 'Terms of use' })).toBeVisible();
 });
