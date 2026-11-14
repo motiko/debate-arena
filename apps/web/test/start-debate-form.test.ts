@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/svelte';
+import { fireEvent, render, screen } from '@testing-library/svelte';
 import { expect, test, vi } from 'vitest';
 import StartDebateForm from '../src/islands/StartDebateForm.svelte';
 
@@ -137,50 +137,58 @@ const batchModels = [
 ];
 const optionValues = (label: string) => [...screen.getByLabelText(label).querySelectorAll('option')].map(o => o.getAttribute('value'));
 
-const batchRadio = () => screen.getByRole('radio', { name: /Batch Debate/ });
+const batchBox = () => screen.getByRole('checkbox', { name: /Slow Debate/ });
 
-test('a Batch Debate lists only batch-capable models and costs one point', async () => {
+test('a Slow Debate is an optional box after the other choices, before the summary', () => {
   render(StartDebateForm, { models: batchModels, quotaRemaining: 6, fetcher: respond(201, {}).fetcher, navigate: vi.fn() });
-  expect(screen.getByRole('radio', { name: /Full Debate/ })).toBeChecked();
+  expect(batchBox()).not.toBeChecked();
+  expect(batchBox()).toHaveAccessibleDescription(/^1 Quota point instead of 2\./);
+  const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  expect(follows(screen.getByLabelText('Add AI Voters'), batchBox())).toBe(true);
+  expect(follows(batchBox(), screen.getByRole('button', { name: 'Start the Debate' }))).toBe(true);
+});
+
+test('a Slow Debate lists only batch-capable models and costs one point', async () => {
+  render(StartDebateForm, { models: batchModels, quotaRemaining: 6, fetcher: respond(201, {}).fetcher, navigate: vi.fn() });
   expect(optionValues('Debater For')).toContain('fake-slow/one');
-  await fireEvent.click(batchRadio());
+  await fireEvent.click(batchBox());
   expect(optionValues('Debater For')).not.toContain('fake-slow/one');
   expect(screen.getByText(/Fake A vs Fake B · judged by the platform · 1 Quota point$/)).toBeInTheDocument();
 });
 
-test('posts batch: true for a Batch Debate', async () => {
+test('posts batch: true for a Slow Debate', async () => {
   const { fetcher, calls } = respond(201, { id: 'd7' });
   render(StartDebateForm, { models: batchModels, quotaRemaining: 6, fetcher, navigate: vi.fn() });
-  await fireEvent.click(batchRadio());
+  await fireEvent.click(batchBox());
   await fill('Cats beat dogs', 'fake-a/one', 'fake-b/one');
   await fireEvent.click(screen.getByRole('button', { name: 'Start the Debate' }));
   await vi.waitFor(() => expect(calls).toHaveLength(1));
   expect(JSON.parse(String(calls[0]?.body))).toMatchObject({ batch: true, debaters: { for: 'fake-a/one', against: 'fake-b/one' } });
 });
 
-test('with one Quota point only a Batch Debate can be chosen, and it is chosen for you', () => {
+test('with one Quota point only a Slow Debate can be chosen, and it is chosen for you', () => {
   render(StartDebateForm, { models: batchModels, quotaRemaining: 1, fetcher: respond(201, {}).fetcher, navigate: vi.fn() });
-  expect(screen.getByRole('radio', { name: /Full Debate/ })).toBeDisabled();
-  expect(batchRadio()).toBeChecked();
-  expect(screen.getByText(/enough for a Batch Debate/)).toBeInTheDocument();
+  expect(batchBox()).toBeChecked();
+  expect(batchBox()).toBeDisabled();
+  expect(screen.getByText(/enough for a Slow Debate/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Start the Debate' })).toBeEnabled();
 });
 
-test('switching to a Batch Debate keeps a Debater without batch and says it cannot take part', async () => {
+test('switching to a Slow Debate keeps a Debater without batch and says it cannot take part', async () => {
   const { fetcher } = respond(201, { id: 'd7' });
   render(StartDebateForm, { models: batchModels, quotaRemaining: 6, fetcher, navigate: vi.fn() });
   await fill('Cats beat dogs', 'fake-slow/one', 'fake-b/one');
-  await fireEvent.click(batchRadio());
+  await fireEvent.click(batchBox());
   const forSelect = screen.getByLabelText('Debater For');
   expect(forSelect).toHaveValue('fake-slow/one');
   expect(forSelect).toHaveAttribute('aria-invalid', 'true');
-  expect(forSelect).toHaveAccessibleDescription(/Fake Slow cannot take part in a Batch Debate/);
-  expect(within(screen.getByRole('group', { name: 'Kind of Debate' })).getByRole('status')).toHaveTextContent(/Fake Slow cannot take part in a Batch Debate/);
+  expect(forSelect).toHaveAccessibleDescription(/Fake Slow cannot take part in a Slow Debate/);
+  expect(document.getElementById('batch-status')).toHaveTextContent(/Fake Slow cannot take part in a Slow Debate/);
   await fireEvent.click(screen.getByRole('button', { name: 'Start the Debate' }));
   await vi.waitFor(() => expect(forSelect).toHaveFocus());
   expect(fetcher).not.toHaveBeenCalled();
   // Back to a full Debate: the choice is valid again.
-  await fireEvent.click(screen.getByRole('radio', { name: /Full Debate/ }));
+  await fireEvent.click(batchBox());
   expect(forSelect).toHaveValue('fake-slow/one');
   expect(forSelect).not.toHaveAttribute('aria-invalid', 'true');
 });

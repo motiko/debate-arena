@@ -21,8 +21,8 @@ export function votingClosesAt(debate: DebateRecord): string | null {
  * complete, within the window, after a before-vote. Each stance is cast once.
  */
 export function checkVote(debate: DebateRecord, existing: AudienceVote | null, phase: VotePhase, now: Date): VoteCheck {
-  // GLOSSARY: Batch Debate — its outcome is the Verdict (and any AI Audience Result), never Audience Votes.
-  if (debate.kind === 'batch') return { ok: false, status: 403, error: 'Batch Debates take no Audience Votes' };
+  // GLOSSARY: Slow Debate — its outcome is the Verdict (and any AI Audience Result), never Audience Votes.
+  if (debate.kind === 'batch') return { ok: false, status: 403, error: 'Slow Debates take no Audience Votes' };
   const closesAt = votingClosesAt(debate);
   if (debate.status === 'failed' || (closesAt && now.getTime() >= Date.parse(closesAt))) {
     return { ok: false, status: 403, error: VOTING_CLOSED };

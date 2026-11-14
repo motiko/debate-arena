@@ -145,7 +145,7 @@ a { color: var(--green); text-underline-offset: 0.18em; }
 /* font-size 0 drops the spaces between the items' tags; the items set their own size. Only the items: Astro
    puts its island <style> and <script> in the nav too. */
 .site-header nav { font-size: 0; text-align: right; }
-.site-header nav > :is(a, .session, astro-island) {
+.site-header nav > :is(a, astro-island) {
   display: inline-flex;
   margin: 0.125rem 0 0.125rem 0.75rem;
   font-size: 0.95rem;
@@ -156,35 +156,81 @@ a { color: var(--green); text-underline-offset: 0.18em; }
   .site-header .wrap-wide { display: flex; align-items: center; gap: 0.25rem 1.5rem; }
   .site-header .brand { float: none; margin-right: 0; }
   .site-header nav { display: flex; flex-wrap: wrap; align-items: center; gap: 0 1.25rem; margin-left: auto; }
-  .site-header nav > :is(a, .session, astro-island) { margin: 0; }
+  .site-header nav > :is(a, astro-island) { margin: 0; }
 }
 .site-header nav a,
 .site-header nav button { min-height: 2.75rem; }
 .site-header nav a { align-items: center; }
-/* The account item: "Your account" over the handle and Quota. On a phone only the short Quota shows, so a
-   signed-in header stays at two rows (brand, then nav). */
-.site-header nav a.account {
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  line-height: 1.2;
-  text-decoration: none;
+/* The account: one avatar button, the nav's last item. Its panel (a popover, in the top layer) holds the name,
+   the day's Quota as brass lozenges, the account page and Sign out. */
+.site-header nav > .account { display: inline-flex; margin: 0.125rem 0 0.125rem 0.75rem; vertical-align: middle; }
+@media (min-width: 48rem) { .site-header nav > .account { margin: 0; } }
+.site-header .avatar-button {
+  width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
 }
-.account-label { text-decoration: underline; text-underline-offset: 0.18em; }
-.account:hover .account-label { text-decoration-thickness: 2px; }
-.account-meta { display: flex; gap: 0.4rem; color: var(--band-muted); font-size: 0.8rem; }
-.account-name { max-width: 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.quota-long::before { content: '·'; margin-right: 0.4rem; }
-.account-name,
-.quota-long { display: none; }
-@media (min-width: 48rem) {
-  .account-name,
-  .quota-long { display: inline-block; }
-  .quota-short { display: none; }
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--brass);
+  color: var(--band);
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  font-weight: 600;
+  box-shadow: 0 0 0 2px var(--band), 0 0 0 3.5px var(--brass);
+  transition: box-shadow 120ms ease-out;
 }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-button:hover .avatar,
+.avatar-button:has(+ :popover-open) .avatar { box-shadow: 0 0 0 2px var(--band), 0 0 0 3.5px var(--band-ink); }
+.site-header .avatar-button:focus-visible { outline-offset: 4px; border-radius: 50%; }
+
+.account-panel {
+  position: fixed;
+  inset: auto;
+  width: min(17rem, calc(100vw - 2rem));
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--brass);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.95rem;
+  line-height: 1.4;
+  text-align: left;
+  box-shadow: 0 0.75rem 2rem -0.75rem rgb(10 25 18 / 0.35);
+  --focus: var(--ink);
+}
+.panel-name {
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.panel-quota { margin-top: 0.75rem; padding-block: 0.75rem; border-block: 1px solid var(--line); }
+.panel-quota .muted { font-size: 0.85rem; }
+.quota-lozenges { display: flex; gap: 0.7rem; padding: 0.6rem 0.2rem 0.5rem; }
+.quota-lozenges .lozenge { --size: 0.7rem; }
+.quota-lozenges .lozenge.spent { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); }
+.account-panel .panel-link { display: flex; align-items: center; min-height: 2.75rem; color: var(--green); }
+.account-panel button { width: 100%; margin-top: 0.25rem; }
+@media (prefers-reduced-motion: no-preference) {
+  .account-panel:popover-open { animation: panel-in 140ms ease-out; }
+}
+@keyframes panel-in { from { opacity: 0; transform: translateY(-4px); } }
 /* .secondary too: button.secondary comes later and would otherwise paint green on the green band. */
-.site-header button,
-.site-header button.secondary {
+.site-header nav > :not(.account) button,
+.site-header nav > :not(.account) button.secondary {
   background: transparent;
   border-color: var(--band-ink);
   color: var(--band-ink);

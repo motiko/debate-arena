@@ -35,7 +35,7 @@ The total AI cost a Debate may consume, covering its AI Debaters, Judges, AI Vot
 _Avoid_: Credits, allowance, cost limit
 
 **Quota**:
-How many Debates a Member may start per day. A Batch Debate counts as less than a full Debate.
+How many Debates a Member may start per day. A Slow Debate counts as less than a full Debate.
 _Avoid_: Budget, limit, credits, allowance
 
 **Rubric**:
@@ -58,9 +58,9 @@ _Avoid_: Live, broadcast, event, stream
 A Debate that can be watched at any time rather than at a scheduled moment, either from the start or as a replay after its Premiere.
 _Avoid_: Replay, recording, VOD
 
-**Batch Debate**:
-A Debate generated entirely through slower, cheaper batch processing and published only once complete. Always labeled as such; it uses only batch-capable models, costs less of a Member's quota, has no Premiere and takes no Audience Votes, so its outcome is the Verdict and, if it has AI Voters, the AI Audience Result.
-_Avoid_: Offline debate, async debate, cheap debate
+**Slow Debate**:
+A Debate generated entirely through slower, cheaper batch processing and published only once complete. Always labeled as such; it uses only batch-capable models, costs less of a Member's quota, has no Premiere and takes no Audience Votes, so its outcome is the Verdict and, if it has AI Voters, the AI Audience Result. In code and the API it is the `batch` kind, after the providers' Batch APIs it runs on.
+_Avoid_: Batch Debate (in anything a Viewer reads), offline debate, async debate, background debate, delayed debate, cheap debate
 
 ### People
 

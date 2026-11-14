@@ -78,7 +78,7 @@ export async function startDebate(deps: StartDeps, memberId: string, input: unkn
 
   for (const model of [parsed.debaters.for, parsed.debaters.against]) {
     if (!hasRole(deps.catalog, model, 'debater')) return bad(`Model ${model} cannot be a Debater`);
-    if (!usable(model)) return bad(`Model ${model} has no batch processing`);
+    if (!usable(model)) return bad(`Model ${model} cannot take part in a Slow Debate`);
   }
   const debaters = {
     for: { kind: 'ai' as const, model: parsed.debaters.for },
@@ -90,7 +90,7 @@ export async function startDebate(deps: StartDeps, memberId: string, input: unkn
     if (parsed.panel.length !== 1) return bad('A Panel must hold exactly one Judge');
     for (const judge of parsed.panel) {
       if (!hasRole(deps.catalog, judge, 'judge')) return bad(`Model ${judge} cannot be a Judge`);
-      if (!usable(judge)) return bad(`Model ${judge} has no batch processing`);
+      if (!usable(judge)) return bad(`Model ${judge} cannot take part in a Slow Debate`);
     }
     panel = parsed.panel;
   } else {

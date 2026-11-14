@@ -56,7 +56,7 @@ test('a failed Batch Debate is never published', async () => {
   expect(await own.json()).toMatchObject({ status: 'failed', turns: [] });
 });
 
-test('Batch Debates take no Audience Votes', async () => {
+test('Slow Debates take no Audience Votes', async () => {
   const id = await batchDebate(uniqueId('dev-starter'), true);
   const res = await exports.default.fetch(`${base}/debates/${id}/votes`, {
     method: 'POST',
@@ -64,7 +64,7 @@ test('Batch Debates take no Audience Votes', async () => {
     body: JSON.stringify({ phase: 'before', stance: 'for' }),
   });
   expect(res.status).toBe(403);
-  expect(await res.json()).toEqual({ error: 'Batch Debates take no Audience Votes' });
+  expect(await res.json()).toEqual({ error: 'Slow Debates take no Audience Votes' });
 });
 
 test('a Batch Debate has no live stream', async () => {
