@@ -76,19 +76,33 @@ test('shows the API error and keeps the input', async () => {
   expect(screen.getByRole('button', { name: 'Start the Debate' })).toBeEnabled();
 });
 
-test('explains when the Quota is used up', () => {
-  render(StartDebateForm, { models, quotaRemaining: 1, fetcher: respond(201, {}).fetcher, navigate: vi.fn() });
-  expect(screen.getByRole('button', { name: 'Start the Debate' })).toBeDisabled();
-  expect(screen.getByText(/not enough Quota/i)).toBeInTheDocument();
+test('says up front when there is no Quota left and disables the form', () => {
+  render(StartDebateForm, { models, quotaRemaining: 0, fetcher: respond(201, {}).fetcher, navigate: vi.fn() });
+  expect(screen.getAllByText(/not enough Quota/i).length).toBeGreaterThan(0);
+  expect(screen.getByLabelText('Motion')).toBeDisabled();
+  expect(screen.getByLabelText('Debater For')).toBeDisabled();
+  const button = screen.getByRole('button', { name: 'Start the Debate' });
+  expect(button).toBeDisabled();
+  expect(button).toHaveAccessibleDescription(/not enough Quota/i);
 });
 
-test('asks for a Motion before posting', async () => {
+test('shows the Quota left at the top', () => {
+  render(StartDebateForm, { models, quotaRemaining: 6, fetcher: respond(201, {}).fetcher, navigate: vi.fn() });
+  expect(screen.getByText('You have 6 Quota points left today.')).toBeInTheDocument();
+});
+
+test('asks for a Motion at the field before posting', async () => {
   const { fetcher } = respond(201, {});
   render(StartDebateForm, { models, quotaRemaining: 6, fetcher, navigate: vi.fn() });
   await fill('   ', 'fake-a/one', 'fake-b/one');
   await fireEvent.click(screen.getByRole('button', { name: 'Start the Debate' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent(/write a Motion/i);
+  const motion = screen.getByLabelText('Motion');
+  await vi.waitFor(() => expect(motion).toHaveFocus());
+  expect(motion).toHaveAttribute('aria-invalid', 'true');
+  expect(motion).toHaveAccessibleDescription(/write a Motion/i);
   expect(fetcher).not.toHaveBeenCalled();
+  await fireEvent.input(motion, { target: { value: 'Cats beat dogs' } });
+  expect(motion).not.toHaveAttribute('aria-invalid', 'true');
 });
 
 test('counts Motion characters up to the limit', async () => {
@@ -106,36 +120,88 @@ const batchModels = [
 ];
 const optionValues = (label: string) => [...screen.getByLabelText(label).querySelectorAll('option')].map(o => o.getAttribute('value'));
 
+const batchRadio = () => screen.getByRole('radio', { name: /Batch Debate/ });
+
 test('a Batch Debate lists only batch-capable models and costs one point', async () => {
   render(StartDebateForm, { models: batchModels, quotaRemaining: 6, fetcher: respond(201, {}).fetcher, navigate: vi.fn() });
+  expect(screen.getByRole('radio', { name: /Full Debate/ })).toBeChecked();
   expect(optionValues('Debater For')).toContain('fake-slow/one');
-  await fireEvent.click(screen.getByRole('checkbox', { name: /Batch Debate/ }));
+  await fireEvent.click(batchRadio());
   expect(optionValues('Debater For')).not.toContain('fake-slow/one');
-  expect(screen.getByText(/Costs 1 of your 6 Quota points/)).toBeInTheDocument();
+  expect(screen.getByText(/Fake A vs Fake B · judged by the platform · 1 Quota point$/)).toBeInTheDocument();
 });
 
 test('posts batch: true for a Batch Debate', async () => {
   const { fetcher, calls } = respond(201, { id: 'd7' });
   render(StartDebateForm, { models: batchModels, quotaRemaining: 6, fetcher, navigate: vi.fn() });
-  await fireEvent.click(screen.getByRole('checkbox', { name: /Batch Debate/ }));
+  await fireEvent.click(batchRadio());
   await fill('Cats beat dogs', 'fake-a/one', 'fake-b/one');
   await fireEvent.click(screen.getByRole('button', { name: 'Start the Debate' }));
   await vi.waitFor(() => expect(calls).toHaveLength(1));
   expect(JSON.parse(String(calls[0]?.body))).toMatchObject({ batch: true, debaters: { for: 'fake-a/one', against: 'fake-b/one' } });
 });
 
-test('one Quota point is enough for a Batch Debate', async () => {
+test('with one Quota point only a Batch Debate can be chosen, and it is chosen for you', () => {
   render(StartDebateForm, { models: batchModels, quotaRemaining: 1, fetcher: respond(201, {}).fetcher, navigate: vi.fn() });
-  expect(screen.getByRole('button', { name: 'Start the Debate' })).toBeDisabled();
-  await fireEvent.click(screen.getByRole('checkbox', { name: /Batch Debate/ }));
+  expect(screen.getByRole('radio', { name: /Full Debate/ })).toBeDisabled();
+  expect(batchRadio()).toBeChecked();
+  expect(screen.getByText(/enough for a Batch Debate/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Start the Debate' })).toBeEnabled();
 });
 
-test('switching to a Batch Debate replaces a Debater without batch', async () => {
-  render(StartDebateForm, { models: batchModels, quotaRemaining: 6, fetcher: respond(201, {}).fetcher, navigate: vi.fn() });
-  await fireEvent.change(screen.getByLabelText('Debater For'), { target: { value: 'fake-slow/one' } });
-  await fireEvent.click(screen.getByRole('checkbox', { name: /Batch Debate/ }));
-  expect(screen.getByLabelText('Debater For')).toHaveValue('fake-a/one');
+test('switching to a Batch Debate keeps a Debater without batch and says it cannot take part', async () => {
+  const { fetcher } = respond(201, { id: 'd7' });
+  render(StartDebateForm, { models: batchModels, quotaRemaining: 6, fetcher, navigate: vi.fn() });
+  await fill('Cats beat dogs', 'fake-slow/one', 'fake-b/one');
+  await fireEvent.click(batchRadio());
+  const forSelect = screen.getByLabelText('Debater For');
+  expect(forSelect).toHaveValue('fake-slow/one');
+  expect(forSelect).toHaveAttribute('aria-invalid', 'true');
+  expect(forSelect).toHaveAccessibleDescription(/Fake Slow cannot take part in a Batch Debate/);
+  expect(screen.getByRole('status')).toHaveTextContent(/Fake Slow cannot take part in a Batch Debate/);
+  await fireEvent.click(screen.getByRole('button', { name: 'Start the Debate' }));
+  await vi.waitFor(() => expect(forSelect).toHaveFocus());
+  expect(fetcher).not.toHaveBeenCalled();
+  // Back to a full Debate: the choice is valid again.
+  await fireEvent.click(screen.getByRole('radio', { name: /Full Debate/ }));
+  expect(forSelect).toHaveValue('fake-slow/one');
+  expect(forSelect).not.toHaveAttribute('aria-invalid', 'true');
+});
+
+test('the same model cannot sit on both benches', async () => {
+  const { fetcher } = respond(201, { id: 'd7' });
+  render(StartDebateForm, { models, quotaRemaining: 6, fetcher, navigate: vi.fn() });
+  await fill('Cats beat dogs', 'fake-a/one', 'fake-a/one');
+  const against = screen.getByLabelText('Debater Against');
+  expect(against).toHaveAttribute('aria-invalid', 'true');
+  expect(against).toHaveAccessibleDescription(/Fake A already debates For/);
+  await fireEvent.click(screen.getByRole('button', { name: 'Start the Debate' }));
+  await vi.waitFor(() => expect(against).toHaveFocus());
+  expect(fetcher).not.toHaveBeenCalled();
+});
+
+test('each bench names the provider of its model', () => {
+  render(StartDebateForm, { models: [{ id: 'anthropic/claude-x', label: 'Claude X', roles: ['debater'] }, { id: 'openai/gpt-y', label: 'GPT Y', roles: ['debater'] }], quotaRemaining: 6 });
+  expect(screen.getByLabelText('Debater For')).toHaveAccessibleDescription(/Anthropic/);
+  expect(screen.getByLabelText('Debater Against')).toHaveAccessibleDescription(/OpenAI/);
+});
+
+test('says plainly who will judge', async () => {
+  render(StartDebateForm, { models, quotaRemaining: 6, fetcher: respond(201, {}).fetcher, navigate: vi.fn() });
+  await fill('Cats beat dogs', 'fake-a/one', 'fake-b/one');
+  const judge = screen.getByLabelText('Judge');
+  expect(judge).toHaveAccessibleDescription(/neither Fake A nor Fake B/);
+  await fireEvent.change(judge, { target: { value: 'fake-c/one' } });
+  expect(judge).toHaveAccessibleDescription(/Fake C gives the Verdict/);
+});
+
+test('sums up the Debate before the submit button', async () => {
+  render(StartDebateForm, { models, quotaRemaining: 6, fetcher: respond(201, {}).fetcher, navigate: vi.fn() });
+  await fill('Cats beat dogs', 'fake-slow/one', 'fake-b/one');
+  expect(screen.getByRole('button', { name: 'Start the Debate' })).toHaveAccessibleDescription('Fake Slow vs Fake B · judged by the platform · 2 Quota points');
+  await fireEvent.change(screen.getByLabelText('Judge'), { target: { value: 'fake-c/one' } });
+  await fireEvent.click(screen.getByRole('checkbox', { name: /AI Voters/ }));
+  expect(screen.getByRole('button', { name: 'Start the Debate' })).toHaveAccessibleDescription('Fake Slow vs Fake B · judged by Fake C · with AI Voters · 2 Quota points');
 });
 
 test('the two Debaters are chosen as two benches', () => {
