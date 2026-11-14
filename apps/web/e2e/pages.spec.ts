@@ -33,6 +33,27 @@ test('debate page reads without JavaScript', async ({ browser, request }) => {
   await context.close();
 });
 
+test('a finished Debate keeps its result behind "Show the result"', async ({ page, request }) => {
+  const { id } = await startDebate(request);
+  await waitComplete(request, id);
+  await page.goto(`/debates/${id}`);
+  const headline = page.locator('.dispatch .outcome-headline');
+  await expect(headline).toBeHidden();
+  await page.locator('.dispatch summary', { hasText: 'Show the result' }).click();
+  await expect(headline).toHaveText(/carries the Motion|defeats the Motion|Split decision/);
+});
+
+test('a 300-character Motion fits a phone screen', async ({ page, request }) => {
+  const word = 'Interconnectedness';
+  const motion = `This house believes ${Array.from({ length: 20 }, () => word).join(' ')}`.slice(0, 300);
+  const { id } = await startDebate(request, { motion });
+  await waitComplete(request, id);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/debates/${id}`);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(motion);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
 test('the page loads its serif from this site only', async ({ page }) => {
   const urls: string[] = [];
   page.on('request', request => urls.push(request.url()));

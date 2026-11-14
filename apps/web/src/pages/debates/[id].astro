@@ -1,7 +1,7 @@
 ---
 import AiLabel from '../../components/AiLabel.astro';
 import AudienceResultView from '../../components/AudienceResultView.astro';
-import BatchBadge from '../../components/BatchBadge.astro';
+import DebateBand from '../../components/DebateBand.astro';
 import VerdictView from '../../components/VerdictView.astro';
 import LiveTurns from '../../islands/LiveTurns.svelte';
 import PhaseFloor from '../../islands/PhaseFloor.svelte';
@@ -10,7 +10,6 @@ import VotePanel from '../../islands/VotePanel.svelte';
 import Base from '../../layouts/Base.astro';
 import { t } from '../../i18n/t';
 import { debaterLabel, modelLabel, swingText, type ModelInfo } from '../../lib/debate';
-import { formatDate } from '../../lib/format';
 
 const { api, me } = Astro.locals;
 const id = Astro.params.id ?? '';
@@ -27,48 +26,14 @@ const speakers = { for: debater('for'), against: debater('against') };
 const isBatch = debate.kind === 'batch';
 ---
 
-<Base title={debate.motion} description={t('debate.description', { motion: debate.motion })} canonicalPath={`/debates/${debate.id}`}>
-  <header class="stack">
-    <p class="muted">{t('debate.motion')} {isBatch && <BatchBadge />}</p>
-    <h1>{debate.motion}</h1>
-    <ul class="meta" role="list">
-      <li><span class="side-for">{t('debate.debaterFor', { model: debater('for') })}</span></li>
-      <li><span class="side-against">{t('debate.debaterAgainst', { model: debater('against') })}</span></li>
-      <li class="muted">{t('debate.format', { name: debate.format.name })}</li>
-      <li class="muted">
-        {debate.status === 'running' && <strong>{t('debate.live')}</strong>}
-        {
-          debate.status === 'complete' && debate.completedAt && (
-            <time datetime={debate.completedAt}>{t('debate.finished', { date: formatDate(debate.completedAt) })}</time>
-          )
-        }
-      </li>
-    </ul>
-  </header>
+<Base title={debate.motion} description={t('debate.description', { motion: debate.motion })} canonicalPath={`/debates/${debate.id}`} wide>
+  <DebateBand slot="band" debate={debate} models={models} signedIn={me !== null} />
 
-  {debate.status === 'failed' && <p class="note" role="status">{t('debate.failed')}</p>}
   {debate.visibility === 'unlisted' && debate.mine && <p class="note">{t('unlisted.mine')}</p>}
-
   {isBatch && debate.status === 'running' && <p class="note" role="status">{t('batch.generating')}</p>}
   {isBatch && debate.status === 'complete' && <p class="muted">{t('batch.noVotes')}</p>}
 
-  {
-    !isBatch && debate.status !== 'failed' && (
-      <VotePanel
-        client:load
-        debateId={debate.id}
-        motion={debate.motion}
-        status={debate.status}
-        myVote={debate.myVote}
-        signedIn={me !== null}
-        turnsHidden={debate.turnsHidden}
-        votingClosesAt={debate.audienceResult.votingClosesAt}
-      />
-    )
-  }
-
-  <section class="stack" aria-labelledby="turns-title">
-    <h2 id="turns-title">{t('debate.turns')}</h2>
+  <section aria-label={t('debate.turns')}>
     {
       debate.turnsHidden ? (
         <p class="note">{t('debate.turnsHidden')}</p>
@@ -83,26 +48,43 @@ const isBatch = debate.kind === 'batch';
   </section>
 
   {
-    debate.verdict ? (
-      <VerdictView verdict={debate.verdict} selfJudging={debate.selfJudging} models={models} />
-    ) : (
-      debate.status === 'running' && <p class="muted">{t('verdict.pending')}</p>
-    )
-  }
+    !debate.turnsHidden && (
+      <>
+        {debate.verdict ? (
+          <VerdictView verdict={debate.verdict} selfJudging={debate.selfJudging} models={models} />
+        ) : (
+          debate.status === 'running' && <p class="muted">{t('verdict.pending')}</p>
+        )}
 
-  {!isBatch && debate.status !== 'failed' && <AudienceResultView result={debate.audienceResult} />}
+        {!isBatch && debate.status !== 'failed' && (
+          <>
+            <VotePanel
+              client:load
+              only="after"
+              debateId={debate.id}
+              motion={debate.motion}
+              status={debate.status}
+              myVote={debate.myVote}
+              signedIn={me !== null}
+              turnsHidden={debate.turnsHidden}
+              votingClosesAt={debate.audienceResult.votingClosesAt}
+            />
+            <AudienceResultView result={debate.audienceResult} />
+          </>
+        )}
 
-  {
-    debate.aiAudience && (
-      <section class="card stack" aria-labelledby="ai-audience-title">
-        <h2 id="ai-audience-title">
-          {t('aiAudience.title')} <AiLabel />
-        </h2>
-        <p>{swingText(debate.aiAudience, 'aiVoters')}</p>
-        <p class="muted">{t('aiAudience.voters', { models: debate.aiVoters.map(m => modelLabel(m, models)).join(', ') })}</p>
-        {debate.aiVotersShareDebaterModel && <p class="note">{t('aiAudience.shared')}</p>}
-        {debate.aiAudience.dropped.length > 0 && <p class="muted">{t('aiAudience.dropped', { count: debate.aiAudience.dropped.length })}</p>}
-      </section>
+        {debate.aiAudience && (
+          <section class="card stack" aria-labelledby="ai-audience-title">
+            <h2 id="ai-audience-title">
+              {t('aiAudience.title')} <AiLabel />
+            </h2>
+            <p>{swingText(debate.aiAudience, 'aiVoters')}</p>
+            <p class="muted">{t('aiAudience.voters', { models: debate.aiVoters.map(m => modelLabel(m, models)).join(', ') })}</p>
+            {debate.aiVotersShareDebaterModel && <p class="note">{t('aiAudience.shared')}</p>}
+            {debate.aiAudience.dropped.length > 0 && <p class="muted">{t('aiAudience.dropped', { count: debate.aiAudience.dropped.length })}</p>}
+          </section>
+        )}
+      </>
     )
   }
 
@@ -122,12 +104,5 @@ const isBatch = debate.kind === 'batch';
   }
   .report[open] summary {
     margin-bottom: 0.75rem;
-  }
-  .meta {
-    list-style: none;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem 1.25rem;
   }
 </style>

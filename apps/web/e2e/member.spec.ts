@@ -33,6 +33,9 @@ test('before-vote, then after-vote once complete', async ({ page, request }) => 
   await page.reload();
   await expect(page.getByText('You voted Against after the Debate.')).toBeVisible();
   await expect(page.getByText(/across 1 Member/)).toBeVisible();
+  // Nothing left to vote on: the dispatch box shows the outcome without asking.
+  await expect(page.locator('.dispatch .outcome-headline')).toBeVisible();
+  await expect(page.locator('.dispatch summary')).toHaveCount(0);
 });
 
 test('Self-Judging warning shows when the Judge is a Debater', async ({ page }) => {

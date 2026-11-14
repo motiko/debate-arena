@@ -1,0 +1,253 @@
+---
+// The top of a Debate page, inside the bench-green band: the Motion, the two benches and between them the
+// dispatch box, which asks the reader first and shows the outcome only when they have earned it (spec: Band).
+import type { PublicDebate } from '@debate-arena/api-client';
+import BatchBadge from './BatchBadge.astro';
+import OutcomeSummary from './OutcomeSummary.astro';
+import CopyLink from '../islands/CopyLink.svelte';
+import VotePanel from '../islands/VotePanel.svelte';
+import { t } from '../i18n/t';
+import { debaterLabel, dispatchState, motionSize, outcome, spokeCount, type ModelInfo } from '../lib/debate';
+
+interface Props {
+  debate: PublicDebate;
+  models: ModelInfo[];
+  signedIn: boolean;
+}
+
+const { debate, models, signedIn } = Astro.props;
+const state = dispatchState(debate);
+const result = outcome(debate, models);
+const url = new URL(`/debates/${debate.id}`, Astro.site ?? Astro.url).href;
+const benches = (['for', 'against'] as const).map(side => ({
+  side,
+  title: t(side === 'for' ? 'band.forBench' : 'band.againstBench'),
+  model: debaterLabel(debate.debaters[side], models),
+  spoke: spokeCount(debate.turns, side),
+}));
+---
+
+<div class="debate-band">
+  <div class="band-top">
+    <p class="band-label">{t('band.motion')} {debate.kind === 'batch' && <BatchBadge />}</p>
+    <CopyLink client:visible url={url} />
+  </div>
+  <h1 class={`motion motion-${motionSize(debate.motion)}`}>{debate.motion}</h1>
+
+  <div class="benches">
+    {
+      benches.map(bench => (
+        <div class={`bench bench-${bench.side}`}>
+          <p class="bench-title">{bench.title}</p>
+          <p class="bench-model">{bench.model}</p>
+          {bench.spoke > 0 && <p class="bench-spoke">{t('band.spoke', { count: bench.spoke })}</p>}
+        </div>
+      ))
+    }
+    <div class="dispatch">
+      {
+        state === 'ask' ? (
+          <>
+            <p class="dispatch-title">{t('dispatch.ask')}</p>
+            <VotePanel
+              client:load
+              only="before"
+              debateId={debate.id}
+              motion={debate.motion}
+              status={debate.status}
+              myVote={debate.myVote}
+              signedIn={signedIn}
+              turnsHidden={debate.turnsHidden}
+              votingClosesAt={debate.audienceResult.votingClosesAt}
+            />
+          </>
+        ) : state === 'generating' ? (
+          <p>{t('dispatch.generating')}</p>
+        ) : state === 'live' ? (
+          <>
+            <p class="dispatch-title">
+              <span class="live-dot" aria-hidden="true" />
+              {t('dispatch.live')}
+            </p>
+            <p>{t('dispatch.follow')}</p>
+          </>
+        ) : state === 'judgingFailed' ? (
+          <p>{t('dispatch.judgingFailed')}</p>
+        ) : state === 'failed' ? (
+          <p>{t('debate.failed')}</p>
+        ) : !result ? (
+          <p>{t('verdict.pending')}</p>
+        ) : state === 'revealed' ? (
+          <OutcomeSummary outcome={result} />
+        ) : (
+          <details class="reveal">
+            <summary>{t('dispatch.show')}</summary>
+            <OutcomeSummary outcome={result} />
+          </details>
+        )
+      }
+    </div>
+  </div>
+</div>
+
+<style>
+  .debate-band {
+    padding-top: clamp(1.5rem, 1rem + 2vw, 3rem);
+  }
+  .band-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+  }
+  .band-label {
+    color: var(--band-muted);
+    font-size: 0.95rem;
+  }
+  .band-label :global(.badge) {
+    color: var(--band-ink);
+  }
+  .band-top :global(button.secondary) {
+    color: var(--band-ink);
+    border-color: var(--band-ink);
+  }
+  .motion {
+    margin-top: 0.75rem;
+    max-width: 60rem;
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+    overflow-wrap: anywhere;
+  }
+  .motion-l {
+    font-size: clamp(2.0625rem, 1.2rem + 3.6vw, 3.75rem);
+  }
+  .motion-m {
+    font-size: clamp(1.75rem, 1.2rem + 2.4vw, 2.75rem);
+  }
+  .motion-s {
+    font-size: clamp(1.5rem, 1.1rem + 1.8vw, 2.25rem);
+  }
+
+  /* Phone: the dispatch box first, the two benches side by side under it. */
+  .benches {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: 'dispatch dispatch' 'for against';
+    gap: 0 0.375rem;
+    margin-top: 1.75rem;
+  }
+  .bench {
+    padding: 0.9rem 1rem 1rem;
+    color: var(--on-side);
+  }
+  .bench-for {
+    grid-area: for;
+    background: var(--for);
+  }
+  .bench-against {
+    grid-area: against;
+    background: var(--against);
+    text-align: right;
+  }
+  .bench-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .bench-model {
+    margin-top: 0.15rem;
+    font-family: var(--font-serif);
+    font-size: clamp(1.15rem, 0.9rem + 1.2vw, 2rem);
+    font-weight: 600;
+    line-height: 1.15;
+  }
+  .bench-spoke {
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+  }
+  .dispatch {
+    --focus: var(--ink);
+    grid-area: dispatch;
+    margin-bottom: 0.375rem;
+    padding: 1rem 1.1rem 1.1rem;
+    border: 2px solid var(--brass);
+    border-radius: var(--radius);
+    background: var(--paper);
+    color: var(--ink);
+    text-align: center;
+  }
+  .dispatch :global(a) {
+    color: var(--green);
+  }
+  .dispatch :global(.vote) {
+    text-align: left;
+  }
+  .dispatch-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-family: var(--font-serif);
+    font-size: 1.35rem;
+    font-weight: 600;
+  }
+  .dispatch > p + p {
+    margin-top: 0.35rem;
+  }
+  .reveal summary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: 0.4rem 1.1rem;
+    border: 1.5px solid var(--green);
+    border-radius: var(--radius);
+    color: var(--green);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .reveal[open] summary {
+    display: none;
+  }
+  .live-dot {
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 50%;
+    background: var(--against);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .live-dot {
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+  }
+  @keyframes pulse {
+    50% {
+      opacity: 0.3;
+    }
+  }
+
+  /* Wide: the benches flank the dispatch box, which stands taller than both. */
+  @media (min-width: 48rem) {
+    .benches {
+      grid-template-columns: minmax(0, 1fr) 15rem minmax(0, 1fr);
+      grid-template-areas: 'for dispatch against';
+      align-items: end;
+      gap: 0 1.25rem;
+      margin-top: 3rem;
+    }
+    .bench {
+      margin-top: 1.5rem;
+      padding: 1.25rem 1.5rem 1.4rem;
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+    .dispatch {
+      align-self: stretch;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      margin-bottom: 0;
+      border-bottom: 0;
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+  }
+</style>

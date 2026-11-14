@@ -90,3 +90,23 @@ test('shows both votes and no form once voting is closed', () => {
   expect(screen.getByText(/voting is closed/i)).toBeInTheDocument();
   expect(screen.getByText(/you voted for before/i)).toBeInTheDocument();
 });
+
+test('only="before" offers the before-vote', () => {
+  render(VotePanel, { ...base, only: 'before' });
+  expect(screen.getByRole('button', { name: 'Cast before-vote' })).toBeInTheDocument();
+});
+
+test('only="after" shows no form before the before-vote', () => {
+  render(VotePanel, { ...base, only: 'after' });
+  expect(screen.queryByRole('button')).toBeNull();
+});
+
+test('only="after" offers the after-vote once complete', () => {
+  render(VotePanel, { ...base, status: 'complete', myVote: { before: 'for', after: null }, only: 'after' });
+  expect(screen.getByRole('button', { name: 'Cast after-vote' })).toBeInTheDocument();
+});
+
+test('only="before" leaves out the title and intro', () => {
+  render(VotePanel, { ...base, only: 'before' });
+  expect(screen.queryByRole('heading', { name: 'Your Audience Vote' })).toBeNull();
+});
