@@ -1,12 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { t } from '../i18n/t';
-  import { DEBATE_QUOTA_POINTS, MAX_MOTION_LENGTH, selfJudgingWarning } from '../lib/debate';
+  import { BATCH_DEBATE_QUOTA_POINTS, DEBATE_QUOTA_POINTS, MAX_MOTION_LENGTH, selfJudgingWarning } from '../lib/debate';
 
   interface Model {
     id: string;
     label: string;
     roles: string[];
+    /** Served by the Batch API; a Batch Debate may use only these. */
+    batch?: boolean;
   }
 
   interface Props {
@@ -18,8 +20,10 @@
 
   let { models, quotaRemaining, fetcher = fetch, navigate = url => location.assign(url) }: Props = $props();
 
-  const debaters = $derived(models.filter(m => m.roles.includes('debater')));
-  const judges = $derived(models.filter(m => m.roles.includes('judge')));
+  let batch = $state(false);
+  const usable = $derived(batch ? models.filter(m => m.batch) : models);
+  const debaters = $derived(usable.filter(m => m.roles.includes('debater')));
+  const judges = $derived(usable.filter(m => m.roles.includes('judge')));
 
   let motion = $state('');
   // svelte-ignore state_referenced_locally
@@ -35,7 +39,17 @@
   let hydrated = $state(false);
   onMount(() => (hydrated = true));
 
-  const noQuota = $derived(quotaRemaining < DEBATE_QUOTA_POINTS);
+  const cost = $derived(batch ? BATCH_DEBATE_QUOTA_POINTS : DEBATE_QUOTA_POINTS);
+  const noQuota = $derived(quotaRemaining < cost);
+
+  /** A Batch Debate can use only batch-capable models: replace any chosen model that is not. */
+  function batchChanged() {
+    const ids = (role: string) => usable.filter(m => m.roles.includes(role)).map(m => m.id);
+    const debaterIds = ids('debater');
+    if (!debaterIds.includes(forModel)) forModel = debaterIds[0] ?? '';
+    if (!debaterIds.includes(againstModel)) againstModel = debaterIds.find(id => id !== forModel) ?? debaterIds[0] ?? '';
+    if (judge && !ids('judge').includes(judge)) judge = '';
+  }
   const selfJudging = $derived(selfJudgingWarning({ for: forModel, against: againstModel }, judge || null));
 
   async function submit(event: SubmitEvent) {
@@ -55,6 +69,7 @@
           debaters: { for: forModel, against: againstModel },
           aiVoters,
           ...(judge ? { panel: [judge] } : {}),
+          ...(batch ? { batch: true } : {}),
         }),
       });
       const body = (await response.json().catch(() => ({}))) as { id?: string; error?: string };
@@ -77,6 +92,11 @@
     <textarea id="motion" name="motion" rows="3" maxlength={MAX_MOTION_LENGTH} required aria-describedby="motion-hint motion-count" bind:value={motion}
     ></textarea>
     <p id="motion-count" class="muted" aria-live="polite">{t('new.motionCount', { count: motion.length, max: MAX_MOTION_LENGTH })}</p>
+  </div>
+
+  <div class="field">
+    <label class="choice"><input type="checkbox" bind:checked={batch} onchange={batchChanged} aria-describedby="batch-hint" /> {t('new.batch')}</label>
+    <p id="batch-hint" class="muted">{t('new.batchHint')}</p>
   </div>
 
   <div class="field">
@@ -111,7 +131,7 @@
   {#if noQuota}
     <p class="note">{t('new.noQuota')}</p>
   {:else}
-    <p class="muted">{t('new.cost', { cost: DEBATE_QUOTA_POINTS, left: quotaRemaining })}</p>
+    <p class="muted">{t('new.cost', { cost, left: quotaRemaining })}</p>
   {/if}
 
   <button type="submit" disabled={pending || noQuota || !hydrated} aria-busy={pending}>{t('new.submit')}</button>
