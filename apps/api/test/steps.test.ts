@@ -1,4 +1,5 @@
 import { FakeModelClient, JUDGE_OUTPUT_TOKENS, SCREEN_OUTPUT_TOKENS, STANCE_OUTPUT_TOKENS } from '@debate-arena/engine';
+import { recordDecision } from '../src/db/moderation';
 import { BudgetExhaustedError } from '../src/models/factory';
 import { env } from 'cloudflare:workers';
 import { expect, test } from 'vitest';
@@ -121,6 +122,31 @@ test('a used-up Budget is not hidden by screening', async () => {
   await createDebate(env.DB, d);
   await expect(runStep(deps, { debateId: d.id })).rejects.toBeInstanceOf(BudgetExhaustedError);
   expect((await getDebate(env.DB, d.id))?.screenedAt).toBeNull();
+});
+
+test('a Debate Blocked while running stops: no more model calls or broadcasts', async () => {
+  const { deps, events, client } = makeDeps();
+  const d = newDebate();
+  await createScreened(env.DB, d);
+  expect(await runStep(deps, { debateId: d.id })).toBe('turn');
+  await recordDecision(env.DB, {
+    id: crypto.randomUUID(),
+    debateId: d.id,
+    action: 'block',
+    source: 'moderator',
+    automatedDetection: false,
+    ground: 'illegal',
+    groundRef: 'StGB §130',
+    explanation: 'Incites hatred against a group.',
+    moderatorId: 'mod-1',
+    decidedAt: '2026-11-13T12:31:00.000Z',
+  });
+  const calls = client.calls.length;
+  const sent = events.length;
+  expect(await runStep(deps, { debateId: d.id })).toBe('skipped');
+  expect(client.calls).toHaveLength(calls);
+  expect(events).toHaveLength(sent);
+  expect(await getDebate(env.DB, d.id)).toMatchObject({ status: 'failed', visibility: 'blocked', turns: [expect.anything()] });
 });
 
 test('a redelivered job running concurrently writes one Turn and notifies once', async () => {

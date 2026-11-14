@@ -5,4 +5,6 @@ export type DebateEvent =
   | { type: 'turn'; slotIndex: number; turn: Turn }
   | { type: 'verdict'; verdict: Verdict }
   | { type: 'complete'; aiAudience: AiAudienceResult | null }
-  | { type: 'failed'; reason: string };
+  | { type: 'failed'; reason: string }
+  /** A Moderator Blocked the Debate: Viewers must stop showing it. The room then closes every socket. */
+  | { type: 'blocked' };

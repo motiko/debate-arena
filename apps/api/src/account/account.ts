@@ -133,7 +133,7 @@ export async function anonymiseMember(db: D1Database, memberId: string): Promise
     db.prepare(`UPDATE debates SET member_id = ${FRESH_ID} WHERE member_id = ?`).bind(memberId),
     db.prepare(`UPDATE audience_votes SET member_id = ${FRESH_ID} WHERE member_id = ?`).bind(memberId),
     // Reports keep counting toward Unlisting, and decisions stay on record, without pointing to the person.
-    db.prepare(`UPDATE reports SET reporter_member_id = ${FRESH_ID} WHERE reporter_member_id = ?`).bind(memberId),
+    db.prepare(`UPDATE reports SET reporter_member_id = ${FRESH_ID}, ip_hash = NULL WHERE reporter_member_id = ?`).bind(memberId),
     db.prepare(`UPDATE moderation_decisions SET moderator_id = ${FRESH_ID} WHERE moderator_id = ?`).bind(memberId),
     db.prepare('DELETE FROM quota_usage WHERE member_id = ?').bind(memberId),
   ]);

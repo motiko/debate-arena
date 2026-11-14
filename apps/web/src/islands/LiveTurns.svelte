@@ -15,9 +15,10 @@
     initialTurns: Turn[];
     fetcher?: typeof fetch;
     WebSocketImpl?: typeof WebSocket;
+    reload?: () => void;
   }
 
-  let { debateId, format, initialTurns, fetcher = fetch, WebSocketImpl }: Props = $props();
+  let { debateId, format, initialTurns, fetcher = fetch, WebSocketImpl, reload = () => location.reload() }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   let turns = $state<Turn[]>(initialTurns);
@@ -38,6 +39,7 @@
   async function catchUp(live: { close(): void }) {
     try {
       const response = await fetcher(`/api/debates/${encodeURIComponent(debateId)}`);
+      if (response.status === 410) return blocked(live);
       if (!response.ok) return;
       const debate = (await response.json()) as { status: string; turns: Turn[] };
       add(debate.turns.map((turn, slotIndex) => ({ slotIndex, turn })));
@@ -45,6 +47,14 @@
     } catch {
       // The socket still delivers new Turns; the next reconnect tries again.
     }
+  }
+
+  /** A Moderator Blocked the Debate: stop showing it at once, and reload to the Blocked page. */
+  function blocked(live: { close(): void }) {
+    turns = [];
+    waiting = [];
+    live.close();
+    reload();
   }
 
   function finish(result: 'complete' | 'failed', live: { close(): void }) {
@@ -60,6 +70,7 @@
           if (event.type === 'turn') add([{ slotIndex: event.slotIndex, turn: event.turn }]);
           else if (event.type === 'complete' || event.type === 'verdict') finish('complete', live);
           else if (event.type === 'failed') finish('failed', live);
+          else if (event.type === 'blocked') blocked(live);
         },
         onStatus(next) {
           status = next;

@@ -84,3 +84,16 @@ test('deletion unlinks Reports and decisions per row, and Reports still count', 
   expect(new Set(results.map(row => row.r)).size).toBe(2);
   expect(await memberReportsSince(env.DB, a, null)).toBe(1);
 });
+
+test('deletion drops the IP hash from the Member’s Reports, so they cannot be grouped', async () => {
+  const { headers } = await signedInHeaders();
+  const id = await completed();
+  const h = new Headers(headers);
+  h.set('cf-connecting-ip', '198.51.100.99');
+  await reportAs(h, id);
+  const del = json(headers);
+  del.set('origin', 'http://localhost:8787');
+  await exports.default.fetch(`${base}/auth/delete-user`, { method: 'POST', headers: del, body: '{}' });
+  const row = await env.DB.prepare('SELECT ip_hash FROM reports WHERE debate_id = ?').bind(id).first<{ ip_hash: string | null }>();
+  expect(row?.ip_hash).toBeNull();
+});

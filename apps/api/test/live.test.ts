@@ -63,3 +63,18 @@ test('the consumer broadcasts each Turn to the room', async () => {
   expect(await viewer.next()).toMatchObject({ type: 'turn', slotIndex: 0, turn: { side: 'for' } });
   viewer.ws.close();
 });
+
+test('blocking tells connected Viewers and closes their sockets', async () => {
+  const d = newDebate();
+  await createDebate(env.DB, d);
+  const viewer = await openViewer(d.id);
+  const closed = new Promise<number>(resolve => viewer.ws.addEventListener('close', e => resolve(e.code)));
+  const res = await exports.default.fetch(`https://api.test/api/moderation/debates/${d.id}/decision`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-dev-member': 'dev-mod-live' },
+    body: JSON.stringify({ action: 'block', ground: 'illegal', groundRef: 'StGB §130', explanation: 'Incites hatred against a group.' }),
+  });
+  expect(res.status).toBe(201);
+  expect(await viewer.next()).toEqual({ type: 'blocked' });
+  expect(await closed).toBe(4410);
+});

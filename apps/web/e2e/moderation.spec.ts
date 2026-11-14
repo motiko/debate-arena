@@ -55,6 +55,18 @@ test('a Blocked Debate shows the statement of reasons with HTTP 410 and no Motio
   await expect(page).toHaveTitle('Debate blocked · Debate Arena');
 });
 
+test('a Viewer watching a live Debate is taken off it when it is Blocked', async ({ page, request }) => {
+  const { id, motion } = await startDebate(request, { slow: true });
+  await page.goto(`/debates/${id}`);
+  await expect(page.getByRole('log')).toBeVisible();
+  await hydrated(page);
+  await decide(request, id, block);
+  await expect(page.getByRole('heading', { level: 1, name: 'Debate blocked' })).toBeVisible({ timeout: 15_000 });
+  expect(await page.content()).not.toContain(motion);
+  const stopped = await (await request.get(`/api/debates/${id}`)).json();
+  expect(stopped).toMatchObject({ id, blocked: { groundRef: 'Terms §3 Hate' } });
+});
+
 test.describe('Moderator queue', () => {
   test('a Moderator relists a flagged Debate back into the feed', async ({ page, request }) => {
     const { id, motion } = await startDebate(request, { motion: `Relist me ${Date.now()} [flag-test]` });

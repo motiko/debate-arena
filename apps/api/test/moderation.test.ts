@@ -110,6 +110,22 @@ test.each([
   expect((await getDebate(env.DB, id))?.visibility).toBe('unlisted');
 });
 
+test('after a relist, a later Block is recorded as Report-driven, not as the AI Flag', async () => {
+  const id = await flagged();
+  const headers = await moderator();
+  await decide(id, { action: 'relist' }, headers);
+  await exports.default.fetch(`${base}/debates/${id}/reports`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-dev-member': uniqueId('m') },
+    body: JSON.stringify({ reason: 'hate', explanation: 'It attacks a group of people.', goodFaith: true }),
+  });
+  expect((await decide(id, block, headers)).status).toBe(201);
+  const row = await env.DB.prepare(`SELECT source, automated_detection FROM moderation_decisions WHERE debate_id = ? AND action = 'block'`)
+    .bind(id)
+    .first();
+  expect(row).toEqual({ source: 'reports', automated_detection: 0 });
+});
+
 test('blocking twice is 409', async () => {
   const id = await flagged();
   const headers = await moderator();

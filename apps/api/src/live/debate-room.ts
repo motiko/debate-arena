@@ -27,6 +27,19 @@ export class DebateRoom extends DurableObject<Env> {
     return sent;
   }
 
+  /** RPC after a Block: tells every Viewer, then closes their sockets (code 4410, like HTTP 410 Gone). */
+  async closeForBlock(): Promise<void> {
+    const message = JSON.stringify({ type: 'blocked' } satisfies DebateEvent);
+    for (const ws of this.ctx.getWebSockets()) {
+      try {
+        ws.send(message);
+        ws.close(4410, 'Blocked by a Moderator');
+      } catch {
+        // Already closed.
+      }
+    }
+  }
+
   override async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     if (message === 'ping') ws.send(JSON.stringify({ type: 'pong' }));
   }

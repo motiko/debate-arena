@@ -44,6 +44,10 @@ export async function unlistForReports(db: D1Database, debateId: string): Promis
  */
 export async function recordDecision(db: D1Database, d: ModerationDecision): Promise<boolean> {
   const visibility: Visibility = d.action === 'block' ? 'blocked' : 'listed';
+  // A Block also ends a Debate that is still running: no more Turns are generated or paid for.
+  const stop = db
+    .prepare(`UPDATE debates SET status = 'failed', failure_reason = ? WHERE id = ? AND visibility = 'blocked' AND status = 'running'`)
+    .bind(BLOCKED_FAILURE_REASON, d.debateId);
   const [update] = await db.batch([
     db
       .prepare(`UPDATE debates SET visibility = ?, reviewed_at = ? WHERE id = ? AND visibility != 'blocked'`)
@@ -67,9 +71,13 @@ export async function recordDecision(db: D1Database, d: ModerationDecision): Pro
         d.moderatorId,
         d.decidedAt,
       ),
+    ...(d.action === 'block' ? [stop] : []),
   ]);
   return update ? changed(update) : false;
 }
+
+/** Stored as a Blocked Debate's internal failure reason when the Block stopped it mid-run. */
+export const BLOCKED_FAILURE_REASON = 'Blocked by a Moderator';
 
 export interface NewReport {
   id: string;
@@ -83,32 +91,55 @@ export interface NewReport {
   createdAt: string;
 }
 
-/** Stores a Report. False when this Member already reported this Debate. */
-export async function addReport(db: D1Database, r: NewReport): Promise<boolean> {
-  const result = await db
-    .prepare(
-      `INSERT INTO reports (id, debate_id, reporter_member_id, reporter_name, reporter_email, reason, explanation, ip_hash, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (debate_id, reporter_member_id) DO NOTHING`,
-    )
-    .bind(r.id, r.debateId, r.reporterMemberId, r.reporterName, r.reporterEmail, r.reason, r.explanation, r.ipHash, r.createdAt)
-    .run();
-  return changed(result);
+export type AddReportOutcome = 'added' | 'duplicate' | 'limited';
+
+/**
+ * Stores a Report unless this Member already reported the Debate, or its network made `limit` Reports since
+ * `windowStart`. The limit is checked in the insert itself, so parallel requests cannot slip past it. IP hashes
+ * older than the window are cleared on the way: they are kept only as long as rate limiting needs them.
+ */
+export async function addReport(db: D1Database, r: NewReport, limit: number, windowStart: string): Promise<AddReportOutcome> {
+  const [inserted] = await db.batch([
+    db
+      .prepare(
+        `INSERT INTO reports (id, debate_id, reporter_member_id, reporter_name, reporter_email, reason, explanation, ip_hash, created_at)
+         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+         WHERE ? IS NULL OR (SELECT COUNT(*) FROM reports WHERE ip_hash = ? AND created_at > ?) < ?
+         ON CONFLICT (debate_id, reporter_member_id) DO NOTHING`,
+      )
+      .bind(
+        r.id,
+        r.debateId,
+        r.reporterMemberId,
+        r.reporterName,
+        r.reporterEmail,
+        r.reason,
+        r.explanation,
+        r.ipHash,
+        r.createdAt,
+        r.ipHash,
+        r.ipHash,
+        windowStart,
+        limit,
+      ),
+    db.prepare(`UPDATE reports SET ip_hash = NULL WHERE ip_hash IS NOT NULL AND created_at <= ?`).bind(windowStart),
+  ]);
+  if (inserted && changed(inserted)) return 'added';
+  if (r.reporterMemberId) {
+    const existing = await db
+      .prepare('SELECT 1 AS x FROM reports WHERE debate_id = ? AND reporter_member_id = ?')
+      .bind(r.debateId, r.reporterMemberId)
+      .first();
+    if (existing) return 'duplicate';
+  }
+  return 'limited';
 }
 
-/** Members' Reports on a Debate since its last review (or ever): the count that Unlists it. */
+/** Members' Reports on a Debate since its last review (or ever): the count that Unlists it. A Report in the same millisecond as the review counts as after it. */
 export async function memberReportsSince(db: D1Database, debateId: string, since: string | null): Promise<number> {
   const row = await db
-    .prepare(`SELECT COUNT(*) AS n FROM reports WHERE debate_id = ? AND reporter_member_id IS NOT NULL AND created_at > ?`)
+    .prepare(`SELECT COUNT(*) AS n FROM reports WHERE debate_id = ? AND reporter_member_id IS NOT NULL AND created_at >= ?`)
     .bind(debateId, since ?? '')
-    .first<{ n: number }>();
-  return row?.n ?? 0;
-}
-
-/** Reports from one (hashed) IP since a time, for rate limiting. */
-export async function reportsFromIpSince(db: D1Database, ipHash: string, since: string): Promise<number> {
-  const row = await db
-    .prepare(`SELECT COUNT(*) AS n FROM reports WHERE ip_hash = ? AND created_at > ?`)
-    .bind(ipHash, since)
     .first<{ n: number }>();
   return row?.n ?? 0;
 }
@@ -148,7 +179,7 @@ export async function moderationQueue(db: D1Database): Promise<QueueItem[]> {
       `SELECT id, setup_json, status, visibility, flagged, screen_json, created_at, reviewed_at FROM debates d
        WHERE visibility = 'unlisted'
           OR (visibility = 'listed' AND EXISTS (
-                SELECT 1 FROM reports r WHERE r.debate_id = d.id AND r.created_at > COALESCE(d.reviewed_at, '')))
+                SELECT 1 FROM reports r WHERE r.debate_id = d.id AND r.created_at >= COALESCE(d.reviewed_at, '')))
        ORDER BY created_at LIMIT ?`,
     )
     .bind(QUEUE_LIMIT)
@@ -168,7 +199,7 @@ export async function moderationQueue(db: D1Database): Promise<QueueItem[]> {
       db
         .prepare(
           `SELECT reason, explanation, reporter_name, reporter_email, reporter_member_id IS NOT NULL AS by_member, created_at
-           FROM reports WHERE debate_id = ? AND created_at > ? ORDER BY created_at DESC`,
+           FROM reports WHERE debate_id = ? AND created_at >= ? ORDER BY created_at DESC`,
         )
         .bind(d.id, d.reviewed_at ?? ''),
     ),
@@ -207,7 +238,7 @@ export async function moderationQueue(db: D1Database): Promise<QueueItem[]> {
 
 /** Whether a Debate has any Reports since its last review. */
 export async function hasReportsSince(db: D1Database, debateId: string, since: string | null): Promise<boolean> {
-  const row = await db.prepare(`SELECT 1 AS x FROM reports WHERE debate_id = ? AND created_at > ? LIMIT 1`).bind(debateId, since ?? '').first();
+  const row = await db.prepare(`SELECT 1 AS x FROM reports WHERE debate_id = ? AND created_at >= ? LIMIT 1`).bind(debateId, since ?? '').first();
   return row !== null;
 }
 

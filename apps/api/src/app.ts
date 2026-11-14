@@ -10,12 +10,11 @@ import {
   memberReportsSince,
   moderationQueue,
   recordDecision,
-  reportsFromIpSince,
   unlistForReports,
   type BlockGround,
 } from './db/moderation';
 import { isModerator, parseDecision } from './moderation/moderators';
-import { keyedHash, parseReport, REPORT_UNLIST_THRESHOLD, REPORTS_PER_IP_PER_HOUR } from './moderation/reports';
+import { keyedHash, parseReport, rateLimitNetwork, REPORT_UNLIST_THRESHOLD, REPORTS_PER_IP_PER_HOUR } from './moderation/reports';
 import { quotaRemaining } from './db/quota';
 import { getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
 import { castAfter, castBefore, getVote, listVotes, type AudienceVote } from './db/votes';
@@ -251,13 +250,12 @@ export const app = new Hono<{ Bindings: Env }>()
 
     const now = new Date();
     const ip = c.req.header('cf-connecting-ip');
-    const ipHash = ip ? await keyedHash(c.env.BETTER_AUTH_SECRET, `report-ip:${ip}`) : null;
-    if (ipHash && (await reportsFromIpSince(c.env.DB, ipHash, new Date(now.getTime() - 3600_000).toISOString())) >= REPORTS_PER_IP_PER_HOUR) {
-      return c.json({ error: 'Too many Reports from your network. Please try again later.' }, 429);
-    }
+    const ipHash = ip ? await keyedHash(c.env.BETTER_AUTH_SECRET, `report-ip:${rateLimitNetwork(ip)}`) : null;
 
     const memberId = await memberResolver(c.env)(c.req.raw);
-    const added = await addReport(c.env.DB, {
+    const outcome = await addReport(
+      c.env.DB,
+      {
       id: crypto.randomUUID(),
       debateId: debate.id,
       reporterMemberId: memberId,
@@ -268,8 +266,12 @@ export const app = new Hono<{ Bindings: Env }>()
       explanation: parsed.explanation,
       ipHash,
       createdAt: now.toISOString(),
-    });
-    if (!added) return c.json({ error: 'You already reported this Debate' }, 409);
+      },
+      REPORTS_PER_IP_PER_HOUR,
+      new Date(now.getTime() - 3600_000).toISOString(),
+    );
+    if (outcome === 'duplicate') return c.json({ error: 'You already reported this Debate' }, 409);
+    if (outcome === 'limited') return c.json({ error: 'Too many Reports from your network. Please try again later.' }, 429);
     if (memberId && (await memberReportsSince(c.env.DB, debate.id, debate.reviewedAt)) >= REPORT_UNLIST_THRESHOLD) {
       await unlistForReports(c.env.DB, debate.id);
     }
@@ -293,7 +295,13 @@ export const app = new Hono<{ Bindings: Env }>()
     if (typeof parsed === 'string') return c.json({ error: parsed }, 400);
     const debate = await getDebate(c.env.DB, c.req.param('id'));
     if (!debate) return c.json({ error: 'Debate not found' }, 404);
-    const source = debate.flagged ? 'ai_flag' : (await hasReportsSince(c.env.DB, debate.id, debate.reviewedAt)) ? 'reports' : 'moderator';
+    // What brought it to review since the last decision: the AI Flag counts only until a Moderator first reviewed it.
+    const source =
+      debate.flagged && debate.reviewedAt === null
+        ? 'ai_flag'
+        : (await hasReportsSince(c.env.DB, debate.id, debate.reviewedAt))
+          ? 'reports'
+          : 'moderator';
     const applied = await recordDecision(c.env.DB, {
       id: crypto.randomUUID(),
       debateId: debate.id,
@@ -308,6 +316,14 @@ export const app = new Hono<{ Bindings: Env }>()
       decidedAt: new Date().toISOString(),
     });
     if (!applied) return c.json({ error: 'This Debate is already blocked' }, 409);
+    if (parsed.action === 'block') {
+      // Viewers already watching must stop seeing it. Best-effort: new requests are refused with 410 anyway.
+      try {
+        await c.env.DEBATE_ROOM.getByName(debate.id).closeForBlock();
+      } catch (error) {
+        console.warn(`Could not close live Viewers of Blocked Debate ${debate.id}`, error);
+      }
+    }
     return c.json({ visibility: parsed.action === 'block' ? 'blocked' : 'listed' }, 201);
   })
   .get('/debates/:id/live', async c => {

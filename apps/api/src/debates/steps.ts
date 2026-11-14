@@ -27,7 +27,8 @@ export const PUBLIC_FAILURE_REASON = 'The Debate could not be completed.';
 export async function runStep(deps: StepDeps, job: StepJob): Promise<StepOutcome> {
   const { db, client, notify, enqueue } = deps;
   const debate = await getDebate(db, job.debateId);
-  if (!debate || debate.status !== 'running') return 'skipped';
+  // A Blocked Debate is also marked failed by the Block; checking both keeps a stale step from going on.
+  if (!debate || debate.status !== 'running' || debate.visibility === 'blocked') return 'skipped';
   const { id, setup, turns } = debate;
 
   // First, screen the Motion. A Flag Unlists the Debate but it runs on; Viewers are not told.

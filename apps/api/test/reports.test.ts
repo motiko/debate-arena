@@ -62,6 +62,35 @@ test('reports are rate limited per IP', async () => {
   expect(res.status).toBe(429);
 });
 
+test('IPv6 addresses in one /64 share a limit', async () => {
+  const id = await debate();
+  for (let i = 1; i <= 10; i++) expect((await report(id, valid, { 'cf-connecting-ip': `2001:db8:1:2::${i.toString(16)}` })).status).toBe(201);
+  expect((await report(id, valid, { 'cf-connecting-ip': '2001:db8:1:2:ffff:ffff:ffff:ffff' })).status).toBe(429);
+  expect((await report(id, valid, { 'cf-connecting-ip': '2001:db8:1:3::1' })).status).toBe(201);
+});
+
+test('parallel Reports cannot exceed the limit', async () => {
+  const id = await debate();
+  const ip = { 'cf-connecting-ip': '198.51.100.42' };
+  const statuses = await Promise.all(Array.from({ length: 15 }, () => report(id, valid, ip).then(r => r.status)));
+  expect(statuses.filter(s => s === 201)).toHaveLength(10);
+  expect(statuses.filter(s => s === 429)).toHaveLength(5);
+});
+
+test('IP hashes are kept only as long as rate limiting needs them', async () => {
+  const id = await debate();
+  await env.DB.prepare(
+    `INSERT INTO reports (id, debate_id, reason, explanation, ip_hash, created_at) VALUES (?, ?, 'hate', 'An old Report here.', 'old-hash', ?)`,
+  )
+    .bind(crypto.randomUUID(), id, new Date(Date.now() - 2 * 3600_000).toISOString())
+    .run();
+  await report(id, valid);
+  const old = await env.DB.prepare(`SELECT ip_hash FROM reports WHERE explanation = 'An old Report here.' AND debate_id = ?`)
+    .bind(id)
+    .first<{ ip_hash: string | null }>();
+  expect(old?.ip_hash).toBeNull();
+});
+
 test('the threshold restarts after a review', async () => {
   const id = await debate();
   for (let i = 0; i < 4; i++) await report(id, valid, asMember());
@@ -75,7 +104,8 @@ test('the threshold restarts after a review', async () => {
     groundRef: null,
     explanation: null,
     moderatorId: 'mod-1',
-    decidedAt: new Date().toISOString(),
+    // 1 ms after the last Report: a Report in the same millisecond as a review counts as after it.
+    decidedAt: new Date(Date.now() + 1).toISOString(),
   });
   await report(id, valid, asMember());
   expect(await visibility(id)).toBe('listed');
