@@ -1,6 +1,11 @@
-import { expect, test } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import {
+  debaterLabel,
+  dispatchState,
   groupByPhase,
+  motionSize,
+  outcome,
+  spokeCount,
   modelLabel,
   nextFeedCursor,
   paragraphs,
@@ -72,4 +77,79 @@ test('modelLabel prefers the catalog label and falls back to the id', () => {
   const models = [{ id: 'fake-a/one', label: 'Fake A' }];
   expect(modelLabel('fake-a/one', models)).toBe('Fake A');
   expect(modelLabel('gone/model', models)).toBe('gone/model');
+});
+
+describe('chamber helpers', () => {
+  const models = [
+    { id: 'fake-a/one', label: 'Fake A' },
+    { id: 'fake-b/one', label: 'Fake B' },
+  ];
+  const debaters = { for: { kind: 'ai' as const, model: 'fake-a/one' }, against: { kind: 'ai' as const, model: 'fake-b/one' } };
+  const result = (winner: 'for' | 'against' | 'tie', counted = 4, swingFor = 13) => ({ counted, swing: { for: swingFor, against: -swingFor }, winner });
+  const NOW = Date.parse('2026-11-14T12:00:00Z');
+  const open = { votingClosesAt: '2026-11-21T12:00:00Z' };
+  const closed = { votingClosesAt: '2026-11-10T12:00:00Z' };
+  const base = { kind: 'live' as const, status: 'complete' as const, turnsHidden: false, turns: [1, 2], myVote: null, audienceResult: open };
+
+  test('motionSize steps down with length', () => {
+    expect(motionSize('x'.repeat(120))).toBe('l');
+    expect(motionSize('x'.repeat(121))).toBe('m');
+    expect(motionSize('x'.repeat(200))).toBe('m');
+    expect(motionSize('x'.repeat(201))).toBe('s');
+  });
+
+  test('dispatchState follows the spec table in order', () => {
+    expect(dispatchState({ ...base, status: 'running', turnsHidden: true }, NOW)).toBe('ask');
+    expect(dispatchState({ ...base, kind: 'batch', status: 'running' }, NOW)).toBe('generating');
+    expect(dispatchState({ ...base, status: 'running' }, NOW)).toBe('live');
+    expect(dispatchState({ ...base, status: 'failed' }, NOW)).toBe('judgingFailed');
+    expect(dispatchState({ ...base, status: 'failed', turns: [] }, NOW)).toBe('failed');
+    expect(dispatchState({ ...base, myVote: { before: 'for', after: null } }, NOW)).toBe('hidden');
+    expect(dispatchState({ ...base, myVote: { before: 'for', after: 'for' } }, NOW)).toBe('revealed');
+    expect(dispatchState({ ...base, audienceResult: closed }, NOW)).toBe('revealed');
+    expect(dispatchState({ ...base, kind: 'batch', audienceResult: closed }, NOW)).toBe('hidden');
+  });
+
+  test('outcome names the winning model when judge and audience agree', () => {
+    expect(outcome({ kind: 'live', debaters, verdict: { winner: 'for' }, audienceResult: result('for') }, models)).toEqual({
+      headline: 'Fake A carries the Motion',
+      judge: 'Judge: For',
+      audience: 'Audience: For, +13 points',
+      split: false,
+    });
+    expect(outcome({ kind: 'live', debaters, verdict: { winner: 'against' }, audienceResult: result('tie', 4, 0) }, models)).toMatchObject({
+      headline: 'Fake B defeats the Motion',
+      audience: 'Audience: tied',
+      split: false,
+    });
+  });
+
+  test('outcome calls a disagreement a split decision', () => {
+    expect(outcome({ kind: 'live', debaters, verdict: { winner: 'against' }, audienceResult: result('for') }, models)).toMatchObject({
+      headline: 'Split decision',
+      split: true,
+    });
+  });
+
+  test('outcome without paired votes, for batch, and without a Verdict', () => {
+    expect(outcome({ kind: 'live', debaters, verdict: { winner: 'for' }, audienceResult: result('for', 0, 0) }, models)).toMatchObject({
+      audience: 'Audience: no paired votes yet',
+      split: false,
+    });
+    expect(outcome({ kind: 'batch', debaters, verdict: { winner: 'for' }, audienceResult: result('against') }, models)).toMatchObject({
+      audience: null,
+      split: false,
+    });
+    expect(outcome({ kind: 'live', debaters, verdict: null, audienceResult: result('for') }, models)).toBeNull();
+  });
+
+  test('spokeCount counts one Side', () => {
+    const turns = [{ side: 'for' as const }, { side: 'against' as const }, { side: 'for' as const }];
+    expect(spokeCount(turns, 'for')).toBe(2);
+    expect(spokeCount(turns, 'against')).toBe(1);
+  });
+
+  test('debaterLabel uses the model label', () => {
+    expect(debaterLabel(debaters.for, models)).toBe('Fake A');
+  });
 });
