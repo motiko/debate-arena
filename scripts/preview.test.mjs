@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { apiPreviewConfig, down, parseJsonc, previewNames, previewUrl, webPreviewConfig } from './preview.mjs';
+import { apiPreviewConfig, deploy, down, parseJsonc, previewNames, previewUrl, webPreviewConfig } from './preview.mjs';
 
 const apiBase = parseJsonc(`{
   "name": "debate-arena-api",
@@ -86,4 +86,38 @@ test('down is safe to repeat: wrangler’s "Couldn’t find" for a deleted D1 co
 test('down fails on a real error', async () => {
   const run = async () => ({ code: 1, stdout: '', stderr: 'Authentication error [code: 10000]' });
   await assert.rejects(down(42, run), /Authentication error/);
+});
+
+const NEW_WORKER_RACE = { code: 1, stdout: '', stderr: 'This Worker does not exist on your account. [code: 10007]' };
+const noWait = async () => {};
+
+test('deploy retries while a just-uploaded Worker is not visible yet', async () => {
+  const results = [NEW_WORKER_RACE, { code: 0, stdout: 'Deployed', stderr: '' }];
+  const commands = [];
+  const run = async args => {
+    commands.push(args.join(' '));
+    return results.shift();
+  };
+  await deploy(run, ['deploy', '-c', 'wrangler.preview.json'], {}, noWait);
+  assert.deepEqual(commands, ['deploy -c wrangler.preview.json', 'deploy -c wrangler.preview.json']);
+});
+
+test('deploy fails at once on any other error', async () => {
+  let calls = 0;
+  const run = async () => {
+    calls += 1;
+    return { code: 1, stdout: '', stderr: 'Authentication error [code: 10000]' };
+  };
+  await assert.rejects(deploy(run, ['deploy'], {}, noWait), /Authentication error/);
+  assert.equal(calls, 1);
+});
+
+test('deploy gives up after three attempts', async () => {
+  let calls = 0;
+  const run = async () => {
+    calls += 1;
+    return NEW_WORKER_RACE;
+  };
+  await assert.rejects(deploy(run, ['deploy'], {}, noWait), /10007/);
+  assert.equal(calls, 3);
 });

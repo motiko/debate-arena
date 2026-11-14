@@ -82,6 +82,22 @@ async function must(run, args, options) {
   return result;
 }
 
+// The first deploy of a new Worker can fail right after the upload: wrangler asks for the Worker before the API lists
+// it and gets "does not exist" [10007], which it does not retry. Deploying again is idempotent and succeeds.
+const NEW_WORKER_RACE = /does not exist on your account\. \[code: 10007\]/;
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+export async function deploy(run, args, options, wait = () => sleep(5000)) {
+  for (let attempt = 1; ; attempt++) {
+    const result = await run(args, options);
+    if (result.code === 0) return result;
+    const output = result.stderr || result.stdout;
+    if (attempt === 3 || !NEW_WORKER_RACE.test(output)) throw new Error(`${args.join(' ')} failed:\n${output}`);
+    console.error(`${args.join(' ')}: the new Worker is not visible yet; retrying`);
+    await wait();
+  }
+}
+
 // Wrangler words a missing resource in several ways ("Couldn't find a D1 DB…", "does not exist", API codes).
 const NOT_FOUND = /not found|does not exist|could ?n[o']t find|10007|7404|10090|11000/i;
 const EXISTS = /already exists|already taken|11009/i;
@@ -108,13 +124,13 @@ export async function up(pr, run = runner(apiDir), runWeb = runner(webDir), subd
   const base = parseJsonc(readFileSync(`${apiDir}/wrangler.jsonc`, 'utf8'));
   writeFileSync(`${apiDir}/wrangler.preview.json`, JSON.stringify(apiPreviewConfig(base, pr, db.uuid, url), null, 2));
   await must(run, ['d1', 'migrations', 'apply', 'DB', '--remote', '-c', 'wrangler.preview.json']);
-  await must(run, ['deploy', '-c', 'wrangler.preview.json']);
+  await deploy(run, ['deploy', '-c', 'wrangler.preview.json']);
 
   // The web build writes dist/server/wrangler.json, which `wrangler deploy` uses; patch it for this PR.
   await must(runWeb, ['build'], { prefix: ['run'] });
   const builtPath = `${webDir}/dist/server/wrangler.json`;
   writeFileSync(builtPath, JSON.stringify(webPreviewConfig(JSON.parse(readFileSync(builtPath, 'utf8')), pr)));
-  await must(runWeb, ['deploy']);
+  await deploy(runWeb, ['deploy']);
   console.log(`PREVIEW_URL=${url}`);
   return url;
 }
