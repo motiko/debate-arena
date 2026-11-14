@@ -30,6 +30,9 @@ const closed = closesAt !== null && Date.parse(closesAt) <= Date.now();
 <style>
   .division {
     max-width: 44rem;
-    margin-inline: auto;
+    margin: calc(var(--space) * 2.5) auto 0;
+  }
+  .division > :global(.vote) {
+    margin-top: 1.25rem;
   }
 </style>

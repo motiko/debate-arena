@@ -40,7 +40,7 @@ const benches = (['for', 'against'] as const).map(side => ({
         <div class={`bench bench-${bench.side}`}>
           <p class="bench-title">{bench.title}</p>
           <p class="bench-model">{bench.model}</p>
-          {bench.spoke > 0 && <p class="bench-spoke">{t('band.spoke', { count: bench.spoke })}</p>}
+          {bench.spoke > 0 && <p class="bench-spoke">{bench.spoke === 1 ? t('band.spokeOnce') : t('band.spoke', { count: bench.spoke })}</p>}
         </div>
       ))
     }
@@ -215,17 +215,6 @@ const benches = (['for', 'against'] as const).map(side => ({
     border-radius: 50%;
     background: var(--against);
   }
-  @media (prefers-reduced-motion: no-preference) {
-    .live-dot {
-      animation: pulse 1.6s ease-in-out infinite;
-    }
-  }
-  @keyframes pulse {
-    50% {
-      opacity: 0.3;
-    }
-  }
-
   /* Wide: the benches flank the dispatch box, which stands taller than both. */
   @media (min-width: 48rem) {
     .benches {

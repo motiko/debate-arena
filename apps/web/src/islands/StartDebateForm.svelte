@@ -154,7 +154,7 @@
   .bench {
     padding: 0.9rem 1rem 1rem;
     border-top: 6px solid;
-    border-radius: var(--radius);
+    border-radius: 0 0 var(--radius) var(--radius);
     background: var(--surface);
   }
   .bench-for {

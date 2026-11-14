@@ -98,6 +98,7 @@
 
 <style>
   .live-status {
+    margin-top: 1.5rem;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -109,11 +110,5 @@
     height: 0.6rem;
     border-radius: 50%;
     background: var(--against);
-    animation: pulse 1.6s ease-in-out infinite;
-  }
-  @keyframes pulse {
-    50% {
-      opacity: 0.3;
-    }
   }
 </style>

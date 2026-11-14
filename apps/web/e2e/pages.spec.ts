@@ -143,3 +143,21 @@ test.describe('axe', () => {
     await expectNoAxeViolations(page);
   });
 });
+
+test.describe('dark mode', () => {
+  test.use({ colorScheme: 'dark' });
+
+  test('home, a revealed Debate and the start page pass axe', async ({ page, request }) => {
+    const { id } = await startDebate(request, { aiVoters: true });
+    await waitComplete(request, id);
+    await page.goto('/');
+    await expectNoAxeViolations(page);
+    await page.goto(`/debates/${id}`);
+    await page.locator('.dispatch summary', { hasText: 'Show the result' }).click();
+    await expectNoAxeViolations(page);
+    await page.setExtraHTTPHeaders({ 'x-dev-member': `dark-${Date.now()}` });
+    await page.goto('/new');
+    await expect(page.getByLabel('Debater For')).toBeVisible();
+    await expectNoAxeViolations(page);
+  });
+});
