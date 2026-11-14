@@ -1,8 +1,9 @@
-import { formatTranscript, motionData, UNTRUSTED_NOTICE } from '../debate/prompts';
+import { formatTranscript, motionData, SAME_LANGUAGE, UNTRUSTED_NOTICE } from '../debate/prompts';
 import { MAX_ATTEMPTS, nextSlot } from '../debate/schedule';
 import type { DebateSetup, ModelId, Side, Turn, Verdict } from '../domain';
 import { DebateNotFinishedError, VerdictParseError } from '../errors';
 import type { ModelClient, ModelMessage } from '../models/client';
+import { dominantScript } from '../turns/script';
 import { validatePanel } from './panel';
 
 export const JUDGE_OUTPUT_TOKENS = 800;
@@ -14,7 +15,7 @@ export function buildJudgeMessages(setup: DebateSetup, turns: Turn[]): ModelMess
     `Score the debate against this Rubric:\n${rubric}`,
     'You must choose one Side, For or Against. A draw is not allowed.',
     'Reply with JSON only, in this shape: {"winner": "for" | "against", "reasoning": "<a few sentences>"}',
-    "Write the reasoning in the Motion's language.",
+    `Write the reasoning in the ${SAME_LANGUAGE}, even if the Turns use another.`,
     UNTRUSTED_NOTICE,
   ].join('\n\n');
   const user = `Motion: ${motionData(setup.motion)}\n\nTurns:\n${formatTranscript(setup.format, turns)}`;
@@ -37,11 +38,19 @@ export function parseVerdict(text: string): { winner: Side; reasoning: string } 
 
 async function askJudge(setup: DebateSetup, turns: Turn[], judge: ModelId, client: ModelClient) {
   const messages = buildJudgeMessages(setup, turns);
+  const motionScript = dominantScript(setup.motion.text);
+  let wrongLanguage: { winner: Side; reasoning: string } | null = null;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const response = await client.complete({ model: judge, messages, maxOutputTokens: JUDGE_OUTPUT_TOKENS });
     const verdict = parseVerdict(response.text);
-    if (verdict) return verdict;
+    if (!verdict) continue;
+    // Reasoning in another script than the Motion is in another language: ask again.
+    const script = dominantScript(verdict.reasoning);
+    if (motionScript === null || script === null || script === motionScript) return verdict;
+    wrongLanguage = verdict;
   }
+  // A Verdict in the wrong language beats failing a finished Debate.
+  if (wrongLanguage) return wrongLanguage;
   throw new VerdictParseError(`${judge} did not return a valid Verdict`);
 }
 

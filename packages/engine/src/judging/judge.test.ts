@@ -26,6 +26,32 @@ test('rejects draws, wrong Sides and prose', () => {
     expect(parseVerdict(t)).toBeNull();
 });
 
+test('Judge prompt demands the reasoning in the Motion\'s language and no other', () => {
+  const [system] = buildJudgeMessages(setup, sixTurns);
+  expect(system?.content).toContain('same language as the Motion');
+  expect(system?.content).toContain('never in another language');
+});
+
+test('asks again when the reasoning is in another script than the Motion', async () => {
+  const replies = ['{"winner":"against","reasoning":"反方在整场辩论中更准确地把握了辩题"}', '{"winner":"against","reasoning":"Against held the burden."}'];
+  const client = new FakeModelClient(() => replies.shift() ?? '');
+  expect(await judgeDebate(setup, sixTurns, client)).toMatchObject({ winner: 'against', reasoning: 'Against held the burden.' });
+  expect(client.calls).toHaveLength(2);
+});
+
+test('accepts reasoning in the Motion\'s own script', async () => {
+  const motion = { text: '远程办公优于办公室办公' };
+  const client = new FakeModelClient(() => '{"winner":"for","reasoning":"正方论证更有力。"}');
+  expect(await judgeDebate({ ...setup, motion }, sixTurns, client)).toMatchObject({ reasoning: '正方论证更有力。' });
+  expect(client.calls).toHaveLength(1);
+});
+
+test('keeps a wrong-language Verdict rather than failing the Debate when every attempt is in another script', async () => {
+  const client = new FakeModelClient(() => '{"winner":"for","reasoning":"正方论证更有力。"}');
+  expect(await judgeDebate(setup, sixTurns, client)).toMatchObject({ winner: 'for', reasoning: '正方论证更有力。' });
+  expect(client.calls).toHaveLength(2);
+});
+
 test('retries once, then succeeds', async () => {
   const replies = ['nonsense', '{"winner":"for","reasoning":"clear"}'];
   const client = new FakeModelClient(() => replies.shift() ?? '');
