@@ -9,6 +9,15 @@ test('home lists completed Debates', async ({ page, request }) => {
   await expect(page.getByRole('link', { name: motion })).toHaveAttribute('href', `/debates/${id}`);
 });
 
+test('the order paper names the benches and the outcome', async ({ page, request }) => {
+  const { id, motion } = await startDebate(request);
+  await waitComplete(request, id);
+  await page.goto('/');
+  const entry = page.getByRole('listitem').filter({ has: page.getByRole('link', { name: motion }) });
+  await expect(entry).toContainText('Fake A for, Fake B against');
+  await expect(entry).toContainText(/Carried|Defeated/);
+});
+
 test('debate page shows Turns, Verdict and AI labels', async ({ page, request }) => {
   const { id, motion } = await startDebate(request, { aiVoters: true });
   await waitComplete(request, id);

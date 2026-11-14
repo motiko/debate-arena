@@ -4,7 +4,7 @@ import BatchBadge from '../components/BatchBadge.astro';
 import SelfJudgingBadge from '../components/SelfJudgingBadge.astro';
 import Base from '../layouts/Base.astro';
 import { t } from '../i18n/t';
-import { FEED_PAGE_SIZE, modelLabel, nextFeedCursor, sideLabel, type ModelInfo } from '../lib/debate';
+import { debaterLabel, FEED_PAGE_SIZE, nextFeedCursor, type ModelInfo } from '../lib/debate';
 import { formatDate } from '../lib/format';
 
 const { api } = Astro.locals;
@@ -20,7 +20,6 @@ if (!feedRes.ok) throw new Error(`GET /api/debates failed (${feedRes.status})`);
 const { debates } = await feedRes.json();
 const models: ModelInfo[] = modelsRes.ok ? (await modelsRes.json()).models : [];
 const cursor = nextFeedCursor(debates, FEED_PAGE_SIZE);
-const model = (d: (typeof debates)[number]['debaters']['for']) => (d.kind === 'ai' ? modelLabel(d.model, models) : d.memberId);
 ---
 
 <Base title={t('feed.title')} description={t('feed.description')} canonicalPath={before ? `/?before=${encodeURIComponent(before)}` : '/'}>
@@ -28,33 +27,33 @@ const model = (d: (typeof debates)[number]['debaters']['for']) => (d.kind === 'a
   <p class="muted">{t('site.tagline')}</p>
   {
     debates.length === 0 ? (
-      <div class="card stack">
+      <div class="empty stack">
         <p>{t('feed.empty')}</p>
         <p>
           <a href="/new">{t('feed.startFirst')}</a>
         </p>
       </div>
     ) : (
-      <ol class="feed stack" role="list">
+      <ol class="order-paper" role="list">
         {debates.map(d => (
-          <li class="card stack">
-            <h2>
+          <li class="entry">
+            <h2 class="entry-motion">
               <a href={`/debates/${d.id}`}>{d.motion}</a>
             </h2>
-            <p class="muted">
-              {t('feed.versus', { for: model(d.debaters.for), against: model(d.debaters.against) })} {d.kind === 'batch' && <BatchBadge />}
+            <p class="entry-sides">
+              {t('feed.sides', { for: debaterLabel(d.debaters.for, models), against: debaterLabel(d.debaters.against, models) })}{' '}
+              {d.kind === 'batch' && <BatchBadge />}
             </p>
-            {d.verdict && (
-              <p>
-                <strong class={`side-${d.verdict.winner}`}>{t('feed.verdict', { side: sideLabel(d.verdict.winner) })}</strong>{' '}
-                <AiLabel /> {d.selfJudging && <SelfJudgingBadge />}
-              </p>
-            )}
-            {d.completedAt && (
-              <p class="muted">
-                <time datetime={d.completedAt}>{t('feed.finished', { date: formatDate(d.completedAt) })}</time>
-              </p>
-            )}
+            <p class="entry-meta">
+              {d.verdict && (
+                <>
+                  <strong class={`side-${d.verdict.winner}`}>{t(d.verdict.winner === 'for' ? 'feed.carried' : 'feed.defeated')}</strong>
+                  <AiLabel />
+                  {d.selfJudging && <SelfJudgingBadge />}
+                </>
+              )}
+              {d.completedAt && <time datetime={d.completedAt}>{formatDate(d.completedAt)}</time>}
+            </p>
           </li>
         ))}
       </ol>
@@ -70,11 +69,55 @@ const model = (d: (typeof debates)[number]['debaters']['for']) => (d.kind === 'a
 </Base>
 
 <style>
-  .feed {
+  .order-paper {
     list-style: none;
     padding: 0;
+    counter-reset: motion;
   }
-  .feed h2 {
-    font-size: 1.15rem;
+  .entry {
+    counter-increment: motion;
+    position: relative;
+    padding: 1.1rem 0 1.1rem 2.75rem;
+    border-top: 1px solid var(--line);
+  }
+  .entry:last-child {
+    border-bottom: 1px solid var(--line);
+  }
+  /* The order paper's numbering in the margin; a visual aid only (the list is already ordered). */
+  .entry::before {
+    content: counter(motion);
+    position: absolute;
+    left: 0;
+    top: 1.15rem;
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    color: var(--muted);
+  }
+  .entry-motion {
+    font-size: 1.375rem;
+    line-height: 1.25;
+  }
+  .entry-motion a {
+    color: var(--ink);
+    text-decoration-color: var(--line);
+  }
+  .entry-motion a:hover {
+    text-decoration-color: currentColor;
+  }
+  .entry-sides {
+    margin-top: 0.35rem;
+  }
+  .entry-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.6rem;
+    margin-top: 0.3rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  .empty {
+    padding-block: 1rem;
+    border-top: 1px solid var(--line);
   }
 </style>
