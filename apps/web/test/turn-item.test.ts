@@ -29,8 +29,13 @@ test('shows two paragraphs and keeps the rest behind "Read the full speech"', ()
   const { container } = render(TurnItem, { phase: 'Opening', speaker: 'Fake A', side: 'for', text: five, truncated: false });
   expect(container.querySelectorAll('article > p')).toHaveLength(2);
   const more = container.querySelector('details.more');
-  expect(more?.querySelector('summary')?.textContent).toBe('Read the full speech');
+  expect(more?.querySelector('summary .when-closed')?.textContent).toBe('Read the full speech');
   expect(more?.querySelectorAll('p')).toHaveLength(3);
+});
+
+test('the summary stays in place once open, offering to show less', () => {
+  const { container } = render(TurnItem, { phase: 'Opening', speaker: 'Fake A', side: 'for', text: five, truncated: false });
+  expect(container.querySelector('details.more summary .when-open')?.textContent).toBe('Show less');
 });
 
 test('no "Read the full speech" for a short speech', () => {

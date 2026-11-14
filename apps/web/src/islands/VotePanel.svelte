@@ -107,7 +107,7 @@
     {:else if phase}
       <form onsubmit={cast} class="stack" novalidate>
         <fieldset>
-          <legend>{t(phase === 'before' ? 'vote.before' : 'vote.after', { motion })}</legend>
+          <legend>{t(phase === 'before' ? (only === 'before' ? 'vote.beforeShort' : 'vote.before') : 'vote.after', { motion })}</legend>
           {#each ['for', 'against', 'undecided'] as const as stance (stance)}
             <label class="choice"><input type="radio" name="stance" value={stance} bind:group={choice} /> {stanceLabel(stance)}</label>
           {/each}

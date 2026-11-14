@@ -10,7 +10,7 @@ import PhaseFloor from '../../islands/PhaseFloor.svelte';
 import VotePanel from '../../islands/VotePanel.svelte';
 import Base from '../../layouts/Base.astro';
 import { t } from '../../i18n/t';
-import { debaterLabel, modelLabel, swingText, type ModelInfo } from '../../lib/debate';
+import { debaterLabel, dispatchState, modelLabel, swingText, type ModelInfo } from '../../lib/debate';
 
 const { api, me } = Astro.locals;
 const id = Astro.params.id ?? '';
@@ -25,6 +25,8 @@ const models: ModelInfo[] = modelsRes.ok ? (await modelsRes.json()).models : [];
 const debater = (side: 'for' | 'against') => debaterLabel(debate.debaters[side], models);
 const speakers = { for: debater('for'), against: debater('against') };
 const isBatch = debate.kind === 'batch';
+// A Member who voted before but still has the after-vote to cast reads the Debate first: the Verdict waits.
+const awaitingAfterVote = dispatchState(debate) === 'hidden' && !!debate.myVote?.before && !debate.myVote.after;
 ---
 
 <Base title={debate.motion} description={t('debate.description', { motion: debate.motion })} canonicalPath={`/debates/${debate.id}`} wide>
@@ -51,7 +53,14 @@ const isBatch = debate.kind === 'batch';
   {
     !debate.turnsHidden && (
       <>
-        {debate.verdict ? (
+        {debate.verdict && awaitingAfterVote ? (
+          <details class="reveal-verdict">
+            <summary>
+              <span class="when-closed">{t('dispatch.show')}</span><span class="when-open">{t('dispatch.hide')}</span>
+            </summary>
+            <VerdictView verdict={debate.verdict} debaters={debate.debaters} selfJudging={debate.selfJudging} models={models} />
+          </details>
+        ) : debate.verdict ? (
           <VerdictView verdict={debate.verdict} debaters={debate.debaters} selfJudging={debate.selfJudging} models={models} />
         ) : (
           debate.status === 'running' && <p class="muted">{t('verdict.pending')}</p>
@@ -98,5 +107,27 @@ const isBatch = debate.kind === 'batch';
   .ai-audience {
     max-width: 44rem;
     margin: calc(var(--space) * 2.5) auto 0;
+  }
+  .reveal-verdict {
+    margin-top: calc(var(--space) * 2);
+    text-align: center;
+  }
+  .reveal-verdict summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0.4rem 1.1rem;
+    border: 1.5px solid var(--green);
+    border-radius: var(--radius);
+    color: var(--green);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .reveal-verdict summary .when-open,
+  .reveal-verdict[open] summary .when-closed {
+    display: none;
+  }
+  .reveal-verdict[open] summary .when-open {
+    display: inline;
   }
 </style>

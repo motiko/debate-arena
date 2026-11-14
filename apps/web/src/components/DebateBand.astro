@@ -81,7 +81,9 @@ const benches = (['for', 'against'] as const).map(side => ({
           <OutcomeSummary outcome={result} />
         ) : (
           <details class="reveal">
-            <summary>{t('dispatch.show')}</summary>
+            <summary>
+              <span class="when-closed">{t('dispatch.show')}</span><span class="when-open">{t('dispatch.hide')}</span>
+            </summary>
             <OutcomeSummary outcome={result} />
           </details>
         )
@@ -206,8 +208,16 @@ const benches = (['for', 'against'] as const).map(side => ({
     font-weight: 600;
     cursor: pointer;
   }
-  .reveal[open] summary {
+  /* The summary stays put when open (keyboard focus stays on it) and offers to hide the result again. */
+  .reveal summary .when-open,
+  .reveal[open] summary .when-closed {
     display: none;
+  }
+  .reveal[open] summary .when-open {
+    display: inline;
+  }
+  .reveal[open] summary {
+    margin-bottom: 0.75rem;
   }
   .live-dot {
     width: 0.65rem;

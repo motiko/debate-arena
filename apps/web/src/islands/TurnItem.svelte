@@ -33,7 +33,7 @@
   {/each}
   {#if rest.length > 0}
     <details class="more">
-      <summary>{t('floor.more')}</summary>
+      <summary><span class="when-closed">{t('floor.more')}</span><span class="when-open">{t('floor.less')}</span></summary>
       {#each rest as paragraph, i (i)}
         <p>{paragraph}</p>
       {/each}
@@ -115,8 +115,13 @@
     text-underline-offset: 0.18em;
     cursor: pointer;
   }
-  .more[open] summary {
+  /* The summary stays put when open (keyboard focus stays on it) and offers to show less. */
+  .more summary .when-open,
+  .more[open] summary .when-closed {
     display: none;
+  }
+  .more[open] summary .when-open {
+    display: inline;
   }
   .cut {
     font-family: var(--font-sans);

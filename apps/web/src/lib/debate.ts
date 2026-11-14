@@ -154,7 +154,7 @@ interface DispatchInput {
  */
 export function dispatchState(d: DispatchInput, now = Date.now()): DispatchState {
   if (d.turnsHidden) return 'ask';
-  if (d.kind === 'batch' && d.status !== 'complete') return 'generating';
+  if (d.kind === 'batch' && d.status === 'running') return 'generating';
   if (d.status === 'running') return 'live';
   if (d.status === 'failed') return d.turns.length > 0 ? 'judgingFailed' : 'failed';
   const closesAt = d.audienceResult.votingClosesAt;

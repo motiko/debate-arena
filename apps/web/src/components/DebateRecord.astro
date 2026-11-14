@@ -16,8 +16,8 @@ interface Props {
 const { debate, models, signedIn } = Astro.props;
 const url = new URL(`/debates/${debate.id}`, Astro.site ?? Astro.url).href;
 const format = `${debate.format.name}: ${debate.format.phases.map(p => p.name).join(', ')}`;
-// The API does not say whether the starter or the platform chose the Judge, so this says what is usual.
-const judges = t('record.picked', { judges: debate.panel.map(j => modelLabel(j, models)).join(', ') });
+// Only who judged: the API does not say whether the starter or the platform chose the Judge.
+const judges = debate.panel.map(j => modelLabel(j, models)).join(', ');
 ---
 
 <section class="record" aria-labelledby="record-title">

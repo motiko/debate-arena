@@ -111,6 +111,10 @@ describe('chamber helpers', () => {
     expect(dispatchState({ ...base, kind: 'batch', audienceResult: closed }, NOW)).toBe('hidden');
   });
 
+  test('a failed Batch Debate is failed, not generating', () => {
+    expect(dispatchState({ ...base, kind: 'batch', status: 'failed', turns: [] }, NOW)).toBe('failed');
+  });
+
   test('outcome names the winning model when judge and audience agree', () => {
     expect(outcome({ kind: 'live', debaters, verdict: { winner: 'for' }, audienceResult: result('for') }, models)).toEqual({
       headline: 'Fake A carries the Motion',

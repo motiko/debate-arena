@@ -63,6 +63,37 @@ test('a 300-character Motion fits a phone screen', async ({ page, request }) => 
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
+test('header controls are readable on the band for a signed-in Member', async ({ page }) => {
+  await page.setExtraHTTPHeaders({ 'x-dev-member': `band-${Date.now()}` });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCSS('color', 'rgb(242, 245, 241)');
+});
+
+test('the Motion and the dispatch box are inside main, where "Skip to content" lands', async ({ page, request }) => {
+  const { id, motion } = await startDebate(request);
+  await waitComplete(request, id);
+  await page.goto(`/debates/${id}`);
+  await expect(page.locator('main h1')).toHaveText(motion);
+  await expect(page.locator('main .dispatch')).toHaveCount(1);
+});
+
+test('"Show the result" stays focusable once open, offering to hide it', async ({ page, request }) => {
+  const { id } = await startDebate(request);
+  await waitComplete(request, id);
+  await page.goto(`/debates/${id}`);
+  const summary = page.locator('.dispatch summary');
+  await summary.click();
+  await expect(summary).toBeVisible();
+  await expect(summary).toHaveText('Hide the result', { useInnerText: true });
+});
+
+test('the Record names the Judge without guessing who chose it', async ({ page, request }) => {
+  const { id } = await startDebate(request);
+  await waitComplete(request, id);
+  await page.goto(`/debates/${id}`);
+  await expect(page.locator('.record')).not.toContainText('picked by the platform');
+});
+
 test('the page loads its serif from this site only', async ({ page }) => {
   const urls: string[] = [];
   page.on('request', request => urls.push(request.url()));

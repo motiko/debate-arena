@@ -106,6 +106,11 @@ test('only="after" offers the after-vote once complete', () => {
   expect(screen.getByRole('button', { name: 'Cast after-vote' })).toBeInTheDocument();
 });
 
+test('only="before" asks without repeating the Motion', () => {
+  render(VotePanel, { ...base, only: 'before' });
+  expect(screen.getByRole('group', { name: 'Before the Debate: where do you stand on the Motion?' })).toBeInTheDocument();
+});
+
 test('only="before" leaves out the title and intro', () => {
   render(VotePanel, { ...base, only: 'before' });
   expect(screen.queryByRole('heading', { name: 'Your Audience Vote' })).toBeNull();

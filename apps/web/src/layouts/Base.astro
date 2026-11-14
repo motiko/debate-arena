@@ -33,23 +33,23 @@ const canonical = new URL(canonicalPath, Astro.site ?? Astro.url).href;
   </head>
   <body>
     <a class="skip-link" href="#main">{t('site.skip')}</a>
-    <div class="band">
-      <header class="site-header">
-        <div class="wrap-wide">
-          <a class="brand" href="/"><span class="lozenge" aria-hidden="true"></span>{t('site.name')}</a>
-          <Header />
-        </div>
-      </header>
+    <header class="site-header band">
+      <div class="wrap-wide">
+        <a class="brand" href="/"><span class="lozenge" aria-hidden="true"></span>{t('site.name')}</a>
+        <Header />
+      </div>
+    </header>
+    <main id="main" tabindex="-1">
       {
         Astro.slots.has('band') && (
-          <div class="wrap-wide band-body">
-            <slot name="band" />
+          <div class="band">
+            <div class="wrap-wide">
+              <slot name="band" />
+            </div>
           </div>
         )
       }
-    </div>
-    <main id="main" tabindex="-1">
-      <div class={wide ? 'wrap-wide' : 'wrap'}>
+      <div class:list={[wide ? 'wrap-wide' : 'wrap', 'main-body']}>
         <slot />
       </div>
     </main>

@@ -142,7 +142,9 @@ a { color: var(--green); text-underline-offset: 0.18em; }
 .site-header nav button { min-height: 2.75rem; }
 .site-header nav a { display: inline-flex; align-items: center; }
 .site-header .quota { color: var(--band-muted); }
-.site-header button {
+/* .secondary too: button.secondary comes later and would otherwise paint green on the green band. */
+.site-header button,
+.site-header button.secondary {
   background: transparent;
   border-color: var(--band-ink);
   color: var(--band-ink);
@@ -158,9 +160,8 @@ a { color: var(--green); text-underline-offset: 0.18em; }
   text-decoration: none;
 }
 
-main { padding-block: calc(var(--space) * 1.5) calc(var(--space) * 3); }
-main > .wrap > * + *,
-main > .wrap-wide > * + * { margin-top: var(--space); }
+.main-body { padding-block: calc(var(--space) * 1.5) calc(var(--space) * 3); }
+.main-body > * + * { margin-top: var(--space); }
 
 .site-footer {
   border-top: 1px solid var(--line);
