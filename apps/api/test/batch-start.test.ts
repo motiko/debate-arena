@@ -27,7 +27,8 @@ const batch = { ...valid, batch: true };
 
 test('batch-capable models are marked and priced at their batch price', () => {
   expect(isBatchCapable(PRODUCTION_CATALOG, 'anthropic/claude-haiku-5.5')).toBe(true);
-  expect(isBatchCapable(PRODUCTION_CATALOG, 'google/gemini-3.8-flash')).toBe(true);
+  // OpenRouter's batch endpoint refuses Gemini with reasoning off ("Reasoning is mandatory"), so no Batch Debates.
+  expect(isBatchCapable(PRODUCTION_CATALOG, 'google/gemini-3.8-flash')).toBe(false);
   expect(isBatchCapable(PRODUCTION_CATALOG, 'mistralai/mistral-large-4-0')).toBe(false);
   expect(isBatchCapable(FAKE_CATALOG, 'fake-slow/one')).toBe(false);
   const batchCatalog = catalogFor(PRODUCTION_CATALOG, 'batch');

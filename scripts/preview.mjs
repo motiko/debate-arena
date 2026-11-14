@@ -98,8 +98,9 @@ export async function deploy(run, args, options, wait = () => sleep(5000)) {
   }
 }
 
-// Wrangler words a missing resource in several ways ("Couldn't find a D1 DB…", "does not exist", API codes).
-const NOT_FOUND = /not found|does not exist|could ?n[o']t find|10007|7404|10090|11000/i;
+// Wrangler words a missing resource in several ways ("Couldn't find a D1 DB…", "does not exist", "No worker consumer
+// … exists", API codes).
+const NOT_FOUND = /not found|does not exist|could ?n[o']t find|no worker consumer|10007|7404|10090|11000/i;
 const EXISTS = /already exists|already taken|11009/i;
 
 export async function up(pr, run = runner(apiDir), runWeb = runner(webDir), subdomain = process.env.WORKERS_SUBDOMAIN) {
@@ -135,11 +136,15 @@ export async function up(pr, run = runner(apiDir), runWeb = runner(webDir), subd
   return url;
 }
 
-/** Deletes the preview: Workers first (the API consumes the queue), then the queues, then the database. */
+/**
+ * Deletes the preview: the web Worker, then the API (which must first stop consuming its queue: Cloudflare refuses to
+ * delete a queue consumer [10064]), then the queues, then the database.
+ */
 export async function down(pr, run = runner(apiDir)) {
   const names = previewNames(pr);
   for (const args of [
     ['delete', '--name', names.web, '--force'],
+    ['queues', 'consumer', 'remove', names.queue, names.api],
     ['delete', '--name', names.api, '--force'],
     ['queues', 'delete', names.queue],
     ['queues', 'delete', names.dlq],

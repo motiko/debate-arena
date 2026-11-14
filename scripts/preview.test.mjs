@@ -68,6 +68,7 @@ test('down deletes everything in order and treats not-found as done', async () =
   await down(42, run);
   assert.deepEqual(commands, [
     'delete --name debate-arena-web-pr-42 --force',
+    'queues consumer remove debate-steps-pr-42 debate-arena-api-pr-42',
     'delete --name debate-arena-api-pr-42 --force',
     'queues delete debate-steps-pr-42',
     'queues delete debate-steps-pr-42-dlq',
@@ -80,6 +81,14 @@ test('down is safe to repeat: wrangler’s "Couldn’t find" for a deleted D1 co
     args[0] === 'd1'
       ? { code: 1, stdout: '', stderr: "✘ [ERROR] Couldn't find a D1 DB with the name or binding 'debate-arena-pr-42' in your wrangler.toml file." }
       : { code: 1, stdout: '', stderr: 'Queue "debate-steps-pr-42" does not exist. [code: 11000]' };
+  await down(42, run);
+});
+
+test('down counts an already removed queue consumer as done', async () => {
+  const run = async args =>
+    args[1] === 'consumer'
+      ? { code: 1, stdout: '', stderr: "✘ [ERROR] No worker consumer 'debate-arena-api-pr-42' exists for queue debate-steps-pr-42" }
+      : { code: 0, stdout: '', stderr: '' };
   await down(42, run);
 });
 

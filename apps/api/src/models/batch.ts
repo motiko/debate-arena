@@ -36,7 +36,8 @@ const PENDING = new Set(['validating', 'in_progress', 'finalizing']);
 interface BatchBody {
   id?: string;
   status?: string;
-  results?: { custom_id?: string; response?: CompletionBody; error?: { message?: string } }[];
+  // Each result wraps its completion like OpenAI's Batch API: response.body, next to the call's own status_code.
+  results?: { custom_id?: string; response?: { status_code?: number; body?: CompletionBody }; error?: { message?: string } | null }[];
   error?: { message?: string };
 }
 
@@ -100,13 +101,19 @@ export class OpenRouterBatchApi implements BatchApi {
       throw new OpenRouterError(`OpenRouter batch ${response.status}: ${body.error?.message ?? 'lookup failed'}`, response.status);
     }
     if (body.status && PENDING.has(body.status)) return { status: 'pending' };
-    if (body.status !== 'completed') return { status: 'failed', reason: `Batch ${body.status ?? 'unknown'}` };
+    if (body.status !== 'completed') {
+      const reason = `Batch ${body.status ?? 'unknown'}`;
+      return { status: 'failed', reason: body.error?.message ? `${reason}: ${body.error.message}` : reason };
+    }
     const result = body.results?.find(r => r.custom_id === 'call') ?? body.results?.[0];
-    if (!result?.response) return { status: 'failed', reason: result?.error?.message ?? 'Batch completed without a result' };
+    const completion = result?.response?.body;
+    if (!completion) return { status: 'failed', reason: result?.error?.message ?? 'Batch completed without a result' };
+    const callStatus = result.response?.status_code ?? response.status;
+    if (callStatus >= 400) return { status: 'failed', reason: `Batch call ${callStatus}: ${completion.error?.message ?? 'failed'}` };
     try {
-      return { status: 'completed', response: readCompletion(result.response, request, response.status) };
+      return { status: 'completed', response: readCompletion(completion, request, callStatus) };
     } catch (error) {
-      const usage = result.response.usage;
+      const usage = completion.usage;
       return {
         status: 'failed',
         reason: error instanceof Error ? error.message : String(error),

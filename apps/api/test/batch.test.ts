@@ -44,6 +44,7 @@ test.each(['validating', 'in_progress', 'finalizing'])('OpenRouterBatchApi keeps
 });
 
 test('OpenRouterBatchApi reads a completed batch', async () => {
+  // OpenRouter wraps each completion as response.body, next to its status_code (seen 2026-11-14).
   const { fetcher } = fakeFetch(() =>
     Response.json({
       id: 'batch_1',
@@ -51,7 +52,11 @@ test('OpenRouterBatchApi reads a completed batch', async () => {
       results: [
         {
           custom_id: 'call',
-          response: { choices: [{ message: { content: 'My argument.' }, finish_reason: 'stop' }], usage: { prompt_tokens: 12, completion_tokens: 3 } },
+          response: {
+            status_code: 200,
+            body: { choices: [{ message: { content: 'My argument.' }, finish_reason: 'stop' }], usage: { prompt_tokens: 12, completion_tokens: 3 } },
+          },
+          error: null,
         },
       ],
     }),
@@ -68,9 +73,17 @@ test.each([
   [{ status: 'cancelled' }],
   [{ status: 'completed', results: [{ custom_id: 'call', error: { message: 'Provider error' } }] }],
   [{ status: 'completed', results: [] }],
+  [{ status: 'completed', results: [{ custom_id: 'call', response: { status_code: 400, body: { error: { message: 'Bad request' } } } }] }],
 ])('OpenRouterBatchApi reports a failed batch (%#)', async body => {
   const { fetcher } = fakeFetch(() => Response.json({ id: 'batch_1', ...body }));
   expect(await new OpenRouterBatchApi('k', { fetcher }).get('batch_1', request)).toMatchObject({ status: 'failed' });
+});
+
+test('OpenRouterBatchApi keeps the error OpenRouter gives for a failed batch', async () => {
+  // As OpenRouter answered for google/gemini-3.8-flash with reasoning disabled (2026-11-14).
+  const message = "Failed to lower batch request 'call' to the provider wire: Reasoning is mandatory for this endpoint and cannot be disabled.";
+  const { fetcher } = fakeFetch(() => Response.json({ id: 'batch_1', status: 'failed', results: null, error: { message } }));
+  expect(await new OpenRouterBatchApi('k', { fetcher }).get('batch_1', request)).toEqual({ status: 'failed', reason: `Batch failed: ${message}` });
 });
 
 test('FakeBatchApi answers after its delay', async () => {
