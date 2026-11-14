@@ -1,6 +1,7 @@
 ---
 // A Blocked Debate: only the statement of reasons (DSA Art. 17), never its Motion or Turns. Reached by a
 // rewrite from /debates/[id] when the API answers 410.
+import PageHead from '../../components/PageHead.astro';
 import Base from '../../layouts/Base.astro';
 import { t, type MessageKey } from '../../i18n/t';
 import { formatDate } from '../../lib/format';
@@ -16,8 +17,9 @@ Astro.response.status = 410;
 ---
 
 <Base title={t('blocked.title')} description={t('blocked.description')} canonicalPath={`/debates/${id}`} noindex>
-  <h1>{t('blocked.title')}</h1>
-  <p>{t('blocked.body', { date: formatDate(blocked.decidedAt) })}</p>
+  <PageHead slot="band" title={t('blocked.title')}>
+    <p>{t('blocked.body', { date: formatDate(blocked.decidedAt) })}</p>
+  </PageHead>
   <section class="panel stack" aria-labelledby="reasons-title">
     <h2 id="reasons-title">{t('blocked.reasons')}</h2>
     <dl class="reasons">
@@ -26,7 +28,7 @@ Astro.response.status = 410;
       <dt>{t('blocked.reference')}</dt>
       <dd>{blocked.groundRef}</dd>
       <dt>{t('blocked.explanation')}</dt>
-      <dd>{blocked.explanation}</dd>
+      <dd class="explanation">{blocked.explanation}</dd>
     </dl>
     <p class="muted">{t('blocked.human')}</p>
   </section>
@@ -34,10 +36,28 @@ Astro.response.status = 410;
 </Base>
 
 <style>
+  .reasons {
+    display: grid;
+    gap: 0.2rem 1.5rem;
+  }
   .reasons dt {
+    color: var(--muted);
+    font-size: 0.95rem;
     font-weight: 600;
   }
   .reasons dd {
     margin: 0 0 0.75rem;
+  }
+  .reasons .explanation {
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+  }
+  @media (min-width: 40rem) {
+    .reasons {
+      grid-template-columns: 9rem minmax(0, 1fr);
+    }
+    .reasons dt {
+      padding-top: 0.1rem;
+    }
   }
 </style>

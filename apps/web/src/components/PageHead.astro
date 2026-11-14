@@ -1,0 +1,55 @@
+---
+// A page's h1 in the bench-green band, closed by a brass rule. Use inside Base: <PageHead slot="band" title="…">optional intro</PageHead>; pass `wide` when the page uses Base's wide column.
+interface Props {
+  title: string;
+  wide?: boolean;
+}
+
+const { title, wide = false } = Astro.props;
+---
+
+<div class:list={['page-head', { narrow: !wide }]}>
+  <h1>{title}</h1>
+  {
+    Astro.slots.has('default') && (
+      <div class="intro">
+        <slot />
+      </div>
+    )
+  }
+  <div class="rule" aria-hidden="true"><span class="lozenge"></span></div>
+</div>
+
+<style>
+  .page-head {
+    padding-top: clamp(1.25rem, 0.9rem + 1.6vw, 2.5rem);
+  }
+  /* Lines up with the reading column below (.wrap has the same measure). */
+  .narrow {
+    max-width: var(--measure);
+    margin-inline: auto;
+  }
+  .intro {
+    margin-top: 0.6rem;
+    color: var(--band-muted);
+  }
+  .intro > :global(* + *) {
+    margin-top: 0.35rem;
+  }
+  .rule {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: clamp(1rem, 0.8rem + 1vw, 1.5rem);
+    padding-bottom: 1.25rem;
+  }
+  .rule .lozenge {
+    --size: 0.5rem;
+  }
+  .rule::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--brass);
+  }
+</style>

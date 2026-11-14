@@ -12,3 +12,16 @@ export function format(template: string, params: Params = {}): string {
 export function t(key: MessageKey, params?: Params): string {
   return format(en[key], params);
 }
+
+/** A key with both plural forms in the dictionary: `{base}.one` and `{base}.other`. */
+export type PluralKey = {
+  [K in MessageKey]: K extends `${infer Base}.one` ? (`${Base}.other` extends MessageKey ? Base : never) : never;
+}[MessageKey];
+
+const pluralRules = new Intl.PluralRules('en');
+
+/** Copy that depends on a count: picks the plural form by the language's rules and fills `{count}`. */
+export function tn(key: PluralKey, count: number, params: Params = {}): string {
+  const form = pluralRules.select(count) === 'one' ? 'one' : 'other';
+  return t(`${key}.${form}` as MessageKey, { ...params, count });
+}

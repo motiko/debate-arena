@@ -15,7 +15,9 @@ test('the order paper names the benches and the outcome', async ({ page, request
   await page.goto('/');
   const entry = page.getByRole('listitem').filter({ has: page.getByRole('link', { name: motion }) });
   await expect(entry).toContainText('Fake A for, Fake B against');
-  await expect(entry).toContainText(/Carried|Defeated/);
+  // Just finished: Audience voting is open for a week, so the outcome waits (spec: the hybrid rule).
+  await expect(entry).toContainText('Voting open');
+  await expect(entry).not.toContainText(/Carried|Defeated/);
 });
 
 test('debate page shows Turns, Verdict and AI labels', async ({ page, request }) => {
@@ -25,6 +27,8 @@ test('debate page shows Turns, Verdict and AI labels', async ({ page, request })
   await expect(page).toHaveTitle(`${motion} · Debate Arena`);
   await expect(page.getByRole('heading', { level: 1, name: motion })).toBeVisible();
   await expect(page.getByRole('article')).toHaveCount(6);
+  // Voting is open and this Viewer has no after-vote: the outcome is folded until asked for.
+  await page.locator('.dispatch').getByRole('link', { name: 'Show the result' }).click();
   await expect(page.getByRole('heading', { name: /Verdict/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: /AI Audience Result/ })).toBeVisible();
   // Every Turn, the Verdict and the AI Audience Result carry the label.
@@ -38,18 +42,42 @@ test('debate page reads without JavaScript', async ({ browser, request }) => {
   const page = await context.newPage();
   await page.goto(`/debates/${id}`);
   await expect(page.getByRole('article')).toHaveCount(6);
+  // The folded outcome is a plain <details>: it opens without JavaScript.
+  await page.locator('#outcome > summary').click();
   await expect(page.getByRole('heading', { name: /Verdict/ })).toBeVisible();
   await context.close();
 });
 
-test('a finished Debate keeps its result behind "Show the result"', async ({ page, request }) => {
+test('while voting is open, one "Show the result" opens every outcome on the page', async ({ page, request }) => {
   const { id } = await startDebate(request);
   await waitComplete(request, id);
   await page.goto(`/debates/${id}`);
   const headline = page.locator('.dispatch .outcome-headline');
   await expect(headline).toBeHidden();
-  await page.locator('.dispatch summary', { hasText: 'Show the result' }).click();
+  await expect(page.locator('.verdict-winner')).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'Audience Result' })).toBeHidden();
+  await page.locator('.dispatch').getByRole('link', { name: 'Show the result' }).click();
   await expect(headline).toHaveText(/carries the Motion|defeats the Motion|Split decision/);
+  await expect(page.locator('.verdict-winner')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Audience Result' })).toBeVisible();
+});
+
+test('a signed-out Viewer is asked to sign in once, with the reason', async ({ page, request }) => {
+  const { id } = await startDebate(request);
+  await waitComplete(request, id);
+  await page.goto(`/debates/${id}`);
+  await expect(page.locator('main').getByRole('button', { name: /sign in/i })).toHaveCount(1);
+  await expect(page.locator('main').getByRole('button', { name: 'Sign in to vote' })).toBeVisible();
+  await expect(page.locator('.dispatch')).toContainText('Members vote before and after the Debate.');
+});
+
+test('one Copy link button, after the Motion, and a way on to more Debates', async ({ page, request }) => {
+  const { id } = await startDebate(request);
+  await waitComplete(request, id);
+  await page.goto(`/debates/${id}`);
+  await expect(page.getByRole('button', { name: 'Copy link to this Debate' })).toHaveCount(1);
+  await expect(page.locator('.debate-band').getByRole('button', { name: 'Copy link to this Debate' })).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'More Debates on the order paper' }).getByRole('link', { name: 'More Debates on the order paper' })).toHaveAttribute('href', '/');
 });
 
 test('a 300-character Motion fits a phone screen', async ({ page, request }) => {
@@ -69,6 +97,29 @@ test('header controls are readable on the band for a signed-in Member', async ({
   await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCSS('color', 'rgb(242, 245, 241)');
 });
 
+test('a signed-in header stays at two rows on a phone, with a visible account label', async ({ page }) => {
+  await page.setExtraHTTPHeaders({ 'x-dev-member': `rows-${Date.now()}` });
+  await page.setViewportSize({ width: 412, height: 915 });
+  await page.goto('/');
+  await expect(page.locator('.site-header').getByRole('link', { name: /^Your account/ })).toBeVisible();
+  // Two rows of 44px targets plus padding; a third row would push it past 130px.
+  expect((await page.locator('.site-header').boundingBox())?.height).toBeLessThan(130);
+});
+
+test("Sign out is the nav's last item, drawn last, and a Moderator's header also stays at two rows", async ({ page }) => {
+  await page.setExtraHTTPHeaders({ 'x-dev-member': `dev-mod-rows-${Date.now()}` });
+  await page.setViewportSize({ width: 412, height: 915 });
+  await page.goto('/');
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  const items = nav.locator(':is(a, button)');
+  await expect(items.last()).toHaveAccessibleName('Sign out');
+  // Drawn after every other item: on the last row, at its end.
+  const boxes = await items.evaluateAll(els => els.map(el => el.getBoundingClientRect()).map(r => ({ top: r.top, right: r.right })));
+  const signOut = boxes.at(-1)!;
+  for (const box of boxes.slice(0, -1)) expect(box.top < signOut.top || box.right <= signOut.right).toBe(true);
+  expect((await page.locator('.site-header').boundingBox())?.height).toBeLessThan(130);
+});
+
 test('the Motion and the dispatch box are inside main, where "Skip to content" lands', async ({ page, request }) => {
   const { id, motion } = await startDebate(request);
   await waitComplete(request, id);
@@ -81,7 +132,7 @@ test('"Show the result" stays focusable once open, offering to hide it', async (
   const { id } = await startDebate(request);
   await waitComplete(request, id);
   await page.goto(`/debates/${id}`);
-  const summary = page.locator('.dispatch summary');
+  const summary = page.locator('#outcome > summary');
   await summary.click();
   await expect(summary).toBeVisible();
   await expect(summary).toHaveText('Hide the result', { useInnerText: true });
@@ -166,6 +217,12 @@ test.describe('axe', () => {
     await expectNoAxeViolations(page);
   });
 
+  test('dark mode page heading band (404)', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto('/debates/no-such-debate');
+    await expectNoAxeViolations(page);
+  });
+
   test('dark mode Debate page', async ({ page, request }) => {
     const { id } = await startDebate(request);
     await waitComplete(request, id);
@@ -184,7 +241,7 @@ test.describe('dark mode', () => {
     await page.goto('/');
     await expectNoAxeViolations(page);
     await page.goto(`/debates/${id}`);
-    await page.locator('.dispatch summary', { hasText: 'Show the result' }).click();
+    await page.locator('.dispatch').getByRole('link', { name: 'Show the result' }).click();
     await expectNoAxeViolations(page);
     await page.setExtraHTTPHeaders({ 'x-dev-member': `dark-${Date.now()}` });
     await page.goto('/new');

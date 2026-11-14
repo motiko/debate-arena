@@ -29,15 +29,43 @@ test('before-vote, then after-vote once complete', async ({ page, request }) => 
   await expect(page.getByRole('article')).toHaveCount(6);
   // Still an after-vote to cast: the Verdict at the foot waits behind "Show the result" too.
   await expect(page.locator('.verdict-winner')).toBeHidden();
+  await expect(page.getByRole('group', { name: 'Where do you stand now?' })).toBeVisible();
   await page.getByRole('radio', { name: 'Against' }).check();
   await page.getByRole('button', { name: 'Cast after-vote' }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Your after-vote is recorded: Against.' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Your after-vote is recorded: Against.' })).toHaveCount(1);
+  // The after-vote opens the outcome in place, everywhere on the page.
+  await expect(page.locator('.verdict-winner')).toBeVisible();
+  await expect(page.locator('.dispatch .outcome-headline')).toBeVisible();
   await page.reload();
   await expect(page.getByText('You voted Against after the Debate.')).toBeVisible();
   await expect(page.getByText(/across 1 Member/)).toBeVisible();
   // Nothing left to vote on: the dispatch box shows the outcome without asking.
   await expect(page.locator('.dispatch .outcome-headline')).toBeVisible();
-  await expect(page.locator('.dispatch summary')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Show the result' })).toHaveCount(0);
+  await expect(page.locator('details#outcome')).toHaveCount(0);
+  await expect(page.getByRole('group', { name: 'Where do you stand now?' })).toHaveCount(0);
+});
+
+test('the starter of a live Debate votes before, follows it, and is asked again in place at the end', async ({ page }) => {
+  const member = uniqueMember('live');
+  await page.setExtraHTTPHeaders({ 'x-dev-member': member });
+  const { id } = await startDebate(page.request, { slow: true, member });
+  await page.goto(`/debates/${id}`);
+  await hydrated(page);
+  // The before-vote does not hide that the Debate is running.
+  await expect(page.locator('.dispatch')).toContainText('Live now');
+  await expect(page.getByRole('group', { name: 'Where do you stand?' })).toBeVisible();
+  await page.getByRole('radio', { name: 'For' }).check();
+  await page.getByRole('button', { name: 'Cast before-vote' }).click();
+  await expect(page.getByRole('log')).toBeVisible();
+  await page.evaluate(() => ((window as unknown as { __sameLoad: boolean }).__sameLoad = true));
+  await expect(page.getByText('The Debate is over.')).toBeVisible({ timeout: 40_000 });
+  await expect(page.getByRole('group', { name: 'Where do you stand now?' })).toBeVisible();
+  await expect(page.locator('.dispatch')).not.toContainText('Live now');
+  await page.getByRole('radio', { name: 'Against' }).check();
+  await page.getByRole('button', { name: 'Cast after-vote' }).click();
+  await expect(page.locator('.verdict-winner')).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { __sameLoad?: boolean }).__sameLoad)).toBe(true);
 });
 
 test('Self-Judging warning shows when the Judge is a Debater', async ({ page }) => {

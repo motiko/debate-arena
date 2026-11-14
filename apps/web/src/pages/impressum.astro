@@ -1,11 +1,12 @@
 ---
+import PageHead from '../components/PageHead.astro';
 import Base from '../layouts/Base.astro';
 import { t } from '../i18n/t';
 import { OPERATOR } from '../legal/operator';
 ---
 
 <Base title={t('legal.impressum')} description={t('legal.impressumDescription')} canonicalPath="/impressum">
-  <h1>{t('legal.impressum')}</h1>
+  <PageHead slot="band" title={t('legal.impressum')}><p>{t('legal.impressumDescription')}</p></PageHead>
   <section class="stack">
     <h2>{t('legal.operator')}</h2>
     <address class="stack">

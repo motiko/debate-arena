@@ -1,9 +1,11 @@
 ---
 import DecisionForm from '../islands/DecisionForm.svelte';
 import SignInButton from '../islands/SignInButton.svelte';
+import PageHead from '../components/PageHead.astro';
 import Base from '../layouts/Base.astro';
-import { t, type MessageKey } from '../i18n/t';
+import { t, tn, type MessageKey } from '../i18n/t';
 import { formatDate } from '../lib/format';
+import { reportCounts, reportReasons, waitingSince } from '../lib/moderation';
 
 interface QueueItem {
   id: string;
@@ -30,10 +32,22 @@ if (me?.isModerator) {
 const KNOWN_CATEGORIES = ['S1', 'S3', 'S4', 'S9', 'S10', 'S11', 'S12', 'unscreened'];
 const category = (code: string) => (KNOWN_CATEGORIES.includes(code) ? t(`moderation.category.${code}` as MessageKey) : code);
 const reason = (r: string) => t(`report.reason.${r}` as MessageKey);
+const label = (prefix: string, value: string, known: string[]) => (known.includes(value) ? t(`${prefix}.${value}` as MessageKey) : value);
+const visibility = (v: string) => label('moderation.visibility', v, ['listed', 'unlisted']);
+const state = (s: string) => label('moderation.state', s, ['running', 'complete', 'failed']);
+const now = new Date();
 ---
 
 <Base title={t('moderation.title')} description={t('moderation.description')} canonicalPath="/moderation" noindex>
-  <h1>{t('moderation.title')}</h1>
+  {
+    me?.isModerator ? (
+      <PageHead slot="band" title={t('moderation.title')}>
+        <p>{t('moderation.intro')}</p>
+      </PageHead>
+    ) : (
+      <PageHead slot="band" title={t('moderation.title')} />
+    )
+  }
   {
     !me ? (
       <div class="panel stack">
@@ -43,48 +57,61 @@ const reason = (r: string) => t(`report.reason.${r}` as MessageKey);
     ) : !me.isModerator ? (
       <p class="note">{t('moderation.forbidden')}</p>
     ) : items.length === 0 ? (
-      <p>{t('moderation.empty')}</p>
+      <p class="panel">{t('moderation.empty')}</p>
     ) : (
       <>
-        <p class="muted">{t('moderation.intro')}</p>
-        <ol class="queue stack" role="list">
-          {items.map(item => (
-            <li class="panel stack">
-              <h2>
-                <a href={`/debates/${item.id}`}>{item.motion}</a>
-              </h2>
-              <p class="muted">
-                {t('moderation.status', { status: item.status, visibility: item.visibility })} ·{' '}
-                <time datetime={item.createdAt}>{formatDate(item.createdAt)}</time>
-              </p>
-              {item.flagged && item.screen && (
-                <p class="note">{t('moderation.flagged', { categories: item.screen.categories.map(category).join(', ') })}</p>
-              )}
-              {item.memberReports + item.anonymousReports > 0 && (
-                <>
-                  <p>{t('moderation.reports', { members: item.memberReports, anonymous: item.anonymousReports })}</p>
-                  <ul class="reports stack" role="list">
-                    {item.reports.map(r => (
-                      <li>
-                        <p class="muted">
-                          {t('moderation.reportBy', {
-                            reason: reason(r.reason),
-                            who: r.byMember ? t('moderation.byMember') : t('moderation.anonymous'),
-                            date: formatDate(r.createdAt),
-                          })}
-                        </p>
-                        <p>{r.explanation}</p>
-                        {(r.reporterName || r.reporterEmail) && (
-                          <p class="muted">{t('moderation.contact', { contact: [r.reporterName, r.reporterEmail].filter(Boolean).join(', ') })}</p>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-              <DecisionForm client:visible debateId={item.id} />
-            </li>
-          ))}
+        <p class="count">{tn('moderation.count', items.length)}</p>
+        <ol class="queue" role="list">
+          {items.map(item => {
+            const counts = reportCounts(item.memberReports, item.anonymousReports);
+            return (
+              <li class="case">
+                <h2 class="case-motion">
+                  <a href={`/debates/${item.id}`}>{item.motion}</a>
+                </h2>
+                <p class="case-meta">
+                  <span class="badge">{visibility(item.visibility)}</span>
+                  <span>{state(item.status)}</span>
+                  <time datetime={item.createdAt} title={formatDate(item.createdAt)}>
+                    {t('moderation.started', { age: waitingSince(item.createdAt, now) })}
+                  </time>
+                </p>
+                {item.flagged && item.screen && (
+                  <p class="case-flag">{t('moderation.flagged', { categories: item.screen.categories.map(category).join(', ') })}</p>
+                )}
+                {counts && (
+                  <>
+                    <p class="case-reports">{t('moderation.reports', { counts })}</p>
+                    {item.reports.length > 0 && (
+                      <details class="reports">
+                        <summary>{t('moderation.readReports', { reasons: reportReasons(item.reports) })}</summary>
+                        <ul class="report-list" role="list">
+                          {item.reports.map(r => (
+                            <li class="stack">
+                              <p class="muted">
+                                {t('moderation.reportBy', {
+                                  reason: reason(r.reason),
+                                  who: r.byMember ? t('moderation.byMember') : t('moderation.anonymous'),
+                                  date: formatDate(r.createdAt),
+                                })}
+                              </p>
+                              <p>{r.explanation}</p>
+                              {(r.reporterName || r.reporterEmail) && (
+                                <p class="muted">{t('moderation.contact', { contact: [r.reporterName, r.reporterEmail].filter(Boolean).join(', ') })}</p>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </>
+                )}
+                <div class="case-decision">
+                  <DecisionForm client:visible debateId={item.id} />
+                </div>
+              </li>
+            );
+          })}
         </ol>
       </>
     )
@@ -92,16 +119,97 @@ const reason = (r: string) => t(`report.reason.${r}` as MessageKey);
 </Base>
 
 <style>
+  .count {
+    font-family: var(--font-serif);
+    font-size: 1.125rem;
+  }
   .queue,
-  .reports {
+  .report-list {
     list-style: none;
     padding: 0;
   }
-  .queue h2 {
-    font-size: 1.15rem;
+  /* One row per Debate, ruled like the order paper on the home page; no cards. */
+  .case {
+    padding-block: 1rem;
+    border-top: 1px solid var(--line);
   }
-  .reports li {
-    border-left: 3px solid var(--line);
-    padding-left: 0.75rem;
+  .case:last-child {
+    border-bottom: 1px solid var(--line);
+  }
+  .case > * + * {
+    margin-top: 0.4rem;
+  }
+  .case-motion {
+    font-size: 1.2rem;
+    line-height: 1.3;
+  }
+  .case-motion a {
+    color: var(--ink);
+    text-decoration-color: var(--line);
+  }
+  .case-motion a:hover {
+    text-decoration-color: currentColor;
+  }
+  .case-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  .case-flag {
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    border-radius: var(--radius);
+    background: var(--note-bg);
+    color: var(--note-text);
+    font-size: 0.95rem;
+  }
+  .case-reports {
+    font-size: 0.95rem;
+  }
+  .reports summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    color: var(--green);
+    font-size: 0.95rem;
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+    cursor: pointer;
+    gap: 0.5rem;
+    list-style: none;
+  }
+  .reports summary::-webkit-details-marker {
+    display: none;
+  }
+  /* A drawn chevron: down when closed, up when open. */
+  .reports summary::after {
+    content: '';
+    flex: none;
+    width: 0.4rem;
+    height: 0.4rem;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: translateY(-0.15rem) rotate(45deg);
+  }
+  .reports[open] summary::after {
+    transform: translateY(0.1rem) rotate(-135deg);
+  }
+  /* The Reports sit indented under their Debate, so the row rules still read as the queue's. */
+  .report-list {
+    margin-block: 0.25rem 0.5rem;
+    padding-left: 0.875rem;
+    border-left: 1px solid var(--line);
+  }
+  .report-list li + li {
+    margin-top: 0.85rem;
+  }
+  .report-list li > * + * {
+    margin-top: 0.25rem;
+  }
+  .case-decision {
+    padding-top: 0.35rem;
   }
 </style>

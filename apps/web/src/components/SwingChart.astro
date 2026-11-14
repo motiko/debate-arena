@@ -1,32 +1,57 @@
 ---
 // Each Side's Swing on one axis: For grows left from the centre, Against grows right. The chart is decorative;
-// the sentence under it (swingText) is the text alternative.
+// the sentence under it (swingText) is the text alternative. With nothing counted there is no chart, only the
+// sentence and what will appear.
 import type { OxfordResult } from '@debate-arena/engine';
 import { sideLabel, swingBars } from '../lib/debate';
 
 interface Props {
-  result: Pick<OxfordResult, 'swing'>;
+  result: Pick<OxfordResult, 'swing' | 'counted'>;
   label: string;
+  /** Said when nothing is counted yet: what will appear here, and when. */
+  empty?: string | undefined;
 }
 
-const { result, label } = Astro.props;
+const { result, label, empty } = Astro.props;
 const bars = swingBars(result);
 const signed = (points: number) => (points > 0 ? `+${points}` : points < 0 ? `âˆ’${Math.abs(points)}` : '0');
 ---
 
-<figure class="swing">
-  <div class="axis" aria-hidden="true">
-    <span class="bar bar-for" class:list={{ lost: bars.for.points < 0 }} style={`width: ${bars.for.width}`}></span>
-    <span class="bar bar-against" class:list={{ lost: bars.against.points < 0 }} style={`width: ${bars.against.width}`}></span>
-  </div>
-  <div class="labels" aria-hidden="true">
-    <span class="side-for">{sideLabel('for')} {signed(bars.for.points)}</span>
-    <span class="side-against">{sideLabel('against')} {signed(bars.against.points)}</span>
-  </div>
-  <figcaption>{label}</figcaption>
-</figure>
+{
+  result.counted === 0 ? (
+    <p class="swing-empty">
+      {label}
+      {empty && <span class="muted">{empty}</span>}
+    </p>
+  ) : (
+    <figure class="swing">
+      <div class="axis" aria-hidden="true">
+        <span class="bar bar-for" class:list={{ lost: bars.for.points < 0 }} style={`width: ${bars.for.width}`} />
+        <span class="bar bar-against" class:list={{ lost: bars.against.points < 0 }} style={`width: ${bars.against.width}`} />
+      </div>
+      <div class="labels" aria-hidden="true">
+        <span class="side-for">
+          {sideLabel('for')} {signed(bars.for.points)}
+        </span>
+        <span class="side-against">
+          {sideLabel('against')} {signed(bars.against.points)}
+        </span>
+      </div>
+      <figcaption>{label}</figcaption>
+    </figure>
+  )
+}
 
 <style>
+  .swing-empty {
+    padding: 1rem 0;
+    border-block: 1px dashed var(--line);
+  }
+  .swing-empty .muted {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.95rem;
+  }
   .swing {
     margin: 0;
   }
@@ -51,12 +76,12 @@ const signed = (points: number) => (points > 0 ? `+${points}` : points < 0 ? `âˆ
   }
   .bar-for {
     right: 50%;
-    background: var(--for);
+    background: var(--for-fill);
     border-radius: var(--radius) 0 0 var(--radius);
   }
   .bar-against {
     left: 50%;
-    background: var(--against);
+    background: var(--against-fill);
     border-radius: 0 var(--radius) var(--radius) 0;
   }
   /* A Side that lost ground is drawn hollow: same length, outline only. */

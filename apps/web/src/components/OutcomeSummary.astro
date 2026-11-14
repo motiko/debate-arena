@@ -1,4 +1,7 @@
 ---
+// The outcome in a few words. The headline restates the Judge's Verdict (with the audience when they split),
+// so the Judge row carries the AI-generated label for both (ADR 0005); the audience row is Members' votes.
+import AiLabel from './AiLabel.astro';
 import type { Outcome } from '../lib/debate';
 
 interface Props {
@@ -11,7 +14,7 @@ const { outcome } = Astro.props;
 <div class="outcome">
   <p class="outcome-headline">{outcome.headline}</p>
   <ul class="outcome-rows" role="list">
-    <li>{outcome.judge}</li>
+    <li>{outcome.judge} <AiLabel /></li>
     {outcome.audience && <li>{outcome.audience}</li>}
   </ul>
 </div>
@@ -30,5 +33,11 @@ const { outcome } = Astro.props;
     margin-top: 0.5rem;
     color: var(--muted);
     font-size: 0.95rem;
+  }
+  .outcome-rows li + li {
+    margin-top: 0.15rem;
+  }
+  .outcome-rows :global(.badge) {
+    vertical-align: 0.05em;
   }
 </style>

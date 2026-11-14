@@ -46,6 +46,10 @@
     flex-direction: column;
     gap: 0.5rem;
   }
+  /* The button keeps its own width; the column would otherwise stretch it full width. */
+  .copy-link > button {
+    align-self: flex-start;
+  }
   .manual {
     font-weight: 400;
   }

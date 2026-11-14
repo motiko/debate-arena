@@ -10,8 +10,9 @@ test('start a Batch Debate, see it is being generated, then read it when complet
   await page.goto('/new');
   await hydrated(page);
   await page.getByLabel('Motion').fill(motion);
-  await page.getByRole('checkbox', { name: /Batch Debate/ }).check();
-  await expect(page.getByText(/Costs 1 of your 6 Quota points/)).toBeVisible();
+  await expect(page.getByText('You have 6 Quota points left today.')).toBeVisible();
+  await page.getByRole('radio', { name: /Batch Debate/ }).check();
+  await expect(page.locator('#start-summary')).toHaveText(/^Batch Debate · .* · 1 Quota point$/);
   await page.getByRole('button', { name: 'Start the Debate' }).click();
   await expect(page).toHaveURL(/\/debates\/[0-9a-f-]+$/);
   const id = new URL(page.url()).pathname.split('/').at(-1)!;
@@ -39,7 +40,9 @@ test('start a Batch Debate, see it is being generated, then read it when complet
   await expect(page.getByRole('heading', { name: /Verdict/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /before-vote/ })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Audience Result' })).toHaveCount(0);
-  await expect(page.locator('.dispatch summary', { hasText: 'Show the result' })).toBeVisible();
+  // No Audience Votes, so nothing to hide: the outcome is open (spec: the hybrid rule).
+  await expect(page.locator('.dispatch .outcome-headline')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Show the result' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Record of this Debate' })).toBeVisible();
   await expectNoAxeViolations(page);
 });
