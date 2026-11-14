@@ -1,4 +1,5 @@
 ---
+import PageHead from '../components/PageHead.astro';
 import Base from '../layouts/Base.astro';
 import { t } from '../i18n/t';
 
@@ -6,7 +7,6 @@ Astro.response.status = 404;
 ---
 
 <Base title={t('notFound.title')} description={t('notFound.body')} canonicalPath="/404" noindex>
-  <h1>{t('notFound.title')}</h1>
-  <p>{t('notFound.body')}</p>
-  <p><a href="/">{t('notFound.home')}</a></p>
+  <PageHead slot="band" title={t('notFound.title')}><p>{t('notFound.body')}</p></PageHead>
+  <p><a class="button" href="/">{t('notFound.home')}</a></p>
 </Base>

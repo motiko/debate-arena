@@ -213,10 +213,10 @@ export const en = {
   'header.quotaShort': '{points} Quota points left',
 
   'notFound.title': 'Page not found',
-  'notFound.body': 'There is nothing here. It may have been moved, or the link is wrong.',
+  'notFound.body': 'This page is not on the order paper. The link may be wrong, or the page may have moved.',
   'notFound.home': 'Go to the Debates',
   'error.title': 'Something went wrong',
-  'error.body': 'This page could not be shown right now. Please try again in a moment.',
+  'error.body': 'The sitting was interrupted: this page could not be shown. Please try again in a moment.',
 
   'band.motion': 'The Motion before the house',
   'band.forBench': 'For the Motion',
