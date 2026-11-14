@@ -18,7 +18,7 @@ export interface OpenRouterOptions {
   disableReasoning?: (model: ModelId) => boolean;
 }
 
-interface CompletionBody {
+export interface CompletionBody {
   choices?: { message?: { content?: string | null }; finish_reason?: string | null }[];
   usage?: { prompt_tokens?: number; completion_tokens?: number };
   error?: { message?: string };
@@ -58,17 +58,22 @@ export class OpenRouterModelClient implements ModelClient {
     if (!response.ok) {
       throw new OpenRouterError(`OpenRouter ${response.status}: ${body.error?.message ?? 'request failed'}`, response.status);
     }
-    const choice = body.choices?.[0];
-    if (!choice) throw new OpenRouterError(`OpenRouter returned no choices for ${request.model}`, response.status);
-    if (choice.finish_reason === 'error') throw new OpenRouterError(`OpenRouter reported an error for ${request.model}`, response.status);
-
-    // Without usage, charge the worst case (prompt bytes bound its tokens; output is at most max_tokens),
-    // so a missing field can never make a call free and slip past Budget enforcement.
-    return {
-      text: choice.message?.content ?? '',
-      inputTokens: body.usage?.prompt_tokens ?? utf8Length(request.messages.map(m => m.content).join('')),
-      outputTokens: body.usage?.completion_tokens ?? request.maxOutputTokens,
-      finishReason: choice.finish_reason === 'length' ? 'length' : 'stop',
-    };
+    return readCompletion(body, request, response.status);
   }
+}
+
+/** A chat completion body as a ModelResponse; shared by live calls and Batch API results. */
+export function readCompletion(body: CompletionBody, request: ModelRequest, status: number | null): ModelResponse {
+  const choice = body.choices?.[0];
+  if (!choice) throw new OpenRouterError(`OpenRouter returned no choices for ${request.model}`, status);
+  if (choice.finish_reason === 'error') throw new OpenRouterError(`OpenRouter reported an error for ${request.model}`, status);
+
+  // Without usage, charge the worst case (prompt bytes bound its tokens; output is at most max_tokens),
+  // so a missing field can never make a call free and slip past Budget enforcement.
+  return {
+    text: choice.message?.content ?? '',
+    inputTokens: body.usage?.prompt_tokens ?? utf8Length(request.messages.map(m => m.content).join('')),
+    outputTokens: body.usage?.completion_tokens ?? request.maxOutputTokens,
+    finishReason: choice.finish_reason === 'length' ? 'length' : 'stop',
+  };
 }
