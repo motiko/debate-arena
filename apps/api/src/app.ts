@@ -3,7 +3,15 @@ import { Hono } from 'hono';
 import { exportMember } from './account/account';
 import { getAuth } from './auth/auth';
 import { memberResolver } from './auth/member';
-import { getBlockDecision, type BlockGround } from './db/moderation';
+import {
+  addReport,
+  getBlockDecision,
+  memberReportsSince,
+  reportsFromIpSince,
+  unlistForReports,
+  type BlockGround,
+} from './db/moderation';
+import { keyedHash, parseReport, REPORT_UNLIST_THRESHOLD, REPORTS_PER_IP_PER_HOUR } from './moderation/reports';
 import { quotaRemaining } from './db/quota';
 import { getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
 import { castAfter, castBefore, getVote, listVotes, type AudienceVote } from './db/votes';
@@ -203,6 +211,45 @@ export const app = new Hono<{ Bindings: Env }>()
     }
     const vote = (await getVote(c.env.DB, debate.id, memberId))!;
     return c.json({ vote: { before: vote.before, after: vote.after } }, 201);
+  })
+  .post('/debates/:id/reports', async c => {
+    if (!isJson(c.req.header('content-type'))) return c.json({ error: NOT_JSON }, 415);
+    let parsed: ReturnType<typeof parseReport>;
+    try {
+      parsed = parseReport(await c.req.json());
+    } catch {
+      parsed = 'Request body must be JSON';
+    }
+    if (typeof parsed === 'string') return c.json({ error: parsed }, 400);
+    const debate = await getDebate(c.env.DB, c.req.param('id'));
+    if (!debate) return c.json({ error: 'Debate not found' }, 404);
+    if (debate.visibility === 'blocked') return c.json({ error: BLOCKED }, 410);
+
+    const now = new Date();
+    const ip = c.req.header('cf-connecting-ip');
+    const ipHash = ip ? await keyedHash(c.env.BETTER_AUTH_SECRET, `report-ip:${ip}`) : null;
+    if (ipHash && (await reportsFromIpSince(c.env.DB, ipHash, new Date(now.getTime() - 3600_000).toISOString())) >= REPORTS_PER_IP_PER_HOUR) {
+      return c.json({ error: 'Too many Reports from your network. Please try again later.' }, 429);
+    }
+
+    const memberId = await memberResolver(c.env)(c.req.raw);
+    const added = await addReport(c.env.DB, {
+      id: crypto.randomUUID(),
+      debateId: debate.id,
+      reporterMemberId: memberId,
+      // A Member is known by their account; contact details are asked only from Viewers who are signed out.
+      reporterName: memberId ? null : parsed.name,
+      reporterEmail: memberId ? null : parsed.email,
+      reason: parsed.reason,
+      explanation: parsed.explanation,
+      ipHash,
+      createdAt: now.toISOString(),
+    });
+    if (!added) return c.json({ error: 'You already reported this Debate' }, 409);
+    if (memberId && (await memberReportsSince(c.env.DB, debate.id, debate.reviewedAt)) >= REPORT_UNLIST_THRESHOLD) {
+      await unlistForReports(c.env.DB, debate.id);
+    }
+    return c.json({ ok: true }, 201);
   })
   .get('/debates/:id/live', async c => {
     const id = c.req.param('id');

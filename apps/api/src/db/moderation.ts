@@ -71,6 +71,48 @@ export async function recordDecision(db: D1Database, d: ModerationDecision): Pro
   return update ? changed(update) : false;
 }
 
+export interface NewReport {
+  id: string;
+  debateId: string;
+  reporterMemberId: string | null;
+  reporterName: string | null;
+  reporterEmail: string | null;
+  reason: string;
+  explanation: string;
+  ipHash: string | null;
+  createdAt: string;
+}
+
+/** Stores a Report. False when this Member already reported this Debate. */
+export async function addReport(db: D1Database, r: NewReport): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `INSERT INTO reports (id, debate_id, reporter_member_id, reporter_name, reporter_email, reason, explanation, ip_hash, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (debate_id, reporter_member_id) DO NOTHING`,
+    )
+    .bind(r.id, r.debateId, r.reporterMemberId, r.reporterName, r.reporterEmail, r.reason, r.explanation, r.ipHash, r.createdAt)
+    .run();
+  return changed(result);
+}
+
+/** Members' Reports on a Debate since its last review (or ever): the count that Unlists it. */
+export async function memberReportsSince(db: D1Database, debateId: string, since: string | null): Promise<number> {
+  const row = await db
+    .prepare(`SELECT COUNT(*) AS n FROM reports WHERE debate_id = ? AND reporter_member_id IS NOT NULL AND created_at > ?`)
+    .bind(debateId, since ?? '')
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
+/** Reports from one (hashed) IP since a time, for rate limiting. */
+export async function reportsFromIpSince(db: D1Database, ipHash: string, since: string): Promise<number> {
+  const row = await db
+    .prepare(`SELECT COUNT(*) AS n FROM reports WHERE ip_hash = ? AND created_at > ?`)
+    .bind(ipHash, since)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
 interface DecisionRow {
   id: string;
   debate_id: string;
