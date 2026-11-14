@@ -30,7 +30,9 @@ export const PRODUCTION_CATALOG: Catalog = {
   entries: [
     { id: 'anthropic/claude-haiku-5.5', label: 'Claude Haiku 5.5', price: price(0.1, 0.5), roles: ALL_ROLES, reasoning: 'optional', batchPrice: price(0.05, 0.25) },
     { id: 'openai/gpt-6.1-terra', label: 'GPT-6.1 Terra', price: price(1, 5), roles: ALL_ROLES, reasoning: 'optional', batchPrice: price(0.5, 2.5) },
-    { id: 'google/gemini-3.8-flash', label: 'Gemini 3.8 Flash', price: price(0.825, 4.125), roles: ALL_ROLES, reasoning: 'optional', batchPrice: price(0.375, 1.875) },
+    // Not batch-capable for us: OpenRouter's batch endpoint refuses it with reasoning off ("Reasoning is mandatory for
+    // this endpoint and cannot be disabled", 2026-11-14), and mandatory reasoning would break the Budget.
+    { id: 'google/gemini-3.8-flash', label: 'Gemini 3.8 Flash', price: price(0.825, 4.125), roles: ALL_ROLES, reasoning: 'optional' },
     { id: 'mistralai/mistral-large-4-0', label: 'Mistral Large 4', price: price(0.7, 2.1), roles: ALL_ROLES, reasoning: 'optional' },
     // Batch-capable; its batch price is above the cheapest normal provider (0.051/0.203 on 2026-11-14), not a discount.
     { id: 'deepseek/deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash', price: price(0.3, 1.2), roles: ALL_ROLES, reasoning: 'optional', batchPrice: price(0.112, 0.336) },
