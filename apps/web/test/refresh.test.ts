@@ -37,6 +37,12 @@ test('announces the fresh regions, after what the caller has to say', async () =
   expect(document.getElementById('debate-announcer')).toHaveTextContent('Your after-vote is recorded: For. Fake A carries the Motion.');
 });
 
+test('says only what the caller has to say when the regions are not to announce themselves', async () => {
+  setUp();
+  await refreshRegions({ fetcher: serve(page('x', '', 'Where do you stand now?')), url: '/d', prefix: 'Your before-vote is recorded: For.', announce: false });
+  expect(document.getElementById('debate-announcer')).toHaveTextContent(/^Your before-vote is recorded: For\.$/);
+});
+
 test('moves focus into the fresh render when asked, so it is not lost with the old one', async () => {
   setUp();
   document.querySelector('button')?.focus();

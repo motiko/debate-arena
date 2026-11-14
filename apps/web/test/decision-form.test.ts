@@ -82,6 +82,20 @@ test('asks before relisting, with focus on the answer, and Cancel goes back', as
   expect(fetcher).not.toHaveBeenCalled();
 });
 
+test('focus follows the Relist to its outcome, or to the error', async () => {
+  render(DecisionForm, { debateId: 'd1', fetcher: respond(201, {}).fetcher });
+  await fireEvent.click(screen.getByRole('button', { name: 'Relist' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Yes, relist' }));
+  await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByRole('status')));
+});
+
+test('focus goes to the error when the Relist fails', async () => {
+  render(DecisionForm, { debateId: 'd1', fetcher: respond(409, { error: 'This Debate is already blocked' }).fetcher });
+  await fireEvent.click(screen.getByRole('button', { name: 'Relist' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Yes, relist' }));
+  await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByRole('alert')));
+});
+
 test('the final Block is drawn as destructive', async () => {
   render(DecisionForm, { debateId: 'd1', fetcher: respond(201, {}).fetcher });
   expect(screen.getByRole('button', { name: 'Block' })).toHaveClass('danger');

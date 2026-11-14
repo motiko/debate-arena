@@ -14,13 +14,15 @@ export interface RefreshOptions {
    * element, or with a selector, to the element it names.
    */
   focus?: boolean | string;
+  /** False keeps the fresh regions' own announcements (data-announce) unsaid: only the prefix is said. */
+  announce?: boolean;
   /** Regions marked data-on-request to swap too (the rest of those stay as they are), e.g. the floor. */
   include?: string[];
 }
 
 /** True when at least one region was replaced; false leaves the page exactly as it was. */
 export async function refreshRegions(options: RefreshOptions = {}): Promise<boolean> {
-  const { fetcher = fetch, doc = document, prefix = '', focus = false, include = [] } = options;
+  const { fetcher = fetch, doc = document, prefix = '', focus = false, include = [], announce = true } = options;
   let html: string;
   try {
     const response = await fetcher(options.url ?? doc.location.href, { headers: { accept: 'text/html' }, cache: 'no-store' });
@@ -45,7 +47,7 @@ export async function refreshRegions(options: RefreshOptions = {}): Promise<bool
   for (const [region, next] of swaps) {
     next.dataset.arrived = '';
     region.replaceWith(next);
-    if (next.dataset.announce) said.push(next.dataset.announce);
+    if (announce && next.dataset.announce) said.push(next.dataset.announce);
   }
   const announcer = doc.getElementById('debate-announcer');
   if (announcer) announcer.textContent = said.join(' ');

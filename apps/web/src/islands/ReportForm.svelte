@@ -82,6 +82,7 @@
         bind:this={reasonField}
         bind:value={reason}
         aria-invalid={reasonMissing ? 'true' : undefined}
+        aria-describedby={reasonMissing ? 'report-error' : undefined}
         onchange={() => (reasonMissing = false)}
       >
         <option value="" disabled>{t('report.reasonChoose')}</option>
@@ -106,6 +107,6 @@
     {/if}
     <label class="choice"><input type="checkbox" bind:checked={goodFaith} /> {t('report.goodFaith')}</label>
     <button type="submit" class="secondary" disabled={pending || !hydrated} aria-busy={pending}>{t('report.submit')}</button>
-    {#if error}<p role="alert" class="error">{error}</p>{/if}
+    {#if error}<p id="report-error" role="alert" class="error">{error}</p>{/if}
   </form>
 {/if}

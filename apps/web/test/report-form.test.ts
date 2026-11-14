@@ -73,6 +73,7 @@ test('asks for a reason instead of assuming one', async () => {
   await fireEvent.click(screen.getByRole('button', { name: 'Send Report' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Choose a reason.');
   expect(screen.getByLabelText('Reason')).toHaveAttribute('aria-invalid', 'true');
+  expect(screen.getByLabelText('Reason')).toHaveAccessibleDescription('Choose a reason.');
   await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Reason')));
   expect(fetcher).not.toHaveBeenCalled();
 });

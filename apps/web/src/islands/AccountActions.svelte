@@ -19,6 +19,8 @@
   let needsReauth = $state(false);
   let startButton: HTMLButtonElement | undefined = $state();
   let confirmBox: HTMLInputElement | undefined = $state();
+  let errorLine: HTMLElement | undefined = $state();
+  let reauthButton: HTMLButtonElement | undefined = $state();
 
   // Each step replaces the button that had focus, so focus moves on to the next decision rather than the page start.
   async function confirm() {
@@ -57,6 +59,9 @@
       error = t('account.deleteFailed');
     }
     pending = false;
+    // The delete button was disabled while sending, which drops its focus: move on to the way forward, or the error.
+    await tick();
+    (needsReauth ? reauthButton : errorLine)?.focus();
   }
 
   async function reauth() {
@@ -80,8 +85,8 @@
       <button type="button" class="secondary" onclick={cancel} disabled={pending}>{t('account.cancel')}</button>
     </div>
   {/if}
-  {#if error}<p role="alert" class="error">{error}</p>{/if}
-  {#if needsReauth}<button type="button" class="secondary" onclick={reauth}>{t('account.reauthButton')}</button>{/if}
+  {#if error}<p role="alert" class="error" tabindex="-1" bind:this={errorLine}>{error}</p>{/if}
+  {#if needsReauth}<button type="button" class="secondary" bind:this={reauthButton} onclick={reauth}>{t('account.reauthButton')}</button>{/if}
 </section>
 
 <style>

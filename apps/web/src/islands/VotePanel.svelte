@@ -93,13 +93,19 @@
       }
       vote = body.vote;
       choice = '';
-      announcement = t('vote.recorded', { phase: castPhase, stance: stanceLabel(stance) });
+      const recorded = t('vote.recorded', { phase: castPhase, stance: stanceLabel(stance) });
+      // The vote is said once: by the page when it brings in a fresh render (this panel is replaced), else here.
       // The Turns open with the before-vote: brought in place with focus on them, so the reader carries on
       // reading where the page now continues; a full reload only if that fails (it would start at the top).
-      if (castPhase === 'before' && turnsHidden && !(await refresh({ fetcher, prefix: announcement, include: ['turns'], focus: '#turns' }))) reload();
+      // Only the vote is said: the fresh dispatch box's own words are for the end of a live Debate.
+      if (castPhase === 'before' && turnsHidden) {
+        if (!(await refresh({ fetcher, prefix: recorded, announce: false, include: ['turns'], focus: '#turns' }))) reload();
+        return;
+      }
       // The hybrid rule: with the after-vote cast the outcome opens, so the page brings it in and moves focus
-      // there (this form is replaced). If that fails, this panel still says the vote is recorded.
-      if (castPhase === 'after') await refresh({ fetcher, prefix: announcement, focus: true });
+      // there (this form is replaced).
+      if (castPhase === 'after' && (await refresh({ fetcher, prefix: recorded, focus: true }))) return;
+      announcement = recorded;
     } catch {
       error = t('vote.failed');
     } finally {

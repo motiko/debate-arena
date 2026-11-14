@@ -62,9 +62,13 @@ test('brings the Turns in place after the before-vote and moves focus to them', 
   await fireEvent.click(screen.getByRole('radio', { name: 'Against' }));
   await fireEvent.click(screen.getByRole('button', { name: /cast before-vote/i }));
   await vi.waitFor(() =>
-    expect(refresh).toHaveBeenCalledWith(expect.objectContaining({ include: ['turns'], focus: '#turns', prefix: 'Your before-vote is recorded: Against.' })),
+    expect(refresh).toHaveBeenCalledWith(
+      expect.objectContaining({ include: ['turns'], focus: '#turns', prefix: 'Your before-vote is recorded: Against.', announce: false }),
+    ),
   );
   expect(reload).not.toHaveBeenCalled();
+  // Said once, by the page: the panel itself is being replaced.
+  expect(screen.getByRole('status')).toHaveTextContent(/^$/);
 });
 
 test('reloads to reveal Turns when they cannot be brought in place', async () => {

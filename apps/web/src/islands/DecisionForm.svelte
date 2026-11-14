@@ -22,6 +22,8 @@
   let confirmingRelist = $state(false);
   let relistButton: HTMLButtonElement | undefined = $state();
   let relistYes: HTMLButtonElement | undefined = $state();
+  let outcomeLine: HTMLElement | undefined = $state();
+  let errorLine: HTMLElement | undefined = $state();
 
   async function askRelist() {
     confirmingRelist = true;
@@ -48,15 +50,19 @@
       });
       if (response.status === 201) {
         outcome = done;
-        return;
+      } else {
+        const data = (await response.json().catch(() => ({}))) as { error?: string };
+        error = data.error ?? t('moderation.failed');
       }
-      const data = (await response.json().catch(() => ({}))) as { error?: string };
-      error = data.error ?? t('moderation.failed');
     } catch {
       error = t('moderation.failed');
     } finally {
       pending = false;
     }
+    // The button that had focus is gone (the decision is made) or was disabled while sending: focus moves on to
+    // what happened, so it does not fall back to the page start.
+    await tick();
+    (outcome ? outcomeLine : errorLine)?.focus();
   }
 
   function block(event: SubmitEvent) {
@@ -70,7 +76,7 @@
 </script>
 
 {#if outcome}
-  <p role="status"><strong>{outcome}</strong></p>
+  <p role="status" tabindex="-1" bind:this={outcomeLine}><strong>{outcome}</strong></p>
 {:else}
   <!-- The two decisions side by side. Block's statement of reasons opens below them, in a <details> so it opens
        without JavaScript. -->
@@ -109,7 +115,7 @@
     </details>
   </div>
 {/if}
-{#if error}<p role="alert" class="error">{error}</p>{/if}
+{#if error}<p role="alert" class="error" tabindex="-1" bind:this={errorLine}>{error}</p>{/if}
 
 <style>
   /* Relist floats beside the Block summary; the opened form clears below both. */
