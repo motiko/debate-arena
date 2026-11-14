@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { format, t } from '../src/i18n/t';
+import { format, t, tn } from '../src/i18n/t';
 
 test('returns copy for a key', () => {
   expect(t('feed.title').length).toBeGreaterThan(0);
@@ -11,4 +11,11 @@ test('interpolates params', () => {
 
 test('leaves unknown placeholders visible', () => {
   expect(format('Hello {missing}', {})).toBe('Hello {missing}');
+});
+
+test('picks the plural form by count', () => {
+  expect(tn('moderation.memberReports', 1)).toBe('1 Member Report');
+  expect(tn('moderation.memberReports', 0)).toBe('0 Member Reports');
+  expect(tn('moderation.memberReports', 2)).toBe('2 Member Reports');
+  expect(tn('moderation.anonymousReports', 1)).toBe('1 anonymous Report');
 });
