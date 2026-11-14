@@ -4,7 +4,9 @@ All code is written by agents, so tooling is chosen for speed and for catching m
 
 `pnpm dev` runs the whole platform offline in the real Workers runtime via Wrangler, with seeded data and a fake model provider; real OpenRouter calls are opt-in through an environment variable, so local runs and tests are free and deterministic.
 
-There is no long-lived staging environment: merging to main deploys production, and every pull request gets its own isolated preview (Workers deployment, D1 database, Durable Objects and Queues), migrated and seeded on creation and deleted when the PR closes. Previews use the fake model provider unless a PR label enables real OpenRouter under a spend cap. Lighthouse CI and Playwright run against the preview URL.
+There is no long-lived staging environment: merging to main deploys production, and every pull request gets its own isolated preview (Workers deployment, D1 database, Durable Objects and Queues), migrated on creation and deleted when the PR closes. Previews use the fake model provider and accept the dev sign-in header, since their data is throwaway. Lighthouse CI and Playwright run in CI against a local build of the same commit rather than against the preview URL, so a pull request's quality gate does not depend on Cloudflare being reachable; the preview is for people to try the change.
+
+Not built yet: seeded preview data, and a PR label that enables real OpenRouter under a spend cap.
 
 ## Considered Options
 

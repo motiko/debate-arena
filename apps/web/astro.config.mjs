@@ -1,10 +1,11 @@
 import cloudflare from '@astrojs/cloudflare';
 import svelte from '@astrojs/svelte';
 import { defineConfig } from 'astro/config';
+import { readApiConfig, siteUrl } from './site.mjs';
 
 export default defineConfig({
-  // The real domain is set in Plan 7 (delivery).
-  site: 'https://debate-arena.invalid',
+  // Canonical links: the production address in a production build (from the API's BETTER_AUTH_URL), else localhost.
+  site: siteUrl(process.env.CLOUDFLARE_ENV, readApiConfig()),
   // No Astro sessions: Members' sessions belong to the API (Better Auth), so no KV binding is needed.
   session: false,
   // Pages are rendered per request: they show live Debate state and the signed-in Member.

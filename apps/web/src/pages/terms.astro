@@ -1,0 +1,11 @@
+---
+import LegalSections from '../components/LegalSections.astro';
+import Base from '../layouts/Base.astro';
+import { t } from '../i18n/t';
+import { TERMS } from '../legal/content';
+---
+
+<Base title={t('legal.terms')} description={t('legal.termsDescription')} canonicalPath="/terms">
+  <h1>{t('legal.terms')}</h1>
+  <LegalSections sections={TERMS} />
+</Base>

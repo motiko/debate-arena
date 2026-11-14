@@ -12,8 +12,12 @@ import {
   recordDecision,
   unlistForReports,
   type BlockGround,
+  type ModerationDecision,
 } from './db/moderation';
 import { isModerator, parseDecision } from './moderation/moderators';
+import { endedBatchId, verifySignature } from './webhooks/openrouter';
+import { createEmailSender, type EmailEnv } from './notices/email';
+import { noticeDecision, noticeReportReceived, type NoticeDeps } from './notices/notify';
 import { keyedHash, parseReport, rateLimitNetwork, REPORT_UNLIST_THRESHOLD, REPORTS_PER_IP_PER_HOUR } from './moderation/reports';
 import { quotaRemaining } from './db/quota';
 import { getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
@@ -113,6 +117,21 @@ function parseVote(input: unknown): { phase: VotePhase; stance: Stance } | null 
   const p = PHASES.find(x => x === phase);
   const s = STANCES.find(x => x === stance);
   return p && s ? { phase: p, stance: s } : null;
+}
+
+/**
+ * Sends DSA notices after the response, best-effort: a missing or failing email provider never fails the request.
+ */
+function afterResponse(c: { env: Env; executionCtx: { waitUntil(promise: Promise<unknown>): void } }, notice: (deps: NoticeDeps) => Promise<void>): void {
+  const run = async () => {
+    try {
+      const env = c.env as Env & EmailEnv;
+      await notice({ db: env.DB, sender: createEmailSender(env), siteUrl: env.BETTER_AUTH_URL, contact: env.EMAIL_FROM });
+    } catch (error) {
+      console.error('Could not send notices', error);
+    }
+  };
+  c.executionCtx.waitUntil(run());
 }
 
 /** The signed-in Moderator, or why the request is refused (401 signed out, 403 not a Moderator). */
@@ -282,6 +301,15 @@ export const app = new Hono<{ Bindings: Env }>()
     if (memberId && (await memberReportsSince(c.env.DB, debate.id, debate.reviewedAt)) >= REPORT_UNLIST_THRESHOLD) {
       await unlistForReports(c.env.DB, debate.id);
     }
+    // DSA Art. 16(4): confirm receipt to the reporter: at the email they gave, or a Member's account email.
+    const givenEmail = memberId ? null : parsed.email;
+    afterResponse(c, async deps => {
+      const account = memberId
+        ? await deps.db.prepare('SELECT email FROM "user" WHERE id = ?').bind(memberId).first<{ email: string }>()
+        : null;
+      const email = givenEmail ?? account?.email;
+      if (email) await noticeReportReceived(deps, debate.id, email);
+    });
     return c.json({ ok: true }, 201);
   })
   .get('/moderation/queue', async c => {
@@ -309,7 +337,7 @@ export const app = new Hono<{ Bindings: Env }>()
         : (await hasReportsSince(c.env.DB, debate.id, debate.reviewedAt))
           ? 'reports'
           : 'moderator';
-    const applied = await recordDecision(c.env.DB, {
+    const decision = {
       id: crypto.randomUUID(),
       debateId: debate.id,
       action: parsed.action,
@@ -321,8 +349,10 @@ export const app = new Hono<{ Bindings: Env }>()
       explanation: parsed.explanation,
       moderatorId: moderator.memberId,
       decidedAt: new Date().toISOString(),
-    });
+    } satisfies ModerationDecision;
+    const applied = await recordDecision(c.env.DB, decision);
     if (!applied) return c.json({ error: 'This Debate is already blocked' }, 409);
+    afterResponse(c, deps => noticeDecision(deps, debate, decision, debate.reviewedAt));
     if (parsed.action === 'block') {
       // Viewers already watching must stop seeing it. Best-effort: new requests are refused with 410 anyway.
       try {
@@ -332,6 +362,23 @@ export const app = new Hono<{ Bindings: Env }>()
       }
     }
     return c.json({ visibility: parsed.action === 'block' ? 'blocked' : 'listed' }, 201);
+  })
+  .post('/webhooks/openrouter', async c => {
+    // Off unless the workspace's signing secret is set: then a forged call cannot even tell the route exists.
+    const secret = c.env.OPENROUTER_WEBHOOK_SECRET;
+    if (!secret) return c.json({ error: 'Not found' }, 404);
+    const rawBody = await c.req.text();
+    const signature = c.req.header('x-openrouter-signature') ?? '';
+    if (!(await verifySignature(secret, signature, rawBody, Math.floor(Date.now() / 1000)))) {
+      return c.json({ error: 'Invalid signature' }, 401);
+    }
+    const batchId = endedBatchId(rawBody);
+    if (batchId) {
+      const call = await c.env.DB.prepare('SELECT debate_id FROM batch_calls WHERE batch_id = ? LIMIT 1').bind(batchId).first<{ debate_id: string }>();
+      // The Debate's step runs now and reads the batch's result; its pending poll later finds nothing to do.
+      if (call) await c.env.STEP_QUEUE.send({ debateId: call.debate_id });
+    }
+    return c.json({ ok: true });
   })
   .get('/debates/:id/live', async c => {
     const id = c.req.param('id');

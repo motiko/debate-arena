@@ -114,6 +114,9 @@ main > .wrap > * + * { margin-top: var(--space); }
   padding-block: var(--space);
 }
 
+.legal-nav { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; margin-top: 0.75rem; }
+.legal-nav a { display: inline-block; padding-block: 0.4rem; }
+
 .stack > * + * { margin-top: 0.75rem; }
 .muted { color: var(--muted); }
 

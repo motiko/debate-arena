@@ -43,13 +43,15 @@ interface BatchBody {
 export class OpenRouterBatchApi implements BatchApi {
   private readonly fetcher: typeof fetch;
   private readonly disableReasoning: (model: ModelId) => boolean;
+  private readonly callbackUrl: string | undefined;
 
   constructor(
     private readonly apiKey: string,
-    options: { fetcher?: typeof fetch; disableReasoning?: (model: ModelId) => boolean } = {},
+    options: { fetcher?: typeof fetch; disableReasoning?: (model: ModelId) => boolean; callbackUrl?: string } = {},
   ) {
     this.fetcher = options.fetcher ?? ((input, init) => fetch(input, init));
     this.disableReasoning = options.disableReasoning ?? (() => false);
+    this.callbackUrl = options.callbackUrl;
   }
 
   private headers(): HeadersInit {
@@ -69,6 +71,8 @@ export class OpenRouterBatchApi implements BatchApi {
         endpoint: '/v1/chat/completions',
         model: request.model,
         completion_window: '24h',
+        // OpenRouter requires callback_url before requests (400 otherwise).
+        ...(this.callbackUrl ? { callback_url: this.callbackUrl } : {}),
         requests: [
           {
             custom_id: 'call',

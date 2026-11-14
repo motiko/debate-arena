@@ -1,0 +1,34 @@
+---
+import Base from '../layouts/Base.astro';
+import { t } from '../i18n/t';
+import { OPERATOR } from '../legal/operator';
+---
+
+<Base title={t('legal.impressum')} description={t('legal.impressumDescription')} canonicalPath="/impressum">
+  <h1>{t('legal.impressum')}</h1>
+  <section class="stack">
+    <h2>{t('legal.operator')}</h2>
+    <address class="stack">
+      <p>{OPERATOR.name}</p>
+      <p>{OPERATOR.street}<br />{OPERATOR.postcode} {OPERATOR.city}<br />{OPERATOR.country}</p>
+      <p>
+        {t('legal.email')}: <a href={`mailto:${OPERATOR.email}`}>{OPERATOR.email}</a>
+        {OPERATOR.phone && <><br />{t('legal.phone')}: {OPERATOR.phone}</>}
+      </p>
+    </address>
+  </section>
+  <section class="stack">
+    <h2>{t('legal.responsible')}</h2>
+    <p>{OPERATOR.responsibleForContent}</p>
+  </section>
+  <section class="stack">
+    <h2>{t('legal.aiContent')}</h2>
+    <p>{t('site.aiNotice')}</p>
+  </section>
+</Base>
+
+<style>
+  address {
+    font-style: normal;
+  }
+</style>

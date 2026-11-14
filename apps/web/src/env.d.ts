@@ -7,6 +7,8 @@
 interface Env {
   API: Fetcher;
   ASSETS: Fetcher;
+  /** Cookieless page views (production only; absent locally). */
+  ANALYTICS?: AnalyticsEngineDataset;
 }
 declare namespace App {
   interface Locals {

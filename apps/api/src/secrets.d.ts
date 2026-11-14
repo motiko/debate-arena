@@ -5,6 +5,11 @@ interface WorkerSecrets {
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
   OPENROUTER_API_KEY?: string;
+  /** Signs OpenRouter's batch webhooks; without it the webhook is off and Batch Debates rely on polling. */
+  OPENROUTER_WEBHOOK_SECRET?: string;
+  /** Scaleway Transactional Email (EMAIL_PROVIDER "scaleway"). */
+  SCALEWAY_SECRET_KEY?: string;
+  SCALEWAY_PROJECT_ID?: string;
 }
 
 // The global Env (handlers, Hono bindings) and Cloudflare.Env (`env` from cloudflare:workers).
