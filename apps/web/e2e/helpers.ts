@@ -24,9 +24,13 @@ export async function waitComplete(request: APIRequestContext, id: string): Prom
     .not.toBe('running');
 }
 
-/** Waits until every island has hydrated (Astro drops the `ssr` attribute), so input reaches Svelte state. */
+/**
+ * Waits until islands have hydrated (Astro drops the `ssr` attribute), so input reaches Svelte state.
+ * `client:visible` islands hydrate only once shown, so only visible ones are waited for.
+ */
 export async function hydrated(page: Page): Promise<void> {
-  await expect(page.locator('astro-island[ssr]')).toHaveCount(0);
+  await expect(page.locator('astro-island[ssr]:not([client="visible"])')).toHaveCount(0);
+  await expect(page.locator('astro-island[ssr][client="visible"]:visible')).toHaveCount(0);
 }
 
 export async function expectNoAxeViolations(page: Page): Promise<void> {

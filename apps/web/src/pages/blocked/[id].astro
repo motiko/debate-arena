@@ -1,0 +1,43 @@
+---
+// A Blocked Debate: only the statement of reasons (DSA Art. 17), never its Motion or Turns. Reached by a
+// rewrite from /debates/[id] when the API answers 410.
+import Base from '../../layouts/Base.astro';
+import { t, type MessageKey } from '../../i18n/t';
+import { formatDate } from '../../lib/format';
+
+const { api } = Astro.locals;
+const id = Astro.params.id ?? '';
+const res = await api.api.debates[':id'].$get({ param: { id } });
+if (res.status !== 410) return Astro.redirect(`/debates/${encodeURIComponent(id)}`);
+const { blocked } = (await res.json()) as unknown as {
+  blocked: { decidedAt: string; ground: 'illegal' | 'terms'; groundRef: string; explanation: string };
+};
+Astro.response.status = 410;
+---
+
+<Base title={t('blocked.title')} description={t('blocked.description')} canonicalPath={`/debates/${id}`} noindex>
+  <h1>{t('blocked.title')}</h1>
+  <p>{t('blocked.body', { date: formatDate(blocked.decidedAt) })}</p>
+  <section class="card stack" aria-labelledby="reasons-title">
+    <h2 id="reasons-title">{t('blocked.reasons')}</h2>
+    <dl class="reasons">
+      <dt>{t('blocked.ground')}</dt>
+      <dd>{t(`blocked.ground.${blocked.ground}` as MessageKey)}</dd>
+      <dt>{t('blocked.reference')}</dt>
+      <dd>{blocked.groundRef}</dd>
+      <dt>{t('blocked.explanation')}</dt>
+      <dd>{blocked.explanation}</dd>
+    </dl>
+    <p class="muted">{t('blocked.human')}</p>
+  </section>
+  <p><a href="/">{t('notFound.home')}</a></p>
+</Base>
+
+<style>
+  .reasons dt {
+    font-weight: 600;
+  }
+  .reasons dd {
+    margin: 0 0 0.75rem;
+  }
+</style>

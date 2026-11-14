@@ -3,6 +3,7 @@ import AiLabel from '../../components/AiLabel.astro';
 import AudienceResultView from '../../components/AudienceResultView.astro';
 import VerdictView from '../../components/VerdictView.astro';
 import LiveTurns from '../../islands/LiveTurns.svelte';
+import ReportForm from '../../islands/ReportForm.svelte';
 import TurnItem from '../../islands/TurnItem.svelte';
 import VotePanel from '../../islands/VotePanel.svelte';
 import Base from '../../layouts/Base.astro';
@@ -15,6 +16,7 @@ const id = Astro.params.id ?? '';
 
 const [debateRes, modelsRes] = await Promise.all([api.api.debates[':id'].$get({ param: { id } }), api.api.models.$get()]);
 if (debateRes.status === 404) return Astro.rewrite('/404');
+if (debateRes.status === 410) return Astro.rewrite(`/blocked/${encodeURIComponent(id)}`);
 if (!debateRes.ok) throw new Error(`GET /api/debates/${id} failed (${debateRes.status})`);
 const debate = await debateRes.json();
 const models: ModelInfo[] = modelsRes.ok ? (await modelsRes.json()).models : [];
@@ -46,6 +48,7 @@ const groups = groupByPhase(debate.format, debate.turns);
   </header>
 
   {debate.status === 'failed' && <p class="note" role="status">{t('debate.failed')}</p>}
+  {debate.visibility === 'unlisted' && debate.mine && <p class="note">{t('unlisted.mine')}</p>}
 
   {
     debate.status !== 'failed' && (
@@ -106,9 +109,24 @@ const groups = groupByPhase(debate.format, debate.turns);
       </section>
     )
   }
+
+  <details class="report card">
+    <summary>{t('report.summary')}</summary>
+    <ReportForm client:visible debateId={debate.id} signedIn={me !== null} />
+  </details>
 </Base>
 
 <style>
+  .report summary {
+    cursor: pointer;
+    font-weight: 600;
+    min-height: 2.75rem;
+    display: flex;
+    align-items: center;
+  }
+  .report[open] summary {
+    margin-bottom: 0.75rem;
+  }
   .meta {
     list-style: none;
     padding: 0;
