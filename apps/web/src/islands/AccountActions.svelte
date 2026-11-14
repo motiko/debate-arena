@@ -1,6 +1,7 @@
 <script lang="ts">
   // Account deletion (ADR 0005). Better Auth refuses with SESSION_EXPIRED when the sign-in is over a day old;
   // the Member is then asked to sign in again and come back here.
+  import { tick } from 'svelte';
   import { t } from '../i18n/t';
   import { deleteAccount, signInWithGithub } from '../lib/auth';
 
@@ -16,6 +17,26 @@
   let pending = $state(false);
   let error = $state('');
   let needsReauth = $state(false);
+  let startButton: HTMLButtonElement | undefined = $state();
+  let confirmBox: HTMLInputElement | undefined = $state();
+  let errorLine: HTMLElement | undefined = $state();
+  let reauthButton: HTMLButtonElement | undefined = $state();
+
+  // Each step replaces the button that had focus, so focus moves on to the next decision rather than the page start.
+  async function confirm() {
+    confirming = true;
+    await tick();
+    confirmBox?.focus();
+  }
+
+  async function cancel() {
+    confirming = false;
+    understood = false;
+    error = '';
+    needsReauth = false;
+    await tick();
+    startButton?.focus();
+  }
 
   async function remove() {
     if (!understood) return;
@@ -38,6 +59,9 @@
       error = t('account.deleteFailed');
     }
     pending = false;
+    // The delete button was disabled while sending, which drops its focus: move on to the way forward, or the error.
+    await tick();
+    (needsReauth ? reauthButton : errorLine)?.focus();
   }
 
   async function reauth() {
@@ -53,18 +77,26 @@
   <h2 id="delete-title">{t('account.deleteTitle')}</h2>
   <p>{t('account.deleteExplain')}</p>
   {#if !confirming}
-    <button type="button" class="secondary" onclick={() => (confirming = true)}>{t('account.delete')}</button>
+    <button type="button" class="secondary" bind:this={startButton} onclick={confirm}>{t('account.delete')}</button>
   {:else}
-    <label class="choice"><input type="checkbox" bind:checked={understood} /> {t('account.deleteConfirm')}</label>
-    <button type="button" onclick={remove} disabled={!understood || pending} aria-busy={pending}>{t('account.deleteFinal')}</button>
+    <label class="choice"><input type="checkbox" bind:this={confirmBox} bind:checked={understood} /> {t('account.deleteConfirm')}</label>
+    <div class="actions">
+      <button type="button" class="danger" onclick={remove} disabled={!understood || pending} aria-busy={pending}>{t('account.deleteFinal')}</button>
+      <button type="button" class="secondary" onclick={cancel} disabled={pending}>{t('account.cancel')}</button>
+    </div>
   {/if}
-  {#if error}<p role="alert" class="error">{error}</p>{/if}
-  {#if needsReauth}<button type="button" class="secondary" onclick={reauth}>{t('account.reauthButton')}</button>{/if}
+  {#if error}<p role="alert" class="error" tabindex="-1" bind:this={errorLine}>{error}</p>{/if}
+  {#if needsReauth}<button type="button" class="secondary" bind:this={reauthButton} onclick={reauth}>{t('account.reauthButton')}</button>{/if}
 </section>
 
 <style>
   /* The island's wrapper is display: contents, so the page's flow spacing does not reach this section. */
   .delete {
     margin-top: calc(var(--space) * 2);
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
   }
 </style>

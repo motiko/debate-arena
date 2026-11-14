@@ -38,8 +38,8 @@ read as a contest between two benches facing each other across the floor, and it
   | `--against-fill` | `#8E2433` | `#A3354A` | a solid Against slab |
   | `--on-fill` | `#FFFFFF` | `#F4F7F5` | text on a side fill |
   | `--brass` | `#B8933A` | `#D8B866` | the dispatch box edge, the logo and Verdict marker (decorative only) |
-  | `--for-tint` | `rgb(36 87 166 / 0.07)` | `rgb(155 185 242 / 0.09)` | For speech background |
-  | `--against-tint` | `rgb(142 36 51 / 0.065)` | `rgb(242 166 177 / 0.085)` | Against speech background |
+  | `--for-tint` | `rgb(36 87 166 / 0.07)` | `rgb(52 98 181 / 0.22)` | For speech background (dark: from the fill, so the two Sides stay apart on the green paper) |
+  | `--against-tint` | `rgb(142 36 51 / 0.065)` | `rgb(163 53 74 / 0.22)` | Against speech background |
   | `--note-bg` / `--note-text` | `#FFF4D6` / `#4D3800` | `#3A2F10` / `#FFE4A3` | notices (unchanged) |
 
 - **Focus ring** follows the surface: `--focus` is `--ink` on paper and `--band-ink` inside the band.
@@ -69,7 +69,7 @@ after-vote (when due), Verdict, Audience division, AI Audience Result (when pres
   |---|---|
   | `turnsHidden` (signed-in Member who can still cast a before-vote) | the before-vote form, whose legend "Where do you stand?" is the box's only question (no inner fieldset border); while the Debate runs, "Live now" with the marker above it |
   | Batch, not complete | "Being argued through batch processing. Published when complete." |
-  | Live, running | "Live now" with a pulsing marker, and "Follow the speeches below." (the floor shows who speaks next) |
+  | Live, running | "Live now" with a pulsing marker (the house green, not a Side colour), and "Follow the speeches below." (the floor shows who speaks next) |
   | Failed, with a Verdict (the AI Audience step failed after the Verdict was saved) | "The AI Audience Result could not be produced. The speeches and the Verdict are below." |
   | Failed, with Turns | "Judging failed. The speeches are below; there is no Verdict." |
   | Failed, without Turns | "This Debate could not be completed." |

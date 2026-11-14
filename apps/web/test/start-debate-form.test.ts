@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import { expect, test, vi } from 'vitest';
 import StartDebateForm from '../src/islands/StartDebateForm.svelte';
 
@@ -44,6 +44,23 @@ test('lists only Debater models for Debaters and Judge models for the Judge', ()
   expect(debaterOptions).toContain('fake-slow/one');
   expect(judgeOptions).not.toContain('fake-slow/one');
   expect(judgeOptions[0]).toBe('');
+});
+
+test('says how much room is left only near the Motion limit, once per step', async () => {
+  render(StartDebateForm, { models, quotaRemaining: 6, fetcher: respond(201, {}).fetcher, navigate: vi.fn() });
+  const motion = screen.getByLabelText('Motion');
+  // The visible count is described by the field, not read out on every keystroke.
+  expect(screen.getByText('0 / 300')).not.toHaveAttribute('aria-live');
+  const status = document.getElementById('motion-room');
+  expect(status).toHaveAttribute('role', 'status');
+  await fireEvent.input(motion, { target: { value: 'x'.repeat(200) } });
+  expect(status).toHaveTextContent('');
+  await fireEvent.input(motion, { target: { value: 'x'.repeat(285) } });
+  expect(status).toHaveTextContent('Fewer than 20 characters left.');
+  await fireEvent.input(motion, { target: { value: 'x'.repeat(295) } });
+  expect(status).toHaveTextContent('Fewer than 10 characters left.');
+  await fireEvent.input(motion, { target: { value: 'x'.repeat(300) } });
+  expect(status).toHaveTextContent('The Motion is at its 300-character limit.');
 });
 
 test('sends the chosen Judge as a one-Judge Panel', async () => {
@@ -158,7 +175,7 @@ test('switching to a Batch Debate keeps a Debater without batch and says it cann
   expect(forSelect).toHaveValue('fake-slow/one');
   expect(forSelect).toHaveAttribute('aria-invalid', 'true');
   expect(forSelect).toHaveAccessibleDescription(/Fake Slow cannot take part in a Batch Debate/);
-  expect(screen.getByRole('status')).toHaveTextContent(/Fake Slow cannot take part in a Batch Debate/);
+  expect(within(screen.getByRole('group', { name: 'Kind of Debate' })).getByRole('status')).toHaveTextContent(/Fake Slow cannot take part in a Batch Debate/);
   await fireEvent.click(screen.getByRole('button', { name: 'Start the Debate' }));
   await vi.waitFor(() => expect(forSelect).toHaveFocus());
   expect(fetcher).not.toHaveBeenCalled();

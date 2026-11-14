@@ -17,8 +17,9 @@ test('live Turns appear as they are written', async ({ page, request }) => {
   await expect(page.getByText('The Debate is over.')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#outcome > summary')).toBeVisible();
   await expect(page.locator('.dispatch')).not.toContainText('Live now');
-  await expect(page.getByText('The Panel gives its Verdict when the Debate ends.')).toHaveCount(0);
+  await expect(page.getByText('The Judge gives the Verdict when the Debate ends.')).toHaveCount(0);
   await expect(log.getByRole('article')).toHaveCount(6);
+  await expect(page.locator('.record dl')).toContainText('Finished');
   expect(await page.evaluate(() => (window as unknown as { __sameLoad?: boolean }).__sameLoad)).toBe(true);
 });
 

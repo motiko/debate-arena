@@ -96,25 +96,12 @@
     color: var(--muted);
     font-weight: 600;
   }
-  /* The marker takes the colour of the Side about to speak. */
-  .live-dot {
-    width: 0.6rem;
-    height: 0.6rem;
-    border-radius: 50%;
-    background: var(--against);
-  }
+  /* The live marker (global.css) takes the colour of the Side about to speak. */
   .seat-for .live-dot {
     background: var(--for);
   }
-  @media (prefers-reduced-motion: no-preference) {
-    .live-dot {
-      animation: pulse 1.6s ease-in-out infinite;
-    }
-  }
-  @keyframes pulse {
-    50% {
-      opacity: 0.3;
-    }
+  .seat-against .live-dot {
+    background: var(--against);
   }
 
   /* Wide screens: the benches face each other across the floor line; Against answers a little lower. */

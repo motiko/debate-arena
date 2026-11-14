@@ -63,3 +63,17 @@ test('shows the API error and keeps the input', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('You already reported this Debate');
   expect(screen.getByLabelText('Why should a Moderator look at this Debate?')).toHaveValue('It attacks a group of people.');
 });
+
+test('asks for a reason instead of assuming one', async () => {
+  const { fetcher } = respond(201, { ok: true });
+  render(ReportForm, { debateId: 'd1', signedIn: true, fetcher });
+  expect(screen.getByLabelText('Reason')).toHaveValue('');
+  await fireEvent.input(screen.getByLabelText('Why should a Moderator look at this Debate?'), { target: { value: 'It attacks a group of people.' } });
+  await fireEvent.click(screen.getByRole('checkbox', { name: /good faith/i }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Send Report' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Choose a reason.');
+  expect(screen.getByLabelText('Reason')).toHaveAttribute('aria-invalid', 'true');
+  expect(screen.getByLabelText('Reason')).toHaveAccessibleDescription('Choose a reason.');
+  await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Reason')));
+  expect(fetcher).not.toHaveBeenCalled();
+});

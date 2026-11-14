@@ -1,6 +1,6 @@
 <script lang="ts">
   // A Moderator's decision on one Debate: relist it, or Block it with a statement of reasons (DSA Art. 17).
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { t } from '../i18n/t';
 
   interface Props {
@@ -18,6 +18,24 @@
   let outcome = $state('');
   let hydrated = $state(false);
   onMount(() => (hydrated = true));
+  // Relist takes effect at once and has no undo, so it is asked once more; focus follows each step.
+  let confirmingRelist = $state(false);
+  let relistButton: HTMLButtonElement | undefined = $state();
+  let relistYes: HTMLButtonElement | undefined = $state();
+  let outcomeLine: HTMLElement | undefined = $state();
+  let errorLine: HTMLElement | undefined = $state();
+
+  async function askRelist() {
+    confirmingRelist = true;
+    await tick();
+    relistYes?.focus();
+  }
+
+  async function cancelRelist() {
+    confirmingRelist = false;
+    await tick();
+    relistButton?.focus();
+  }
 
   const id = (name: string) => `${name}-${debateId}`;
 
@@ -32,15 +50,19 @@
       });
       if (response.status === 201) {
         outcome = done;
-        return;
+      } else {
+        const data = (await response.json().catch(() => ({}))) as { error?: string };
+        error = data.error ?? t('moderation.failed');
       }
-      const data = (await response.json().catch(() => ({}))) as { error?: string };
-      error = data.error ?? t('moderation.failed');
     } catch {
       error = t('moderation.failed');
     } finally {
       pending = false;
     }
+    // The button that had focus is gone (the decision is made) or was disabled while sending: focus moves on to
+    // what happened, so it does not fall back to the page start.
+    await tick();
+    (outcome ? outcomeLine : errorLine)?.focus();
   }
 
   function block(event: SubmitEvent) {
@@ -54,14 +76,22 @@
 </script>
 
 {#if outcome}
-  <p role="status"><strong>{outcome}</strong></p>
+  <p role="status" tabindex="-1" bind:this={outcomeLine}><strong>{outcome}</strong></p>
 {:else}
   <!-- The two decisions side by side. Block's statement of reasons opens below them, in a <details> so it opens
        without JavaScript. -->
   <div class="decisions" role="group" aria-label={t('moderation.decisions')}>
-    <button type="button" class="secondary relist" disabled={pending || !hydrated} onclick={() => send({ action: 'relist' }, t('moderation.relisted'))}
-      >{t('moderation.relist')}</button
-    >
+    {#if confirmingRelist}
+      <div class="relist confirm">
+        <p>{t('moderation.relistConfirm')}</p>
+        <button type="button" bind:this={relistYes} disabled={pending} aria-busy={pending} onclick={() => send({ action: 'relist' }, t('moderation.relisted'))}
+          >{t('moderation.relistYes')}</button
+        >
+        <button type="button" class="secondary" disabled={pending} onclick={cancelRelist}>{t('moderation.cancel')}</button>
+      </div>
+    {:else}
+      <button type="button" class="secondary relist" bind:this={relistButton} disabled={pending || !hydrated} onclick={askRelist}>{t('moderation.relist')}</button>
+    {/if}
     <details class="block">
       <summary>{t('moderation.blockOpen')}</summary>
       <form onsubmit={block} class="stack" novalidate>
@@ -79,13 +109,13 @@
             <p id={id('explanation-hint')} class="muted">{t('moderation.explanationHint')}</p>
             <textarea id={id('explanation')} rows="3" maxlength="2000" aria-describedby={id('explanation-hint')} bind:value={explanation}></textarea>
           </div>
-          <button type="submit" disabled={pending || !hydrated} aria-busy={pending}>{t('moderation.block')}</button>
+          <button type="submit" class="danger" disabled={pending || !hydrated} aria-busy={pending}>{t('moderation.block')}</button>
         </fieldset>
       </form>
     </details>
   </div>
 {/if}
-{#if error}<p role="alert" class="error">{error}</p>{/if}
+{#if error}<p role="alert" class="error" tabindex="-1" bind:this={errorLine}>{error}</p>{/if}
 
 <style>
   /* Relist floats beside the Block summary; the opened form clears below both. */
@@ -95,6 +125,17 @@
   .relist {
     float: left;
     margin-inline-end: 0.75rem;
+  }
+  /* The question and its two answers, in the place of the Relist button. */
+  .confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  .confirm p {
+    font-weight: 600;
   }
   .block summary {
     display: inline-flex;

@@ -48,7 +48,10 @@ const cursor = nextFeedCursor(debates, FEED_PAGE_SIZE);
             <div class="entry-notes">
               <p class="entry-meta">
                 {d.verdict && feedOutcome(d) === 'votingOpen' ? (
-                  <strong>{t('feed.votingOpen')}</strong>
+                  <strong>
+                    {/* The date is kept on one line: the narrow outcome gutter would otherwise break it after the month. */}
+                    {d.votingClosesAt ? t('feed.votingOpenUntil', { date: formatDate(d.votingClosesAt).replaceAll(' ', ' ') }) : t('feed.votingOpen')}
+                  </strong>
                 ) : (
                   d.verdict && (
                     <>

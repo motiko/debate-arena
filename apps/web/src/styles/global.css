@@ -50,8 +50,9 @@
     --against-fill: #a3354a;
     --on-fill: #f4f7f5;
     --brass: #d8b866;
-    --for-tint: rgb(155 185 242 / 0.09);
-    --against-tint: rgb(242 166 177 / 0.085);
+    /* From the fills, not the pastel text colours: over the green paper those wash out to near-equal greys. */
+    --for-tint: rgb(52 98 181 / 0.22);
+    --against-tint: rgb(163 53 74 / 0.22);
     --note-bg: #3a2f10;
     --note-text: #ffe4a3;
   }
@@ -239,6 +240,20 @@ a { color: var(--green); text-underline-offset: 0.18em; }
 .side-for { color: var(--for); }
 .side-against { color: var(--against); }
 
+/* The live marker: the house's green, not a Side's colour (the floor's "speaks next" recolours it per Side). */
+.live-dot {
+  display: inline-block;
+  flex: none;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: var(--green);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .live-dot { animation: live-pulse 1.6s ease-in-out infinite; }
+}
+@keyframes live-pulse { 50% { opacity: 0.3; } }
+
 .note {
   background: var(--note-bg);
   color: var(--note-text);
@@ -263,6 +278,8 @@ button, .button {
   text-decoration: none;
 }
 button.secondary, .button.secondary { background: transparent; color: var(--green); }
+/* The last step of an action that cannot be undone: drawn apart from every other button. */
+button.danger { background: var(--against-fill); border-color: var(--against-fill); color: var(--on-fill); }
 button:disabled { opacity: 0.6; cursor: not-allowed; }
 
 label { font-weight: 600; }

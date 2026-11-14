@@ -90,7 +90,7 @@ test('the Verdict alone does not end the Debate: voting opens only once it is co
   render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [0, 1, 2, 3].map(turn), fetcher: debateFetcher([0, 1, 2, 3].map(turn)), WebSocketImpl: impl, refresh });
   FakeSocket.last.open();
   FakeSocket.last.emit({ type: 'verdict', verdict: { winner: 'for', reasoning: 'x', judges: ['j'] } });
-  expect(await screen.findByText('The speeches are over. The Panel is reaching its Verdict.')).toBeInTheDocument();
+  expect(await screen.findByText('The speeches are over. The Judge is reaching a Verdict.')).toBeInTheDocument();
   expect(refresh).not.toHaveBeenCalled();
   FakeSocket.last.emit({ type: 'complete', aiAudience: null });
   await vi.waitFor(() => expect(refresh).toHaveBeenCalled());

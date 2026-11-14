@@ -38,7 +38,10 @@ const isBatch = debate.kind === 'batch';
     </div>
   </details>
 
-  <section aria-label={t('debate.turns')}>
+  {/* data-region: the before-vote brings the hidden Turns in without a reload, with focus on them (lib/refresh).
+      On request only: the end of a live Debate and the after-vote leave the floor (and any opened speech) as it is. */}
+  <div data-region="turns" data-on-request>
+  <section id="turns" tabindex="-1" aria-label={t('debate.turns')}>
     {
       debate.turnsHidden ? (
         <p class="note">{t('debate.turnsHidden')}</p>
@@ -51,6 +54,7 @@ const isBatch = debate.kind === 'batch';
       )
     }
   </section>
+  </div>
 
   <DebateOutcome debate={debate} models={models} signedIn={me !== null} />
 
@@ -71,6 +75,10 @@ const isBatch = debate.kind === 'batch';
 </Base>
 
 <style>
+  /* Focused only by script, as a place to read on from: no ring around the whole floor (as with the Verdict). */
+  #turns:focus {
+    outline: none;
+  }
   .how {
     max-width: 44rem;
     color: var(--muted);
