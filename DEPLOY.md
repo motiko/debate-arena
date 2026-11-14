@@ -78,6 +78,9 @@ Optional:
 
 ## 6. Switch on production deploys
 
+First protect the deployment: **Settings → Environments → production → Deployment branches and tags → Selected
+branches**, and add `main`. Then only `main` can use the production environment, whatever triggers the workflow.
+
 Set the repository variable `DEPLOY_PRODUCTION` to `true`. From then on, every merge to `main` that passes CI runs
 `.github/workflows/deploy.yml`: the release check, D1 migrations, the API, then the web. You can also run it by hand
 (**Actions → Deploy production → Run workflow**).
@@ -90,3 +93,7 @@ comment with its URL. Everything is deleted when the PR closes (`node scripts/pr
 hand). The Free plan allows 10 D1 databases, so keep few PRs open at once there.
 
 Previews accept the `x-dev-member` header as sign-in on purpose: their data is throwaway and their models are fake.
+
+A preview runs the pull request's own code with the Cloudflare token, so only people who can push to this repository
+get previews (pull requests from forks are skipped). If you ever give push access more widely, use a separate token for
+previews, limited to Workers Scripts, D1 and Queues.
