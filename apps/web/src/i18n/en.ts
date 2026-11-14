@@ -210,6 +210,7 @@ export const en = {
   'header.start': 'Start a Debate',
   'header.account': 'Your account',
   'header.quota': '{points} Quota points left today',
+  'header.quotaShort': '{points} Quota points left',
 
   'notFound.title': 'Page not found',
   'notFound.body': 'There is nothing here. It may have been moved, or the link is wrong.',

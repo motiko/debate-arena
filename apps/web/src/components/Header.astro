@@ -13,10 +13,15 @@ const callbackPath = Astro.url.pathname + Astro.url.search;
     me ? (
       <>
         {me.isModerator && <a href="/moderation">{t('header.moderation')}</a>}
-        <a href="/account" aria-label={`${t('header.account')}: ${me.name}`}>
-          {me.name}
+        {/* One account item: a label that says where it goes, the handle and Quota under it (short on a phone). */}
+        <a class="account" href="/account">
+          <span class="account-label">{t('header.account')}</span>
+          <span class="account-meta">
+            <span class="account-name">{me.name}</span>
+            <span class="quota-long">{t('header.quota', { points: me.quotaRemaining })}</span>
+            <span class="quota-short">{t('header.quotaShort', { points: me.quotaRemaining })}</span>
+          </span>
         </a>
-        <span class="quota">{t('header.quota', { points: me.quotaRemaining })}</span>
         <SignOutButton client:idle />
       </>
     ) : (
