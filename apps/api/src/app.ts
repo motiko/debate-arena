@@ -29,6 +29,7 @@ const FEED_PAGE_SIZE = 20;
 function publicView(d: DebateRecord) {
   return {
     id: d.id,
+    kind: d.kind,
     status: d.status,
     motion: d.setup.motion.text,
     format: { id: d.setup.format.id, name: d.setup.format.name, phases: d.setup.format.phases },
@@ -54,9 +55,11 @@ function publicView(d: DebateRecord) {
 function debateView(d: DebateRecord, votes: AudienceVote[], memberId: string | null, now: Date) {
   const myVote = memberId ? (votes.find(v => v.memberId === memberId) ?? null) : null;
   const turnsHidden = memberId !== null && myVote === null && checkVote(d, null, 'before', now).ok;
+  // A running Batch Debate (only its starter sees it) shows no Turns: it is published only when complete.
+  const unpublished = d.kind === 'batch' && d.status === 'running';
   return {
     ...publicView(d),
-    turns: turnsHidden ? [] : d.turns,
+    turns: turnsHidden || unpublished ? [] : d.turns,
     turnsHidden,
     myVote: myVote && { before: myVote.before, after: myVote.after },
     audienceResult: audienceResult(d, votes),
@@ -201,6 +204,10 @@ export const app = new Hono<{ Bindings: Env }>()
     if (!debate) return c.json({ error: 'Debate not found' }, 404);
     if (debate.visibility === 'blocked') return c.json(await blockedDebate(c.env.DB, debate.id), 410);
     const memberId = await memberResolver(c.env)(c.req.raw);
+    // A Batch Debate is published only when complete; until then only its starting Member can see it.
+    if (debate.kind === 'batch' && debate.status === 'running' && memberId !== debate.memberId) {
+      return c.json({ error: 'Debate not found' }, 404);
+    }
     return c.json(debateView(debate, await listVotes(c.env.DB, debate.id), memberId, new Date()));
   })
   .post('/debates/:id/votes', async c => {
@@ -329,7 +336,8 @@ export const app = new Hono<{ Bindings: Env }>()
   .get('/debates/:id/live', async c => {
     const id = c.req.param('id');
     const debate = await getDebate(c.env.DB, id);
-    if (!debate) return c.json({ error: 'Debate not found' }, 404);
+    // Batch Debates have no live stream.
+    if (!debate || debate.kind === 'batch') return c.json({ error: 'Debate not found' }, 404);
     if (debate.visibility === 'blocked') return c.json({ error: BLOCKED }, 410);
     if (c.req.header('upgrade')?.toLowerCase() !== 'websocket') return c.json({ error: 'Expected a WebSocket upgrade' }, 426);
     return c.env.DEBATE_ROOM.getByName(id).fetch(c.req.raw);
