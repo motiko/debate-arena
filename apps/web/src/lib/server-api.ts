@@ -22,6 +22,7 @@ export interface Me {
   name: string;
   image: string | null;
   quotaRemaining: number;
+  isModerator: boolean;
 }
 
 export interface Viewer {

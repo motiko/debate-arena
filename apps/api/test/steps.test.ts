@@ -1,4 +1,6 @@
-import { FakeModelClient, JUDGE_OUTPUT_TOKENS, STANCE_OUTPUT_TOKENS } from '@debate-arena/engine';
+import { FakeModelClient, JUDGE_OUTPUT_TOKENS, SCREEN_OUTPUT_TOKENS, STANCE_OUTPUT_TOKENS } from '@debate-arena/engine';
+import { recordDecision } from '../src/db/moderation';
+import { BudgetExhaustedError } from '../src/models/factory';
 import { env } from 'cloudflare:workers';
 import { expect, test } from 'vitest';
 import { addCost, createDebate, getDebate } from '../src/db/debates';
@@ -6,7 +8,7 @@ import { quotaRemaining, spendQuota } from '../src/db/quota';
 import { failStep, runStep, type StepDeps } from '../src/debates/steps';
 import type { StepJob } from '../src/debates/start';
 import type { DebateEvent } from '../src/live/events';
-import { newDebate } from './helpers';
+import { createScreened, newDebate, sampleSetup } from './helpers';
 
 const voters = Array.from({ length: 10 }, (_, i) => `fake-${'abcd'[i % 4]}/one`);
 
@@ -14,7 +16,11 @@ function makeDeps() {
   const jobs: StepJob[] = [];
   const events: DebateEvent[] = [];
   const client = new FakeModelClient(r =>
-    r.maxOutputTokens === JUDGE_OUTPUT_TOKENS
+    r.maxOutputTokens === SCREEN_OUTPUT_TOKENS
+      ? r.messages.some(m => m.content.includes('[flag-test]'))
+        ? 'unsafe\nS10'
+        : 'safe'
+      : r.maxOutputTokens === JUDGE_OUTPUT_TOKENS
       ? '{"winner":"for","reasoning":"Stronger evidence."}'
       : r.maxOutputTokens === STANCE_OUTPUT_TOKENS
         ? r.messages.some(m => m.content.includes('heard the whole debate'))
@@ -32,6 +38,7 @@ function makeDeps() {
       jobs.push(job);
     },
     now: () => new Date('2026-11-13T12:30:00Z'),
+    screener: 'fake-guard/one',
   };
   return { deps, jobs, events, client };
 }
@@ -43,7 +50,7 @@ test('drives a Classic Debate to completion one step at a time', async () => {
   jobs.push({ debateId: d.id });
   const outcomes = [];
   while (jobs.length) outcomes.push(await runStep(deps, jobs.shift()!));
-  expect(outcomes).toEqual(['turn', 'turn', 'turn', 'turn', 'turn', 'turn', 'verdict', 'complete']);
+  expect(outcomes).toEqual(['screen', 'turn', 'turn', 'turn', 'turn', 'turn', 'turn', 'verdict', 'complete']);
   const stored = await getDebate(env.DB, d.id);
   expect(stored).toMatchObject({ status: 'complete', verdict: { winner: 'for' }, completedAt: '2026-11-13T12:30:00.000Z' });
   expect(stored?.turns).toHaveLength(6);
@@ -61,10 +68,119 @@ test('with AI Voters the completion carries the AI Audience Result', async () =>
   expect((await getDebate(env.DB, d.id))?.aiAudience?.counted).toBe(10);
 });
 
+test('the first step screens the Motion before any Turn, quietly', async () => {
+  const { deps, jobs, events, client } = makeDeps();
+  const d = newDebate();
+  await createDebate(env.DB, d);
+  expect(await runStep(deps, { debateId: d.id })).toBe('screen');
+  expect(client.calls).toHaveLength(1);
+  expect(client.calls[0]).toMatchObject({ model: 'fake-guard/one', maxOutputTokens: SCREEN_OUTPUT_TOKENS });
+  expect(await getDebate(env.DB, d.id)).toMatchObject({ turns: [], screenedAt: '2026-11-13T12:30:00.000Z', visibility: 'listed' });
+  expect(events).toEqual([]);
+  expect(jobs).toEqual([{ debateId: d.id }]);
+  expect(await runStep(deps, jobs.shift()!)).toBe('turn');
+});
+
+test('a flagged Motion Unlists the Debate but it still completes', async () => {
+  const { deps, jobs } = makeDeps();
+  const d = newDebate({ setup: { ...sampleSetup, motion: { text: 'Cats [flag-test]' } } });
+  await createDebate(env.DB, d);
+  jobs.push({ debateId: d.id });
+  while (jobs.length) await runStep(deps, jobs.shift()!);
+  expect(await getDebate(env.DB, d.id)).toMatchObject({
+    status: 'complete',
+    visibility: 'unlisted',
+    flagged: true,
+    screen: { flagged: true, categories: ['S10'] },
+  });
+});
+
+test('a screening error never fails the Debate', async () => {
+  const { deps, jobs } = makeDeps();
+  const inner = deps.client;
+  deps.client = {
+    complete: async request => {
+      if (request.maxOutputTokens === SCREEN_OUTPUT_TOKENS) throw new Error('screener down');
+      return inner.complete(request);
+    },
+  };
+  const d = newDebate();
+  await createDebate(env.DB, d);
+  jobs.push({ debateId: d.id });
+  while (jobs.length) await runStep(deps, jobs.shift()!);
+  expect(await getDebate(env.DB, d.id)).toMatchObject({ status: 'complete', visibility: 'unlisted', screen: { categories: ['unscreened'] } });
+});
+
+test('a used-up Budget is not hidden by screening', async () => {
+  const { deps } = makeDeps();
+  deps.client = {
+    complete: async () => {
+      throw new BudgetExhaustedError('spent');
+    },
+  };
+  const d = newDebate();
+  await createDebate(env.DB, d);
+  await expect(runStep(deps, { debateId: d.id })).rejects.toBeInstanceOf(BudgetExhaustedError);
+  expect((await getDebate(env.DB, d.id))?.screenedAt).toBeNull();
+});
+
+test('a Debate Blocked while running stops: no more model calls or broadcasts', async () => {
+  const { deps, events, client } = makeDeps();
+  const d = newDebate();
+  await createScreened(env.DB, d);
+  expect(await runStep(deps, { debateId: d.id })).toBe('turn');
+  await recordDecision(env.DB, {
+    id: crypto.randomUUID(),
+    debateId: d.id,
+    action: 'block',
+    source: 'moderator',
+    automatedDetection: false,
+    ground: 'illegal',
+    groundRef: 'StGB §130',
+    explanation: 'Incites hatred against a group.',
+    moderatorId: 'mod-1',
+    decidedAt: '2026-11-13T12:31:00.000Z',
+  });
+  const calls = client.calls.length;
+  const sent = events.length;
+  expect(await runStep(deps, { debateId: d.id })).toBe('skipped');
+  expect(client.calls).toHaveLength(calls);
+  expect(events).toHaveLength(sent);
+  expect(await getDebate(env.DB, d.id)).toMatchObject({ status: 'failed', visibility: 'blocked', turns: [expect.anything()] });
+});
+
+test('a step in flight when the Block lands writes nothing and tells no one', async () => {
+  const { deps, events } = makeDeps();
+  const d = newDebate();
+  await createScreened(env.DB, d);
+  const inner = deps.client;
+  deps.client = {
+    complete: async request => {
+      // The Moderator Blocks while the model is still writing the Turn.
+      await recordDecision(env.DB, {
+        id: crypto.randomUUID(),
+        debateId: d.id,
+        action: 'block',
+        source: 'moderator',
+        automatedDetection: false,
+        ground: 'terms',
+        groundRef: 'Terms §3',
+        explanation: 'Hateful Motion, blocked mid-Turn.',
+        moderatorId: 'mod-1',
+        decidedAt: '2026-11-13T12:31:00.000Z',
+      });
+      return inner.complete(request);
+    },
+  };
+  expect(await runStep(deps, { debateId: d.id })).toBe('skipped');
+  expect((await getDebate(env.DB, d.id))?.turns).toEqual([]);
+  expect(events).toEqual([]);
+});
+
 test('a redelivered job running concurrently writes one Turn and notifies once', async () => {
   const { deps, jobs, events } = makeDeps();
   const d = newDebate();
-  await createDebate(env.DB, d);
+  await createScreened(env.DB, d);
   const outcomes = await Promise.all([runStep(deps, { debateId: d.id }), runStep(deps, { debateId: d.id })]);
   expect(outcomes.toSorted()).toEqual(['skipped', 'turn']);
   expect((await getDebate(env.DB, d.id))?.turns).toHaveLength(1);

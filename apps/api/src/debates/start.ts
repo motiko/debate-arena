@@ -8,7 +8,7 @@ import {
 } from '@debate-arena/engine';
 import { createDebate, failDebate } from '../db/debates';
 import { DEBATE_QUOTA_POINTS, refundQuota, spendQuota, utcDay } from '../db/quota';
-import { AI_VOTER_COUNT, hasRole, modelsFor, pickAiVoters, priceTable, type Catalog } from '../models/catalog';
+import { AI_VOTER_COUNT, hasRole, modelsFor, pickAiVoters, priceTable, screenerFor, type Catalog } from '../models/catalog';
 
 export const MAX_MOTION_LENGTH = 300;
 
@@ -75,7 +75,7 @@ export async function startDebate(deps: StartDeps, memberId: string, input: unkn
 
   const setup: DebateSetup = { motion: { text: motion }, format: CLASSIC_FORMAT, debaters, panel };
   const aiVoters = parsed.aiVoters ? pickAiVoters(deps.catalog, AI_VOTER_COUNT) : [];
-  const budgetReservedMicroUsd = worstCaseBudgetMicroUsd(setup, aiVoters, priceTable(deps.catalog));
+  const budgetReservedMicroUsd = worstCaseBudgetMicroUsd(setup, aiVoters, priceTable(deps.catalog), screenerFor(deps.catalog));
   const selfJudging = isSelfJudging(panel, [debaters.for, debaters.against]);
 
   const now = deps.now();

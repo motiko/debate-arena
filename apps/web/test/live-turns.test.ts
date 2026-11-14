@@ -73,6 +73,24 @@ test('says so when the Debate fails', async () => {
   expect(await screen.findByText('This Debate could not be completed.')).toBeInTheDocument();
 });
 
+test('a Block removes the Turns and reloads to the Blocked page', async () => {
+  const reload = vi.fn();
+  render(LiveTurns, { debateId: 'd1', format, initialTurns: [turn(0)], fetcher: debateFetcher([turn(0)]), WebSocketImpl: impl, reload });
+  FakeSocket.last.open();
+  FakeSocket.last.emit({ type: 'blocked' });
+  await vi.waitFor(() => expect(reload).toHaveBeenCalled());
+  expect(screen.queryAllByRole('article')).toHaveLength(0);
+});
+
+test('a 410 while catching up also reloads', async () => {
+  const reload = vi.fn();
+  const fetcher = vi.fn(async () => Response.json({ id: 'd1', blocked: {} }, { status: 410 })) as unknown as typeof fetch;
+  render(LiveTurns, { debateId: 'd1', format, initialTurns: [turn(0)], fetcher, WebSocketImpl: impl, reload });
+  FakeSocket.last.open();
+  await vi.waitFor(() => expect(reload).toHaveBeenCalled());
+  expect(screen.queryAllByRole('article')).toHaveLength(0);
+});
+
 test('notices a Debate that finished before the socket opened', async () => {
   render(LiveTurns, { debateId: 'd1', format, initialTurns: [], fetcher: debateFetcher([turn(0), turn(1)], 'complete'), WebSocketImpl: impl });
   FakeSocket.last.open();

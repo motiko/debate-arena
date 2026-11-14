@@ -1,4 +1,5 @@
-import type { AiAudienceResult, DebateSetup, ModelId, Turn, Verdict } from '@debate-arena/engine';
+import type { AiAudienceResult, DebateSetup, ModelId, ScreenResult, Turn, Verdict } from '@debate-arena/engine';
+import type { Visibility } from './moderation';
 
 export type DebateStatus = 'running' | 'complete' | 'failed';
 
@@ -18,6 +19,12 @@ export interface DebateRecord {
   createdAt: string;
   completedAt: string | null;
   failureReason: string | null;
+  visibility: Visibility;
+  /** The Motion screen's Flag; it never removes anything (GLOSSARY: Flag). */
+  flagged: boolean;
+  screen: ScreenResult | null;
+  screenedAt: string | null;
+  reviewedAt: string | null;
 }
 
 export type NewDebate = Pick<
@@ -40,6 +47,11 @@ interface DebateRow {
   created_at: string;
   completed_at: string | null;
   failure_reason: string | null;
+  visibility: Visibility;
+  flagged: number;
+  screen_json: string | null;
+  screened_at: string | null;
+  reviewed_at: string | null;
 }
 
 interface TurnRow { phase_index: number; side: Turn['side']; text: string; truncated: number }
@@ -61,6 +73,11 @@ function toRecord(row: DebateRow, turns: Turn[]): DebateRecord {
     createdAt: row.created_at,
     completedAt: row.completed_at,
     failureReason: row.failure_reason,
+    visibility: row.visibility,
+    flagged: row.flagged === 1,
+    screen: row.screen_json ? (JSON.parse(row.screen_json) as ScreenResult) : null,
+    screenedAt: row.screened_at,
+    reviewedAt: row.reviewed_at,
   };
 }
 
@@ -102,15 +119,15 @@ export async function getDebate(db: D1Database, id: string): Promise<DebateRecor
   );
 }
 
-/** Newest completed Debates first, without their Turns. */
+/** Newest completed, listed Debates first, without their Turns (Unlisted and Blocked ones stay out of feeds). */
 export async function listCompletedDebates(db: D1Database, limit: number, before?: string): Promise<DebateRecord[]> {
   const statement = before
     ? db
         .prepare(
-          `SELECT * FROM debates WHERE status = 'complete' AND completed_at < ? ORDER BY completed_at DESC LIMIT ?`,
+          `SELECT * FROM debates WHERE visibility = 'listed' AND status = 'complete' AND completed_at < ? ORDER BY completed_at DESC LIMIT ?`,
         )
         .bind(before, limit)
-    : db.prepare(`SELECT * FROM debates WHERE status = 'complete' ORDER BY completed_at DESC LIMIT ?`).bind(limit);
+    : db.prepare(`SELECT * FROM debates WHERE visibility = 'listed' AND status = 'complete' ORDER BY completed_at DESC LIMIT ?`).bind(limit);
   const { results } = await statement.all<DebateRow>();
   return results.map(row => toRecord(row, []));
 }
@@ -118,10 +135,12 @@ export async function listCompletedDebates(db: D1Database, limit: number, before
 export async function appendTurn(db: D1Database, id: string, slotIndex: number, turn: Turn): Promise<boolean> {
   const result = await db
     .prepare(
-      `INSERT INTO turns (debate_id, slot_index, phase_index, side, text, truncated) VALUES (?, ?, ?, ?, ?, ?)
+      // Only into a Debate still running and not Blocked: a Block can land while the model is writing.
+      `INSERT INTO turns (debate_id, slot_index, phase_index, side, text, truncated)
+       SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM debates WHERE id = ? AND status = 'running' AND visibility != 'blocked')
        ON CONFLICT (debate_id, slot_index) DO NOTHING`,
     )
-    .bind(id, slotIndex, turn.phaseIndex, turn.side, turn.text, turn.truncated ? 1 : 0)
+    .bind(id, slotIndex, turn.phaseIndex, turn.side, turn.text, turn.truncated ? 1 : 0, id)
     .run();
   return changed(result);
 }

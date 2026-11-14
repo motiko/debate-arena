@@ -26,6 +26,11 @@ test('round-trips a new Debate', async () => {
     aiAudience: null,
     completedAt: null,
     failureReason: null,
+    visibility: 'listed',
+    flagged: false,
+    screen: null,
+    screenedAt: null,
+    reviewedAt: null,
   });
 });
 

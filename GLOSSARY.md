@@ -95,7 +95,7 @@ A Debate reachable by direct link but absent from public feeds. A Debate becomes
 _Avoid_: Hidden, private, pending
 
 **Report**:
-A Member's complaint that a Debate is abusive.
+A complaint, by anyone, that a Debate is abusive or illegal. Only Members' Reports count toward Unlisting.
 _Avoid_: Flag, complaint, ticket
 
 **Block**:

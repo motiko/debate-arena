@@ -32,6 +32,11 @@ test('each AI Voter adds a before- and after-stance', () => {
   expect(worstCaseBudgetMicroUsd(setup, ['x/v'], unitPrices)).toBe(46526 + 9836);
 });
 
+test('budget covers screening the Motion', () => {
+  // (629 Motion prompt + 16 output) per attempt, twice
+  expect(worstCaseBudgetMicroUsd(setup, [], { ...unitPrices, 'g/guard': unit }, 'g/guard')).toBe(46526 + 1290);
+});
+
 test('human Debaters cost nothing', () => {
   const humanFor = { ...setup, debaters: { ...setup.debaters, for: { kind: 'human', memberId: 'm1' } as const } };
   // Drops the three For Turns: (629+840) + (2309+560) + (3429+420) = 8187, twice
