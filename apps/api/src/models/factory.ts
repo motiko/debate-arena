@@ -53,11 +53,14 @@ export function createModels(env: ModelEnv): Models {
 }
 
 /** The Batch API for Batch Debates: OpenRouter's, or an offline fake that answers after FAKE_BATCH_DELAY_MS. */
-export function createBatchApi(env: ModelEnv): BatchApi {
+export function createBatchApi(env: ModelEnv & { BETTER_AUTH_URL?: string; OPENROUTER_WEBHOOK_SECRET?: string }): BatchApi {
   if (env.MODEL_PROVIDER === 'fake') return new FakeBatchApi(devFakeReply);
   if (!env.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY is required when MODEL_PROVIDER is openrouter');
+  // OpenRouter calls back only to a public HTTPS address, and we only accept signed calls: both must be set.
+  const callback = env.OPENROUTER_WEBHOOK_SECRET && env.BETTER_AUTH_URL?.startsWith('https://');
   return new OpenRouterBatchApi(env.OPENROUTER_API_KEY, {
     disableReasoning: id => PRODUCTION_CATALOG.entries.some(e => e.id === id && e.reasoning === 'optional'),
+    ...(callback ? { callbackUrl: `${env.BETTER_AUTH_URL!.replace(/\/$/, '')}/api/webhooks/openrouter` } : {}),
   });
 }
 
