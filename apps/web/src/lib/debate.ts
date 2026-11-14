@@ -141,8 +141,8 @@ interface RevealInput {
   kind: 'live' | 'batch';
   status: 'running' | 'complete' | 'failed';
   /** When Audience voting closes (null while running or failed; missing from an older API). */
-  votingClosesAt?: string | null;
-  myVote?: { after: unknown } | null;
+  votingClosesAt?: string | null | undefined;
+  myVote?: { before?: unknown; after: unknown } | null | undefined;
 }
 
 /**

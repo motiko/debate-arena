@@ -1,0 +1,170 @@
+---
+// Everything under the floor that depends on how the Debate ended: the after-vote when it is due, then the
+// Verdict, the Audience Result and any AI Audience Result. They follow the hybrid rule (outcomeHidden): open,
+// or folded together in one <details id="outcome"> that the dispatch box's "Show the result" also opens.
+// data-region: when a live Debate ends, or after the after-vote, the page swaps in a fresh render (lib/refresh).
+import type { PublicDebate } from '@debate-arena/api-client';
+import AiLabel from './AiLabel.astro';
+import AudienceResultView from './AudienceResultView.astro';
+import SwingChart from './SwingChart.astro';
+import VerdictView from './VerdictView.astro';
+import VotePanel from '../islands/VotePanel.svelte';
+import { t } from '../i18n/t';
+import { dispatchState, modelLabel, outcomeHidden, swingText, type ModelInfo } from '../lib/debate';
+import { formatDate } from '../lib/format';
+
+interface Props {
+  debate: PublicDebate;
+  models: ModelInfo[];
+  signedIn: boolean;
+}
+
+const { debate, models, signedIn } = Astro.props;
+const isBatch = debate.kind === 'batch';
+const closesAt = debate.audienceResult.votingClosesAt;
+const askAfter = dispatchState(debate) === 'askAfter';
+const hidden = outcomeHidden({ ...debate, votingClosesAt: closesAt });
+const Wrapper = hidden ? 'details' : 'div';
+---
+
+<div class="outcome-region" data-region="outcome">
+  {
+    !debate.turnsHidden && (
+      <>
+        {debate.status === 'running' && !isBatch && (
+          <div class="pending">
+            <p>{debate.myVote?.before ? t('live.pendingVoter') : t('verdict.pending')}</p>
+            <noscript>
+              <p>{t('live.noscript')}</p>
+            </noscript>
+          </div>
+        )}
+
+        {askAfter && (
+          <section id="after-vote" class="after-vote" aria-label={t('vote.title')}>
+            <VotePanel
+              client:load
+              only="after"
+              debateId={debate.id}
+              motion={debate.motion}
+              status={debate.status}
+              myVote={debate.myVote}
+              signedIn={signedIn}
+              turnsHidden={debate.turnsHidden}
+              votingClosesAt={closesAt}
+            />
+          </section>
+        )}
+
+        {debate.verdict && debate.status !== 'running' && (
+          <>
+            {hidden && closesAt && <p class="fold-note">{t('outcome.folded', { date: formatDate(closesAt) })}</p>}
+            <Wrapper id="outcome" class={hidden ? 'outcome fold' : 'outcome'}>
+              {hidden && (
+                <summary>
+                  <span class="when-closed">{t('dispatch.show')}</span>
+                  <span class="when-open">{t('dispatch.hide')}</span>
+                </summary>
+              )}
+              <VerdictView verdict={debate.verdict} debaters={debate.debaters} selfJudging={debate.selfJudging} models={models} />
+              {!isBatch && debate.status !== 'failed' && <AudienceResultView result={debate.audienceResult} myVote={debate.myVote} />}
+              {debate.aiAudience && (
+                <section class="ai-audience stack" aria-labelledby="ai-audience-title">
+                  <h2 id="ai-audience-title">
+                    {t('aiAudience.title')} <AiLabel />
+                  </h2>
+                  <SwingChart result={debate.aiAudience} label={swingText(debate.aiAudience, 'aiVoters')} />
+                  <p class="muted">{t('aiAudience.voters', { models: debate.aiVoters.map(m => modelLabel(m, models)).join(', ') })}</p>
+                  {debate.aiVotersShareDebaterModel && <p class="note">{t('aiAudience.shared')}</p>}
+                  {debate.aiAudience.dropped.length > 0 && <p class="muted">{t('aiAudience.dropped', { count: debate.aiAudience.dropped.length })}</p>}
+                </section>
+              )}
+            </Wrapper>
+          </>
+        )}
+      </>
+    )
+  }
+</div>
+
+<style>
+  .pending {
+    max-width: 44rem;
+    margin: calc(var(--space) * 2) auto 0;
+    color: var(--muted);
+    text-align: center;
+  }
+  /* The after-vote closes the floor: the Oxford question asked again, under a brass rule, where the reading ends. */
+  .after-vote {
+    max-width: 26rem;
+    margin: calc(var(--space) * 2.5) auto 0;
+    padding-top: 1.5rem;
+    border-top: 2px solid var(--brass);
+  }
+  .after-vote :global(fieldset) {
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+  }
+  .after-vote :global(legend) {
+    width: 100%;
+    margin-bottom: 0.5rem;
+    padding: 0;
+    font-family: var(--font-serif);
+    font-size: clamp(1.45rem, 1.2rem + 1vw, 1.85rem);
+    text-align: center;
+  }
+  .after-vote :global(.was) {
+    margin-bottom: 0.5rem;
+    text-align: center;
+  }
+  .after-vote :global(button[type='submit']) {
+    width: 100%;
+  }
+  .fold-note {
+    max-width: 36rem;
+    margin: calc(var(--space) * 2.5) auto 0;
+    color: var(--muted);
+    text-align: center;
+  }
+  .fold {
+    margin-top: 0.75rem;
+  }
+  .fold summary {
+    display: flex;
+    width: fit-content;
+    align-items: center;
+    min-height: 2.75rem;
+    margin-inline: auto;
+    padding: 0.4rem 1.1rem;
+    border: 1.5px solid var(--green);
+    border-radius: var(--radius);
+    color: var(--green);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  /* The summary stays put when open (keyboard focus stays on it) and offers to hide the result again. */
+  .fold summary .when-open,
+  .fold[open] summary .when-closed {
+    display: none;
+  }
+  .fold[open] summary .when-open {
+    display: inline;
+  }
+  .ai-audience {
+    max-width: 44rem;
+    margin: calc(var(--space) * 2.5) auto 0;
+  }
+  /* When the Debate ends (or the after-vote is cast) the fresh outcome settles in once. */
+  @media (prefers-reduced-motion: no-preference) {
+    .outcome-region[data-arrived] {
+      animation: arrive 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+  }
+  @keyframes arrive {
+    from {
+      opacity: 0.35;
+      transform: translateY(0.75rem);
+    }
+  }
+</style>

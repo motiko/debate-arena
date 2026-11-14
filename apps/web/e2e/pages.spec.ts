@@ -27,6 +27,8 @@ test('debate page shows Turns, Verdict and AI labels', async ({ page, request })
   await expect(page).toHaveTitle(`${motion} · Debate Arena`);
   await expect(page.getByRole('heading', { level: 1, name: motion })).toBeVisible();
   await expect(page.getByRole('article')).toHaveCount(6);
+  // Voting is open and this Viewer has no after-vote: the outcome is folded until asked for.
+  await page.locator('.dispatch').getByRole('link', { name: 'Show the result' }).click();
   await expect(page.getByRole('heading', { name: /Verdict/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: /AI Audience Result/ })).toBeVisible();
   // Every Turn, the Verdict and the AI Audience Result carry the label.
@@ -40,18 +42,42 @@ test('debate page reads without JavaScript', async ({ browser, request }) => {
   const page = await context.newPage();
   await page.goto(`/debates/${id}`);
   await expect(page.getByRole('article')).toHaveCount(6);
+  // The folded outcome is a plain <details>: it opens without JavaScript.
+  await page.locator('#outcome > summary').click();
   await expect(page.getByRole('heading', { name: /Verdict/ })).toBeVisible();
   await context.close();
 });
 
-test('a finished Debate keeps its result behind "Show the result"', async ({ page, request }) => {
+test('while voting is open, one "Show the result" opens every outcome on the page', async ({ page, request }) => {
   const { id } = await startDebate(request);
   await waitComplete(request, id);
   await page.goto(`/debates/${id}`);
   const headline = page.locator('.dispatch .outcome-headline');
   await expect(headline).toBeHidden();
-  await page.locator('.dispatch summary', { hasText: 'Show the result' }).click();
+  await expect(page.locator('.verdict-winner')).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'Audience Result' })).toBeHidden();
+  await page.locator('.dispatch').getByRole('link', { name: 'Show the result' }).click();
   await expect(headline).toHaveText(/carries the Motion|defeats the Motion|Split decision/);
+  await expect(page.locator('.verdict-winner')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Audience Result' })).toBeVisible();
+});
+
+test('a signed-out Viewer is asked to sign in once, with the reason', async ({ page, request }) => {
+  const { id } = await startDebate(request);
+  await waitComplete(request, id);
+  await page.goto(`/debates/${id}`);
+  await expect(page.locator('main').getByRole('button', { name: /sign in/i })).toHaveCount(1);
+  await expect(page.locator('main').getByRole('button', { name: 'Sign in to vote' })).toBeVisible();
+  await expect(page.locator('.dispatch')).toContainText('Members vote before and after the Debate.');
+});
+
+test('one Copy link button, after the Motion, and a way on to more Debates', async ({ page, request }) => {
+  const { id } = await startDebate(request);
+  await waitComplete(request, id);
+  await page.goto(`/debates/${id}`);
+  await expect(page.getByRole('button', { name: 'Copy link to this Debate' })).toHaveCount(1);
+  await expect(page.locator('.debate-band').getByRole('button', { name: 'Copy link to this Debate' })).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'More Debates on the order paper' }).getByRole('link', { name: 'More Debates on the order paper' })).toHaveAttribute('href', '/');
 });
 
 test('a 300-character Motion fits a phone screen', async ({ page, request }) => {
@@ -83,7 +109,7 @@ test('"Show the result" stays focusable once open, offering to hide it', async (
   const { id } = await startDebate(request);
   await waitComplete(request, id);
   await page.goto(`/debates/${id}`);
-  const summary = page.locator('.dispatch summary');
+  const summary = page.locator('#outcome > summary');
   await summary.click();
   await expect(summary).toBeVisible();
   await expect(summary).toHaveText('Hide the result', { useInnerText: true });
@@ -186,7 +212,7 @@ test.describe('dark mode', () => {
     await page.goto('/');
     await expectNoAxeViolations(page);
     await page.goto(`/debates/${id}`);
-    await page.locator('.dispatch summary', { hasText: 'Show the result' }).click();
+    await page.locator('.dispatch').getByRole('link', { name: 'Show the result' }).click();
     await expectNoAxeViolations(page);
     await page.setExtraHTTPHeaders({ 'x-dev-member': `dark-${Date.now()}` });
     await page.goto('/new');

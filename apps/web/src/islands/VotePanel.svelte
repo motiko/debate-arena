@@ -5,6 +5,7 @@
   import { onMount } from 'svelte';
   import SignInButton from './SignInButton.svelte';
   import { t } from '../i18n/t';
+  import { refreshRegions, type RefreshOptions } from '../lib/refresh';
 
   type Phase = 'before' | 'after';
   type Vote = { before: Stance | null; after: Stance | null };
@@ -17,10 +18,12 @@
     signedIn: boolean;
     turnsHidden: boolean;
     votingClosesAt: string | null;
-    /** Show only this vote's form: the dispatch box asks for the before-vote, the audience division for the after-vote. */
+    /** Show only this vote's form: the dispatch box asks for the before-vote, the foot of the floor for the after-vote. */
     only?: Phase;
     fetcher?: typeof fetch;
     reload?: () => void;
+    /** Brings the page's outcome up to date after the after-vote (lib/refresh). */
+    refresh?: (options: RefreshOptions) => Promise<boolean>;
   }
 
   let {
@@ -34,6 +37,7 @@
     only,
     fetcher = fetch,
     reload = () => location.reload(),
+    refresh = refreshRegions,
   }: Props = $props();
 
   // Svelte 5: the island owns its vote after hydration; props only seed it.
@@ -54,6 +58,16 @@
     closed ? null : vote.before === null ? 'before' : status === 'complete' && vote.after === null ? 'after' : null,
   );
   const phase = $derived(only && next !== only ? null : next);
+  // With `only`, the question is the form's only heading, asked once and without repeating the Motion above it.
+  const legend = $derived(
+    phase === 'before'
+      ? only
+        ? t('vote.beforeShort')
+        : t('vote.before', { motion })
+      : only
+        ? t('vote.afterShort')
+        : t('vote.after', { motion }),
+  );
 
   async function cast(event: SubmitEvent) {
     event.preventDefault();
@@ -81,6 +95,9 @@
       choice = '';
       announcement = t('vote.recorded', { phase: castPhase, stance: stanceLabel(stance) });
       if (castPhase === 'before' && turnsHidden) reload();
+      // The hybrid rule: with the after-vote cast the outcome opens, so the page brings it in and moves focus
+      // there (this form is replaced). If that fails, this panel still says the vote is recorded.
+      if (castPhase === 'after') await refresh({ fetcher, prefix: announcement, focus: true });
     } catch {
       error = t('vote.failed');
     } finally {
@@ -89,8 +106,8 @@
   }
 </script>
 
-<section class="vote stack" aria-labelledby={only === 'before' ? undefined : 'vote-title'}>
-  {#if only !== 'before'}
+<section class="vote stack" aria-labelledby={only ? undefined : 'vote-title'}>
+  {#if !only}
     <h3 id="vote-title">{t('vote.title')}</h3>
     <p class="muted">{t('vote.intro')}</p>
   {/if}
@@ -99,7 +116,7 @@
     <p>{t('vote.signIn')}</p>
     <SignInButton callbackPath={`/debates/${debateId}`} {fetcher} />
   {:else}
-    {#if vote.before}<p>{t('vote.youBefore', { stance: stanceLabel(vote.before) })}</p>{/if}
+    {#if vote.before && only !== 'after'}<p>{t('vote.youBefore', { stance: stanceLabel(vote.before) })}</p>{/if}
     {#if vote.after}<p>{t('vote.youAfter', { stance: stanceLabel(vote.after) })}</p>{/if}
 
     {#if closed}
@@ -107,14 +124,15 @@
     {:else if phase}
       <form onsubmit={cast} class="stack" novalidate>
         <fieldset>
-          <legend>{t(phase === 'before' ? (only === 'before' ? 'vote.beforeShort' : 'vote.before') : 'vote.after', { motion })}</legend>
+          <legend>{legend}</legend>
+          {#if phase === 'after' && only && vote.before}<p class="was">{t('vote.youBefore', { stance: stanceLabel(vote.before) })}</p>{/if}
           {#each ['for', 'against', 'undecided'] as const as stance (stance)}
             <label class="choice"><input type="radio" name="stance" value={stance} bind:group={choice} /> {stanceLabel(stance)}</label>
           {/each}
         </fieldset>
         <button type="submit" disabled={pending || !hydrated} aria-busy={pending}>{t(phase === 'before' ? 'vote.castBefore' : 'vote.castAfter')}</button>
       </form>
-    {:else if vote.before && !vote.after && status === 'running'}
+    {:else if vote.before && !vote.after && status === 'running' && !only}
       <p class="muted">{t('vote.waitAfter')}</p>
     {/if}
   {/if}
@@ -122,3 +140,10 @@
   <p role="status" aria-live="polite">{announcement}</p>
   {#if error}<p role="alert" class="error">{error}</p>{/if}
 </section>
+
+<style>
+  .was {
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+</style>

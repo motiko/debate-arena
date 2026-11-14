@@ -7,17 +7,25 @@ import { formatDate } from '../lib/format';
 
 interface Props {
   result: PublicDebate['audienceResult'];
+  myVote: PublicDebate['myVote'];
 }
 
-const { result } = Astro.props;
+const { result, myVote } = Astro.props;
 const closesAt = result.votingClosesAt;
 const closed = closesAt !== null && Date.parse(closesAt) <= Date.now();
+const stance = (s: 'for' | 'against' | 'undecided') => (s === 'for' ? t('side.for') : s === 'against' ? t('side.against') : t('vote.undecided'));
 ---
 
 <section class="division stack" aria-labelledby="audience-title">
   <h2 id="audience-title">{t('audience.title')}</h2>
-  <slot name="vote" />
-  <SwingChart result={result} label={swingText(result)} />
+  <SwingChart result={result} label={swingText(result)} empty={closed ? undefined : t('result.emptyChart')} />
+  {
+    myVote && (
+      <p>
+        {myVote.before && t('vote.youBefore', { stance: stance(myVote.before) })} {myVote.after && t('vote.youAfter', { stance: stance(myVote.after) })}
+      </p>
+    )
+  }
   {
     closesAt && (
       <p class="muted">
@@ -31,8 +39,5 @@ const closed = closesAt !== null && Date.parse(closesAt) <= Date.now();
   .division {
     max-width: 44rem;
     margin: calc(var(--space) * 2.5) auto 0;
-  }
-  .division > :global(.vote) {
-    margin-top: 1.25rem;
   }
 </style>

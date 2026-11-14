@@ -19,7 +19,8 @@ const winner = t('verdict.side', { side: sideLabel(verdict.winner), model: debat
 <div class="ruling">
   <span class="lozenge" aria-hidden="true"></span>
   <section class="verdict" aria-labelledby="verdict-title">
-    <h2 id="verdict-title">{t('verdict.title')} <AiLabel /> {selfJudging && <SelfJudgingBadge />}</h2>
+    {/* data-focus: where focus lands when the Verdict is brought in after the after-vote (lib/refresh). */}
+    <h2 id="verdict-title" data-focus tabindex="-1">{t('verdict.title')} <AiLabel /> {selfJudging && <SelfJudgingBadge />}</h2>
     <p class={`verdict-winner side-${verdict.winner}`}>{winner}</p>
     <div class="verdict-reasoning">
       {paragraphs(verdict.reasoning).map(p => <p>{p}</p>)}
@@ -50,10 +51,18 @@ const winner = t('verdict.side', { side: sideLabel(verdict.winner), model: debat
     background: var(--surface);
     text-align: center;
   }
+  /* A real heading, not a caption: serif at heading size, so it holds its own above the winner. */
   .verdict h2 {
-    font-family: var(--font-sans);
-    font-size: 0.95rem;
-    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem 0.6rem;
+    font-size: clamp(1.35rem, 1.15rem + 0.8vw, 1.6rem);
+    letter-spacing: 0.01em;
+  }
+  .verdict h2:focus {
+    outline: none;
   }
   .verdict-winner {
     margin-top: 0.4rem;

@@ -13,8 +13,13 @@ test('live Turns appear as they are written', async ({ page, request }) => {
   await expect(log.getByRole('article')).toHaveCount(2, { timeout: 20_000 });
   await expect(page.getByText('Live: new Turns appear as they are written.')).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as { __sameLoad?: boolean }).__sameLoad)).toBe(true);
-  await expect(page.getByRole('link', { name: 'Show the Verdict' })).toBeVisible({ timeout: 30_000 });
+  // The end, in place: nothing stale stays, and the folded outcome arrives without a reload.
+  await expect(page.getByText('The Debate is over.')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#outcome > summary')).toBeVisible();
+  await expect(page.locator('.dispatch')).not.toContainText('Live now');
+  await expect(page.getByText('The Panel gives its Verdict when the Debate ends.')).toHaveCount(0);
   await expect(log.getByRole('article')).toHaveCount(6);
+  expect(await page.evaluate(() => (window as unknown as { __sameLoad?: boolean }).__sameLoad)).toBe(true);
 });
 
 test('axe: live Debate page', async ({ page, request }) => {
