@@ -33,6 +33,25 @@ test('debate page reads without JavaScript', async ({ browser, request }) => {
   await context.close();
 });
 
+test('the page loads its serif from this site only', async ({ page }) => {
+  const urls: string[] = [];
+  page.on('request', request => urls.push(request.url()));
+  await page.goto('/');
+  await page.evaluate(() => document.fonts.ready);
+  const origin = new URL(page.url()).origin;
+  expect(urls.filter(url => new URL(url).origin !== origin)).toEqual([]);
+  // fonts.check() is also true when no such face exists, so look for a loaded face by name.
+  const loaded = await page.evaluate(() =>
+    [...document.fonts].some(face => face.family.replaceAll('"', '').startsWith('Source Serif 4') && face.status === 'loaded'),
+  );
+  expect(loaded).toBe(true);
+});
+
+test('the header sits in the green band', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('.site-header')).toHaveCSS('background-color', 'rgb(29, 92, 69)');
+});
+
 test('unknown Debate id responds 404', async ({ page }) => {
   const response = await page.goto('/debates/no-such-debate');
   expect(response?.status()).toBe(404);

@@ -16,7 +16,7 @@ const callbackPath = Astro.url.pathname + Astro.url.search;
         <a href="/account" aria-label={`${t('header.account')}: ${me.name}`}>
           {me.name}
         </a>
-        <span class="muted">{t('header.quota', { points: me.quotaRemaining })}</span>
+        <span class="quota">{t('header.quota', { points: me.quotaRemaining })}</span>
         <SignOutButton client:idle />
       </>
     ) : (
