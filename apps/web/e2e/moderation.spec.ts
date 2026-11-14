@@ -76,6 +76,7 @@ test.describe('Moderator queue', () => {
     await expect(page.getByRole('link', { name: 'Moderation' })).toBeVisible();
     const item = page.getByRole('listitem').filter({ has: page.getByRole('link', { name: motion }) });
     await expect(item.getByText(/Flagged by the AI screen: Hate/)).toBeVisible();
+    await expect(item.getByRole('group', { name: 'Decision' }).getByRole('button', { name: 'Relist' })).toBeVisible();
     await item.scrollIntoViewIfNeeded();
     await hydrated(item);
     await item.getByRole('button', { name: 'Relist' }).click();
@@ -92,12 +93,31 @@ test.describe('Moderator queue', () => {
     const item = page.getByRole('listitem').filter({ has: page.getByRole('link', { name: motion }) });
     await item.scrollIntoViewIfNeeded();
     await hydrated(item);
+    await expect(item.getByRole('radio', { name: 'Breach of the terms of use' })).toBeHidden();
+    await item.getByText('Block…').click();
     await item.getByRole('radio', { name: 'Breach of the terms of use' }).check();
     await item.getByLabel('Reference').fill('Terms §3 Hate');
     await item.getByLabel('Explanation for the author').fill('The Motion attacks a group of people.');
     await item.getByRole('button', { name: 'Block' }).click();
     await expect(item.getByRole('status')).toContainText('Blocked');
     expect((await page.goto(`/debates/${id}`))?.status()).toBe(410);
+  });
+
+  test('a reported Debate shows its Reports, counted in the singular', async ({ page, request }) => {
+    const { id, motion } = await startDebate(request);
+    await waitComplete(request, id);
+    const res = await request.post(`/api/debates/${id}/reports`, {
+      headers: { 'content-type': 'application/json' },
+      data: { reason: 'harassment', explanation: 'It targets a named person with insults.', goodFaith: true },
+    });
+    expect(res.status(), await res.text()).toBe(201);
+    await page.setExtraHTTPHeaders(moderator());
+    await page.goto('/moderation');
+    const item = page.getByRole('listitem').filter({ has: page.getByRole('link', { name: motion }) });
+    await expect(item.getByText('1 anonymous Report since the last review')).toBeVisible();
+    await expect(item.getByText('It targets a named person with insults.')).toBeHidden();
+    await item.getByText('Read the Reports: Harassment or bullying').click();
+    await expect(item.getByText('It targets a named person with insults.')).toBeVisible();
   });
 
   test('a Member without the role gets 403 on /moderation', async ({ page }) => {
@@ -114,6 +134,8 @@ test.describe('axe', () => {
     await waitComplete(request, id);
     await page.setExtraHTTPHeaders(moderator());
     await page.goto('/moderation');
+    await expectNoAxeViolations(page);
+    await page.getByText('Block…').first().click();
     await expectNoAxeViolations(page);
   });
 

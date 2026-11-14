@@ -22,9 +22,21 @@ test('relists', async () => {
   expect(screen.queryByRole('button', { name: 'Relist' })).toBeNull();
 });
 
+test('offers Relist and Block side by side, with the Block form disclosed', async () => {
+  const { container } = render(DecisionForm, { debateId: 'd1', fetcher: respond(201, {}).fetcher });
+  const decisions = screen.getByRole('group', { name: 'Decision' });
+  expect(decisions).toContainElement(screen.getByRole('button', { name: 'Relist' }));
+  const disclosure = container.querySelector('details');
+  expect(disclosure).not.toBeNull();
+  expect(disclosure?.open).toBe(false);
+  expect(disclosure?.querySelector('summary')).toHaveTextContent('Block…');
+  expect(disclosure).toContainElement(screen.getByRole('button', { name: 'Block' }));
+});
+
 test('blocks with ground, reference and explanation', async () => {
   const { fetcher, calls } = respond(201, { visibility: 'blocked' });
   render(DecisionForm, { debateId: 'd1', fetcher });
+  await fireEvent.click(screen.getByText('Block…'));
   await fireEvent.click(screen.getByRole('radio', { name: /terms of use/i }));
   await fireEvent.input(screen.getByLabelText('Reference'), { target: { value: 'Terms §3 Hate' } });
   await fireEvent.input(screen.getByLabelText('Explanation for the author'), { target: { value: 'The Motion attacks a group of people.' } });
@@ -41,6 +53,7 @@ test('blocks with ground, reference and explanation', async () => {
 test('does not Block without an explanation', async () => {
   const { fetcher } = respond(201, {});
   render(DecisionForm, { debateId: 'd1', fetcher });
+  await fireEvent.click(screen.getByText('Block…'));
   await fireEvent.click(screen.getByRole('radio', { name: /illegal/i }));
   await fireEvent.input(screen.getByLabelText('Reference'), { target: { value: 'StGB §130' } });
   await fireEvent.click(screen.getByRole('button', { name: 'Block' }));
