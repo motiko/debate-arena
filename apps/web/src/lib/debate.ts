@@ -70,6 +70,15 @@ export function swingText(result: OxfordResult, voters: 'members' | 'aiVoters' =
   });
 }
 
+/** Each Side's Swing as a bar on its half of the axis: 100 points fill the half, larger Swings are capped. */
+export function swingBars(result: Pick<OxfordResult, 'swing'>): Record<Side, { points: number; width: string }> {
+  const bar = (swing: number) => {
+    const points = Math.round(swing * 10) / 10 || 0;
+    return { points, width: `${Math.min(Math.abs(points), 100) / 2}%` };
+  };
+  return { for: bar(result.swing.for), against: bar(result.swing.against) };
+}
+
 export interface SlotTurn {
   slotIndex: number;
   turn: Turn;

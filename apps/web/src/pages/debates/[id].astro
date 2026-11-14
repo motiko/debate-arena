@@ -2,10 +2,11 @@
 import AiLabel from '../../components/AiLabel.astro';
 import AudienceResultView from '../../components/AudienceResultView.astro';
 import DebateBand from '../../components/DebateBand.astro';
+import DebateRecord from '../../components/DebateRecord.astro';
+import SwingChart from '../../components/SwingChart.astro';
 import VerdictView from '../../components/VerdictView.astro';
 import LiveTurns from '../../islands/LiveTurns.svelte';
 import PhaseFloor from '../../islands/PhaseFloor.svelte';
-import ReportForm from '../../islands/ReportForm.svelte';
 import VotePanel from '../../islands/VotePanel.svelte';
 import Base from '../../layouts/Base.astro';
 import { t } from '../../i18n/t';
@@ -51,34 +52,36 @@ const isBatch = debate.kind === 'batch';
     !debate.turnsHidden && (
       <>
         {debate.verdict ? (
-          <VerdictView verdict={debate.verdict} selfJudging={debate.selfJudging} models={models} />
+          <VerdictView verdict={debate.verdict} debaters={debate.debaters} selfJudging={debate.selfJudging} models={models} />
         ) : (
           debate.status === 'running' && <p class="muted">{t('verdict.pending')}</p>
         )}
 
         {!isBatch && debate.status !== 'failed' && (
           <>
-            <VotePanel
-              client:load
-              only="after"
-              debateId={debate.id}
-              motion={debate.motion}
-              status={debate.status}
-              myVote={debate.myVote}
-              signedIn={me !== null}
-              turnsHidden={debate.turnsHidden}
-              votingClosesAt={debate.audienceResult.votingClosesAt}
-            />
-            <AudienceResultView result={debate.audienceResult} />
+            <AudienceResultView result={debate.audienceResult}>
+              <VotePanel
+                slot="vote"
+                client:load
+                only="after"
+                debateId={debate.id}
+                motion={debate.motion}
+                status={debate.status}
+                myVote={debate.myVote}
+                signedIn={me !== null}
+                turnsHidden={debate.turnsHidden}
+                votingClosesAt={debate.audienceResult.votingClosesAt}
+              />
+            </AudienceResultView>
           </>
         )}
 
         {debate.aiAudience && (
-          <section class="card stack" aria-labelledby="ai-audience-title">
+          <section class="ai-audience stack" aria-labelledby="ai-audience-title">
             <h2 id="ai-audience-title">
               {t('aiAudience.title')} <AiLabel />
             </h2>
-            <p>{swingText(debate.aiAudience, 'aiVoters')}</p>
+            <SwingChart result={debate.aiAudience} label={swingText(debate.aiAudience, 'aiVoters')} />
             <p class="muted">{t('aiAudience.voters', { models: debate.aiVoters.map(m => modelLabel(m, models)).join(', ') })}</p>
             {debate.aiVotersShareDebaterModel && <p class="note">{t('aiAudience.shared')}</p>}
             {debate.aiAudience.dropped.length > 0 && <p class="muted">{t('aiAudience.dropped', { count: debate.aiAudience.dropped.length })}</p>}
@@ -88,21 +91,12 @@ const isBatch = debate.kind === 'batch';
     )
   }
 
-  <details class="report card">
-    <summary>{t('report.summary')}</summary>
-    <ReportForm client:visible debateId={debate.id} signedIn={me !== null} />
-  </details>
+  <DebateRecord debate={debate} models={models} signedIn={me !== null} />
 </Base>
 
 <style>
-  .report summary {
-    cursor: pointer;
-    font-weight: 600;
-    min-height: 2.75rem;
-    display: flex;
-    align-items: center;
-  }
-  .report[open] summary {
-    margin-bottom: 0.75rem;
+  .ai-audience {
+    max-width: 44rem;
+    margin-inline: auto;
   }
 </style>

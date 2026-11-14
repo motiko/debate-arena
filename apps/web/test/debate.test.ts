@@ -6,6 +6,7 @@ import {
   motionSize,
   outcome,
   spokeCount,
+  swingBars,
   modelLabel,
   nextFeedCursor,
   paragraphs,
@@ -147,6 +148,13 @@ describe('chamber helpers', () => {
     const turns = [{ side: 'for' as const }, { side: 'against' as const }, { side: 'for' as const }];
     expect(spokeCount(turns, 'for')).toBe(2);
     expect(spokeCount(turns, 'against')).toBe(1);
+  });
+
+  test('swingBars sizes each Side on its half of the axis', () => {
+    expect(swingBars(result('for', 4, 13))).toEqual({ for: { points: 13, width: '6.5%' }, against: { points: -13, width: '6.5%' } });
+    expect(swingBars(result('tie', 4, 0))).toEqual({ for: { points: 0, width: '0%' }, against: { points: 0, width: '0%' } });
+    expect(swingBars(result('for', 4, 140)).for.width).toBe('50%');
+    expect(swingBars({ swing: { for: 12.34, against: -12.34 } }).for.points).toBe(12.3);
   });
 
   test('debaterLabel uses the model label', () => {

@@ -3,22 +3,78 @@ import type { PublicDebate } from '@debate-arena/api-client';
 import AiLabel from './AiLabel.astro';
 import SelfJudgingBadge from './SelfJudgingBadge.astro';
 import { t } from '../i18n/t';
-import { modelLabel, paragraphs, sideLabel, type ModelInfo } from '../lib/debate';
+import { debaterLabel, modelLabel, paragraphs, sideLabel, type ModelInfo } from '../lib/debate';
 
 interface Props {
   verdict: NonNullable<PublicDebate['verdict']>;
+  debaters: PublicDebate['debaters'];
   selfJudging: boolean;
   models: ModelInfo[];
 }
 
-const { verdict, selfJudging, models } = Astro.props;
+const { verdict, debaters, selfJudging, models } = Astro.props;
+const winner = t('verdict.side', { side: sideLabel(verdict.winner), model: debaterLabel(debaters[verdict.winner], models) });
 ---
 
-<section class="card stack" aria-labelledby="verdict-title">
-  <h2 id="verdict-title">{t('verdict.title')} <AiLabel /> {selfJudging && <SelfJudgingBadge />}</h2>
-  <p>
-    <strong class={`side-${verdict.winner}`}>{t('verdict.winner', { side: sideLabel(verdict.winner) })}</strong>
-  </p>
-  {paragraphs(verdict.reasoning).map(p => <p>{p}</p>)}
-  <p class="muted">{t('verdict.judges', { judges: verdict.judges.map(j => modelLabel(j, models)).join(', ') })}</p>
-</section>
+<div class="ruling">
+  <span class="lozenge" aria-hidden="true"></span>
+  <section class="verdict" aria-labelledby="verdict-title">
+    <h2 id="verdict-title">{t('verdict.title')} <AiLabel /> {selfJudging && <SelfJudgingBadge />}</h2>
+    <p class={`verdict-winner side-${verdict.winner}`}>{winner}</p>
+    <div class="verdict-reasoning">
+      {paragraphs(verdict.reasoning).map(p => <p>{p}</p>)}
+    </div>
+    <p class="muted">{t('verdict.judges', { judges: verdict.judges.map(j => modelLabel(j, models)).join(', ') })}</p>
+  </section>
+</div>
+
+<style>
+  .ruling {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: calc(var(--space) * 2);
+  }
+  .lozenge {
+    --size: 1.1rem;
+    position: relative;
+    margin-bottom: -0.55rem;
+    z-index: 1;
+  }
+  .verdict {
+    width: 100%;
+    max-width: 44rem;
+    padding: 2rem clamp(1.25rem, 3vw, 2.5rem) 1.75rem;
+    border: 1.5px solid var(--brass);
+    border-radius: var(--radius);
+    background: var(--surface);
+    text-align: center;
+  }
+  .verdict h2 {
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
+    color: var(--muted);
+  }
+  .verdict-winner {
+    margin-top: 0.4rem;
+    font-family: var(--font-serif);
+    font-size: clamp(1.75rem, 1.3rem + 1.8vw, 2.5rem);
+    font-weight: 600;
+    line-height: 1.15;
+  }
+  .verdict-reasoning {
+    margin: 1rem auto 0;
+    max-width: 36rem;
+    font-family: var(--font-serif);
+    font-size: 1.125rem;
+    line-height: 1.7;
+    text-align: left;
+  }
+  .verdict-reasoning p + p {
+    margin-top: 0.85rem;
+  }
+  .verdict > .muted {
+    margin-top: 1.1rem;
+    font-size: 0.9rem;
+  }
+</style>

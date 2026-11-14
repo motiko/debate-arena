@@ -39,5 +39,7 @@ test('start a Batch Debate, see it is being generated, then read it when complet
   await expect(page.getByRole('heading', { name: /Verdict/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /before-vote/ })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Audience Result' })).toHaveCount(0);
+  await expect(page.locator('.dispatch summary', { hasText: 'Show the result' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Record of this Debate' })).toBeVisible();
   await expectNoAxeViolations(page);
 });

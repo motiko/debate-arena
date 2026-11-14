@@ -1,5 +1,6 @@
 ---
 import type { PublicDebate } from '@debate-arena/api-client';
+import SwingChart from './SwingChart.astro';
 import { t } from '../i18n/t';
 import { swingText } from '../lib/debate';
 import { formatDate } from '../lib/format';
@@ -13,9 +14,10 @@ const closesAt = result.votingClosesAt;
 const closed = closesAt !== null && Date.parse(closesAt) <= Date.now();
 ---
 
-<section class="card stack" aria-labelledby="audience-title">
+<section class="division stack" aria-labelledby="audience-title">
   <h2 id="audience-title">{t('audience.title')}</h2>
-  <p>{swingText(result)}</p>
+  <slot name="vote" />
+  <SwingChart result={result} label={swingText(result)} />
   {
     closesAt && (
       <p class="muted">
@@ -24,3 +26,10 @@ const closed = closesAt !== null && Date.parse(closesAt) <= Date.now();
     )
   }
 </section>
+
+<style>
+  .division {
+    max-width: 44rem;
+    margin-inline: auto;
+  }
+</style>
