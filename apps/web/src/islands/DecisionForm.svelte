@@ -56,28 +56,85 @@
 {#if outcome}
   <p role="status"><strong>{outcome}</strong></p>
 {:else}
-  <div class="stack">
-    <button type="button" class="secondary" disabled={pending || !hydrated} onclick={() => send({ action: 'relist' }, t('moderation.relisted'))}
+  <!-- The two decisions side by side. Block's statement of reasons opens below them, in a <details> so it opens
+       without JavaScript. -->
+  <div class="decisions" role="group" aria-label={t('moderation.decisions')}>
+    <button type="button" class="secondary relist" disabled={pending || !hydrated} onclick={() => send({ action: 'relist' }, t('moderation.relisted'))}
       >{t('moderation.relist')}</button
     >
-    <form onsubmit={block} class="stack" novalidate>
-      <fieldset class="stack">
-        <legend>{t('moderation.blockLegend')}</legend>
-        <label class="choice"><input type="radio" name={id('ground')} value="illegal" bind:group={ground} /> {t('moderation.groundIllegal')}</label>
-        <label class="choice"><input type="radio" name={id('ground')} value="terms" bind:group={ground} /> {t('moderation.groundTerms')}</label>
-        <div class="field">
-          <label for={id('ref')}>{t('moderation.reference')}</label>
-          <p id={id('ref-hint')} class="muted">{t('moderation.referenceHint')}</p>
-          <input id={id('ref')} type="text" maxlength="200" aria-describedby={id('ref-hint')} bind:value={groundRef} />
-        </div>
-        <div class="field">
-          <label for={id('explanation')}>{t('moderation.explanation')}</label>
-          <p id={id('explanation-hint')} class="muted">{t('moderation.explanationHint')}</p>
-          <textarea id={id('explanation')} rows="3" maxlength="2000" aria-describedby={id('explanation-hint')} bind:value={explanation}></textarea>
-        </div>
-        <button type="submit" disabled={pending || !hydrated} aria-busy={pending}>{t('moderation.block')}</button>
-      </fieldset>
-    </form>
+    <details class="block">
+      <summary>{t('moderation.blockOpen')}</summary>
+      <form onsubmit={block} class="stack" novalidate>
+        <fieldset class="stack">
+          <legend>{t('moderation.blockLegend')}</legend>
+          <label class="choice"><input type="radio" name={id('ground')} value="illegal" bind:group={ground} /> {t('moderation.groundIllegal')}</label>
+          <label class="choice"><input type="radio" name={id('ground')} value="terms" bind:group={ground} /> {t('moderation.groundTerms')}</label>
+          <div class="field">
+            <label for={id('ref')}>{t('moderation.reference')}</label>
+            <p id={id('ref-hint')} class="muted">{t('moderation.referenceHint')}</p>
+            <input id={id('ref')} type="text" maxlength="200" aria-describedby={id('ref-hint')} bind:value={groundRef} />
+          </div>
+          <div class="field">
+            <label for={id('explanation')}>{t('moderation.explanation')}</label>
+            <p id={id('explanation-hint')} class="muted">{t('moderation.explanationHint')}</p>
+            <textarea id={id('explanation')} rows="3" maxlength="2000" aria-describedby={id('explanation-hint')} bind:value={explanation}></textarea>
+          </div>
+          <button type="submit" disabled={pending || !hydrated} aria-busy={pending}>{t('moderation.block')}</button>
+        </fieldset>
+      </form>
+    </details>
   </div>
 {/if}
 {#if error}<p role="alert" class="error">{error}</p>{/if}
+
+<style>
+  /* Relist floats beside the Block summary; the opened form clears below both. */
+  .decisions {
+    display: flow-root;
+  }
+  .relist {
+    float: left;
+    margin-inline-end: 0.75rem;
+  }
+  .block summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0.4rem 1.1rem;
+    border: 1.5px solid var(--green);
+    border-radius: var(--radius);
+    color: var(--green);
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+  }
+  .block summary::-webkit-details-marker {
+    display: none;
+  }
+  /* A drawn chevron: down when closed, up when open. */
+  .block summary::after {
+    content: '';
+    width: 0.45rem;
+    height: 0.45rem;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: translateY(-0.15rem) rotate(45deg);
+  }
+  .block[open] summary::after {
+    transform: translateY(0.1rem) rotate(-135deg);
+  }
+  .block summary:hover {
+    background: var(--surface);
+  }
+  .block form {
+    clear: both;
+    padding-top: 0.75rem;
+  }
+  fieldset {
+    background: var(--surface);
+  }
+  .error {
+    margin-top: 0.75rem;
+  }
+</style>
