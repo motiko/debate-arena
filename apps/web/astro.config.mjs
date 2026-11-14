@@ -1,6 +1,6 @@
 import cloudflare from '@astrojs/cloudflare';
 import svelte from '@astrojs/svelte';
-import { defineConfig } from 'astro/config';
+import { defineConfig, fontProviders } from 'astro/config';
 import { readApiConfig, siteUrl } from './site.mjs';
 
 export default defineConfig({
@@ -15,4 +15,14 @@ export default defineConfig({
   // One small stylesheet, inlined: no render-blocking request on slow connections (ADR 0004).
   build: { inlineStylesheets: 'always' },
   server: { port: 4321 },
+  // One self-hosted reading serif, preloaded with a metric-matched fallback; no third-party requests (ADR 0005, 0007).
+  fonts: [
+    {
+      provider: fontProviders.local(),
+      name: 'Source Serif 4',
+      cssVariable: '--font-serif',
+      fallbacks: ['Georgia', 'serif'],
+      options: { variants: [{ src: ['./src/assets/fonts/source-serif-4-latin-wght-normal.woff2'], weight: '200 900', style: 'normal' }] },
+    },
+  ],
 });

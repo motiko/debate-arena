@@ -17,12 +17,24 @@
     signedIn: boolean;
     turnsHidden: boolean;
     votingClosesAt: string | null;
+    /** Show only this vote's form: the dispatch box asks for the before-vote, the audience division for the after-vote. */
+    only?: Phase;
     fetcher?: typeof fetch;
     reload?: () => void;
   }
 
-  let { debateId, motion, status, myVote, signedIn, turnsHidden, votingClosesAt, fetcher = fetch, reload = () => location.reload() }: Props =
-    $props();
+  let {
+    debateId,
+    motion,
+    status,
+    myVote,
+    signedIn,
+    turnsHidden,
+    votingClosesAt,
+    only,
+    fetcher = fetch,
+    reload = () => location.reload(),
+  }: Props = $props();
 
   // Svelte 5: the island owns its vote after hydration; props only seed it.
   // svelte-ignore state_referenced_locally
@@ -38,9 +50,10 @@
 
   const stanceLabel = (s: Stance) => (s === 'for' ? t('side.for') : s === 'against' ? t('side.against') : t('vote.undecided'));
   const closed = $derived(status === 'failed' || (votingClosesAt !== null && Date.parse(votingClosesAt) <= Date.now()));
-  const phase = $derived<Phase | null>(
+  const next = $derived<Phase | null>(
     closed ? null : vote.before === null ? 'before' : status === 'complete' && vote.after === null ? 'after' : null,
   );
+  const phase = $derived(only && next !== only ? null : next);
 
   async function cast(event: SubmitEvent) {
     event.preventDefault();
@@ -76,9 +89,11 @@
   }
 </script>
 
-<section class="card stack" aria-labelledby="vote-title">
-  <h2 id="vote-title">{t('vote.title')}</h2>
-  <p class="muted">{t('vote.intro')}</p>
+<section class="vote stack" aria-labelledby={only === 'before' ? undefined : 'vote-title'}>
+  {#if only !== 'before'}
+    <h3 id="vote-title">{t('vote.title')}</h3>
+    <p class="muted">{t('vote.intro')}</p>
+  {/if}
 
   {#if !signedIn}
     <p>{t('vote.signIn')}</p>
@@ -92,7 +107,7 @@
     {:else if phase}
       <form onsubmit={cast} class="stack" novalidate>
         <fieldset>
-          <legend>{t(phase === 'before' ? 'vote.before' : 'vote.after', { motion })}</legend>
+          <legend>{t(phase === 'before' ? (only === 'before' ? 'vote.beforeShort' : 'vote.before') : 'vote.after', { motion })}</legend>
           {#each ['for', 'against', 'undecided'] as const as stance (stance)}
             <label class="choice"><input type="radio" name="stance" value={stance} bind:group={choice} /> {stanceLabel(stance)}</label>
           {/each}

@@ -1,4 +1,5 @@
 ---
+import { Font } from 'astro:assets';
 import '../styles/global.css';
 import Header from '../components/Header.astro';
 import { t } from '../i18n/t';
@@ -8,9 +9,11 @@ interface Props {
   description: string;
   canonicalPath: string;
   noindex?: boolean;
+  /** The wide column (band and floor) for the main content, instead of the reading measure. */
+  wide?: boolean;
 }
 
-const { title, description, canonicalPath, noindex = false } = Astro.props;
+const { title, description, canonicalPath, noindex = false, wide = false } = Astro.props;
 const canonical = new URL(canonicalPath, Astro.site ?? Astro.url).href;
 ---
 
@@ -23,25 +26,35 @@ const canonical = new URL(canonicalPath, Astro.site ?? Astro.url).href;
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
     {noindex && <meta name="robots" content="noindex" />}
-    <meta name="theme-color" content="#fbfaf7" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#151513" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#1d5c45" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#173a2c" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <Font cssVariable="--font-serif" preload />
   </head>
   <body>
     <a class="skip-link" href="#main">{t('site.skip')}</a>
-    <header class="site-header">
-      <div class="wrap">
-        <a class="brand" href="/">{t('site.name')}</a>
+    <header class="site-header band">
+      <div class="wrap-wide">
+        <a class="brand" href="/"><span class="lozenge" aria-hidden="true"></span>{t('site.name')}</a>
         <Header />
       </div>
     </header>
     <main id="main" tabindex="-1">
-      <div class="wrap">
+      {
+        Astro.slots.has('band') && (
+          <div class="band">
+            <div class="wrap-wide">
+              <slot name="band" />
+            </div>
+          </div>
+        )
+      }
+      <div class:list={[wide ? 'wrap-wide' : 'wrap', 'main-body']}>
         <slot />
       </div>
     </main>
     <footer class="site-footer">
-      <div class="wrap">
+      <div class="wrap-wide">
         <p>{t('site.aiNotice')}</p>
         <nav aria-label={t('legal.nav')} class="legal-nav">
           <a href="/impressum">{t('legal.impressum')}</a>

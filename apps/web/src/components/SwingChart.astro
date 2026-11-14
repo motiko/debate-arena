@@ -1,0 +1,83 @@
+---
+// Each Side's Swing on one axis: For grows left from the centre, Against grows right. The chart is decorative;
+// the sentence under it (swingText) is the text alternative.
+import type { OxfordResult } from '@debate-arena/engine';
+import { sideLabel, swingBars } from '../lib/debate';
+
+interface Props {
+  result: Pick<OxfordResult, 'swing'>;
+  label: string;
+}
+
+const { result, label } = Astro.props;
+const bars = swingBars(result);
+const signed = (points: number) => (points > 0 ? `+${points}` : points < 0 ? `−${Math.abs(points)}` : '0');
+---
+
+<figure class="swing">
+  <div class="axis" aria-hidden="true">
+    <span class="bar bar-for" class:list={{ lost: bars.for.points < 0 }} style={`width: ${bars.for.width}`}></span>
+    <span class="bar bar-against" class:list={{ lost: bars.against.points < 0 }} style={`width: ${bars.against.width}`}></span>
+  </div>
+  <div class="labels" aria-hidden="true">
+    <span class="side-for">{sideLabel('for')} {signed(bars.for.points)}</span>
+    <span class="side-against">{sideLabel('against')} {signed(bars.against.points)}</span>
+  </div>
+  <figcaption>{label}</figcaption>
+</figure>
+
+<style>
+  .swing {
+    margin: 0;
+  }
+  .axis {
+    position: relative;
+    height: 2.25rem;
+    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--line);
+  }
+  .axis::after {
+    content: '';
+    position: absolute;
+    inset-block: -0.35rem;
+    left: calc(50% - 1px);
+    width: 2px;
+    background: var(--ink);
+  }
+  .bar {
+    position: absolute;
+    inset-block: 0.35rem;
+  }
+  .bar-for {
+    right: 50%;
+    background: var(--for);
+    border-radius: var(--radius) 0 0 var(--radius);
+  }
+  .bar-against {
+    left: 50%;
+    background: var(--against);
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+  /* A Side that lost ground is drawn hollow: same length, outline only. */
+  .bar.lost {
+    background: transparent;
+    border: 2px solid currentColor;
+  }
+  .bar-for.lost {
+    color: var(--for);
+  }
+  .bar-against.lost {
+    color: var(--against);
+  }
+  .labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.4rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  figcaption {
+    margin-top: 0.5rem;
+  }
+</style>

@@ -15,7 +15,7 @@ const { me } = Astro.locals;
       <>
         <p>{t('account.name', { name: me.name })}</p>
         <p>{t('account.quota', { points: me.quotaRemaining, cost: DEBATE_QUOTA_POINTS })}</p>
-        <section class="card stack" aria-labelledby="data-title">
+        <section class="panel stack" aria-labelledby="data-title">
           <h2 id="data-title">{t('account.dataTitle')}</h2>
           <p class="muted">{t('account.exportHint')}</p>
           <p>
@@ -27,7 +27,7 @@ const { me } = Astro.locals;
         <AccountActions client:visible />
       </>
     ) : (
-      <div class="card stack">
+      <div class="panel stack">
         <p>{t('account.signIn')}</p>
         <SignInButton client:load callbackPath="/account" />
       </div>

@@ -99,18 +99,20 @@
     <p id="batch-hint" class="muted">{t('new.batchHint')}</p>
   </div>
 
-  <div class="field">
-    <label for="debater-for">{t('new.debaterFor')}</label>
-    <select id="debater-for" bind:value={forModel}>
-      {#each debaters as m (m.id)}<option value={m.id}>{m.label}</option>{/each}
-    </select>
-  </div>
+  <div class="benches">
+    <div class="field bench bench-for">
+      <label for="debater-for">{t('new.debaterFor')}</label>
+      <select id="debater-for" bind:value={forModel}>
+        {#each debaters as m (m.id)}<option value={m.id}>{m.label}</option>{/each}
+      </select>
+    </div>
 
-  <div class="field">
-    <label for="debater-against">{t('new.debaterAgainst')}</label>
-    <select id="debater-against" bind:value={againstModel}>
-      {#each debaters as m (m.id)}<option value={m.id}>{m.label}</option>{/each}
-    </select>
+    <div class="field bench bench-against">
+      <label for="debater-against">{t('new.debaterAgainst')}</label>
+      <select id="debater-against" bind:value={againstModel}>
+        {#each debaters as m (m.id)}<option value={m.id}>{m.label}</option>{/each}
+      </select>
+    </div>
   </div>
 
   <div class="field">
@@ -137,3 +139,33 @@
   <button type="submit" disabled={pending || noQuota || !hydrated} aria-busy={pending}>{t('new.submit')}</button>
   {#if error}<p role="alert" class="error">{error}</p>{/if}
 </form>
+
+<style>
+  #motion {
+    font-family: var(--font-serif);
+    font-size: 1.375rem;
+    line-height: 1.3;
+  }
+  /* The two Debaters are the two benches: side by side, each edged in its Side's colour. */
+  .benches {
+    display: grid;
+    gap: 1rem;
+  }
+  .bench {
+    padding: 0.9rem 1rem 1rem;
+    border-top: 6px solid;
+    border-radius: 0 0 var(--radius) var(--radius);
+    background: var(--surface);
+  }
+  .bench-for {
+    border-top-color: var(--for);
+  }
+  .bench-against {
+    border-top-color: var(--against);
+  }
+  @media (min-width: 40rem) {
+    .benches {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+  }
+</style>

@@ -27,12 +27,17 @@ test('before-vote, then after-vote once complete', async ({ page, request }) => 
   await page.getByRole('radio', { name: 'For' }).check();
   await page.getByRole('button', { name: 'Cast before-vote' }).click();
   await expect(page.getByRole('article')).toHaveCount(6);
+  // Still an after-vote to cast: the Verdict at the foot waits behind "Show the result" too.
+  await expect(page.locator('.verdict-winner')).toBeHidden();
   await page.getByRole('radio', { name: 'Against' }).check();
   await page.getByRole('button', { name: 'Cast after-vote' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Your after-vote is recorded: Against.' })).toBeVisible();
   await page.reload();
   await expect(page.getByText('You voted Against after the Debate.')).toBeVisible();
   await expect(page.getByText(/across 1 Member/)).toBeVisible();
+  // Nothing left to vote on: the dispatch box shows the outcome without asking.
+  await expect(page.locator('.dispatch .outcome-headline')).toBeVisible();
+  await expect(page.locator('.dispatch summary')).toHaveCount(0);
 });
 
 test('Self-Judging warning shows when the Judge is a Debater', async ({ page }) => {

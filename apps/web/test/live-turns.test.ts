@@ -7,8 +7,15 @@ import { FakeSocket } from './fake-socket';
 beforeEach(() => FakeSocket.reset());
 
 const turn = (i: number) => ({ phaseIndex: i < 2 ? 0 : 1, side: i % 2 === 0 ? ('for' as const) : ('against' as const), text: `Turn ${i}`, truncated: false });
-const format = { phases: [{ name: 'Opening', order: ['for', 'against'], maxWords: 300, maxSeconds: 60 }, { name: 'Closing', order: ['for', 'against'], maxWords: 300, maxSeconds: 60 }] };
+const order: ('for' | 'against')[] = ['for', 'against'];
+const format = { phases: [{ name: 'Opening', order, maxWords: 300, maxSeconds: 60 }, { name: 'Closing', order, maxWords: 300, maxSeconds: 60 }] };
 const impl = FakeSocket as unknown as typeof WebSocket;
+const speakers = { for: 'Fake A', against: 'Fake B' };
+
+test('a running Debate shows who speaks next', async () => {
+  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [turn(0)], fetcher: debateFetcher([turn(0)]), WebSocketImpl: impl });
+  expect(screen.getByText('Against speaks next')).toBeInTheDocument();
+});
 
 function debateFetcher(turns: ReturnType<typeof turn>[], status = 'running') {
   return vi.fn(async () => Response.json({ status, turns })) as unknown as typeof fetch;
@@ -25,7 +32,7 @@ test('mergeTurns stops at a gap', () => {
 });
 
 test('merges a refetch with live Turns without duplicates', async () => {
-  render(LiveTurns, { debateId: 'd1', format, initialTurns: [turn(0)], fetcher: debateFetcher([turn(0), turn(1)]), WebSocketImpl: impl });
+  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [turn(0)], fetcher: debateFetcher([turn(0), turn(1)]), WebSocketImpl: impl });
   FakeSocket.last.open();
   FakeSocket.last.emit({ type: 'turn', slotIndex: 1, turn: turn(1) });
   await vi.waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(2));
@@ -35,7 +42,7 @@ test('merges a refetch with live Turns without duplicates', async () => {
 });
 
 test('shows live Turns in an announced region', async () => {
-  render(LiveTurns, { debateId: 'd1', format, initialTurns: [], fetcher: debateFetcher([]), WebSocketImpl: impl });
+  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [], fetcher: debateFetcher([]), WebSocketImpl: impl });
   const region = screen.getByRole('log');
   expect(region).toHaveAttribute('aria-live', 'polite');
   FakeSocket.last.open();
@@ -46,7 +53,7 @@ test('shows live Turns in an announced region', async () => {
 test('reconnects after the socket closes', async () => {
   vi.useFakeTimers();
   try {
-    render(LiveTurns, { debateId: 'd1', format, initialTurns: [], fetcher: debateFetcher([]), WebSocketImpl: impl });
+    render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [], fetcher: debateFetcher([]), WebSocketImpl: impl });
     FakeSocket.last.open();
     FakeSocket.last.drop();
     await vi.advanceTimersByTimeAsync(0);
@@ -59,7 +66,7 @@ test('reconnects after the socket closes', async () => {
 });
 
 test('announces completion without reloading', async () => {
-  render(LiveTurns, { debateId: 'd1', format, initialTurns: [], fetcher: debateFetcher([]), WebSocketImpl: impl });
+  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [], fetcher: debateFetcher([]), WebSocketImpl: impl });
   FakeSocket.last.open();
   FakeSocket.last.emit({ type: 'complete', aiAudience: null });
   expect(await screen.findByRole('link', { name: /show the verdict/i })).toHaveAttribute('href', '/debates/d1');
@@ -67,7 +74,7 @@ test('announces completion without reloading', async () => {
 });
 
 test('says so when the Debate fails', async () => {
-  render(LiveTurns, { debateId: 'd1', format, initialTurns: [], fetcher: debateFetcher([]), WebSocketImpl: impl });
+  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [], fetcher: debateFetcher([]), WebSocketImpl: impl });
   FakeSocket.last.open();
   FakeSocket.last.emit({ type: 'failed', reason: 'The Debate could not be completed.' });
   expect(await screen.findByText('This Debate could not be completed.')).toBeInTheDocument();
@@ -75,7 +82,7 @@ test('says so when the Debate fails', async () => {
 
 test('a Block removes the Turns and reloads to the Blocked page', async () => {
   const reload = vi.fn();
-  render(LiveTurns, { debateId: 'd1', format, initialTurns: [turn(0)], fetcher: debateFetcher([turn(0)]), WebSocketImpl: impl, reload });
+  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [turn(0)], fetcher: debateFetcher([turn(0)]), WebSocketImpl: impl, reload });
   FakeSocket.last.open();
   FakeSocket.last.emit({ type: 'blocked' });
   await vi.waitFor(() => expect(reload).toHaveBeenCalled());
@@ -85,14 +92,14 @@ test('a Block removes the Turns and reloads to the Blocked page', async () => {
 test('a 410 while catching up also reloads', async () => {
   const reload = vi.fn();
   const fetcher = vi.fn(async () => Response.json({ id: 'd1', blocked: {} }, { status: 410 })) as unknown as typeof fetch;
-  render(LiveTurns, { debateId: 'd1', format, initialTurns: [turn(0)], fetcher, WebSocketImpl: impl, reload });
+  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [turn(0)], fetcher, WebSocketImpl: impl, reload });
   FakeSocket.last.open();
   await vi.waitFor(() => expect(reload).toHaveBeenCalled());
   expect(screen.queryAllByRole('article')).toHaveLength(0);
 });
 
 test('notices a Debate that finished before the socket opened', async () => {
-  render(LiveTurns, { debateId: 'd1', format, initialTurns: [], fetcher: debateFetcher([turn(0), turn(1)], 'complete'), WebSocketImpl: impl });
+  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [], fetcher: debateFetcher([turn(0), turn(1)], 'complete'), WebSocketImpl: impl });
   FakeSocket.last.open();
   expect(await screen.findByRole('link', { name: /show the verdict/i })).toBeInTheDocument();
   expect(screen.getAllByRole('article')).toHaveLength(2);

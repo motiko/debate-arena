@@ -1,0 +1,34 @@
+---
+import type { Outcome } from '../lib/debate';
+
+interface Props {
+  outcome: Outcome;
+}
+
+const { outcome } = Astro.props;
+---
+
+<div class="outcome">
+  <p class="outcome-headline">{outcome.headline}</p>
+  <ul class="outcome-rows" role="list">
+    <li>{outcome.judge}</li>
+    {outcome.audience && <li>{outcome.audience}</li>}
+  </ul>
+</div>
+
+<style>
+  .outcome-headline {
+    font-family: var(--font-serif);
+    font-size: clamp(1.35rem, 1.1rem + 1vw, 1.75rem);
+    font-weight: 600;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+  .outcome-rows {
+    list-style: none;
+    padding: 0;
+    margin-top: 0.5rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+</style>

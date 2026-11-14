@@ -1,49 +1,132 @@
 <script lang="ts">
-  // One Turn. Rendered on the server by Astro pages (no JavaScript) and inside the live island, so both
+  // One speech. Rendered on the server by Astro pages (no JavaScript) and inside the live island, so both
   // show the same markup and labels. Text is plain: Svelte escapes it; never {@html}.
+  import type { Side } from '@debate-arena/engine';
   import { t } from '../i18n/t';
-  import { paragraphs } from '../lib/debate';
+  import { paragraphs, sideLabel } from '../lib/debate';
 
   interface Props {
-    heading: string;
+    phase: string;
+    speaker: string;
+    side: Side;
     text: string;
     truncated: boolean;
-    side?: 'for' | 'against';
   }
 
-  let { heading, text, truncated, side }: Props = $props();
+  let { phase, speaker, side, text, truncated }: Props = $props();
+
+  // The first two paragraphs show; the rest wait behind a disclosure that works without JavaScript.
+  // A speech cut off at the word limit ends in an ellipsis, so the cut shows in the text itself.
+  const all = $derived(truncated ? paragraphs(text).map((p, i, list) => (i === list.length - 1 ? `${p}…` : p)) : paragraphs(text));
+  const shown = $derived(all.slice(0, 2));
+  const rest = $derived(all.slice(2));
 </script>
 
-<article class="turn card" class:turn-for={side === 'for'} class:turn-against={side === 'against'}>
-  <header class="turn-head">
-    <h3>{heading}</h3>
-    <span class="badge">{t('label.ai')}</span>
+<article class="speech speech-{side}">
+  <header class="speech-head">
+    <h3><span class="visually-hidden">{phase}:</span> {t('floor.speaker', { model: speaker, side: sideLabel(side) })}</h3>
+    <span class="ai">{t('label.ai')}</span>
+    <span class="rule" aria-hidden="true"></span>
   </header>
-  {#each paragraphs(text) as paragraph, i (i)}
+  {#each shown as paragraph, i (i)}
     <p>{paragraph}</p>
   {/each}
+  {#if rest.length > 0}
+    <details class="more">
+      <summary><span class="when-closed">{t('floor.more')}</span><span class="when-open">{t('floor.less')}</span></summary>
+      {#each rest as paragraph, i (i)}
+        <p>{paragraph}</p>
+      {/each}
+    </details>
+  {/if}
   {#if truncated}
-    <p class="muted"><em>{t('turn.truncated')}</em></p>
+    <p class="cut">{t('turn.truncated')}</p>
   {/if}
 </article>
 
 <style>
-  .turn > * + * {
-    margin-top: 0.6rem;
+  .speech {
+    padding: 1.25rem 1.4rem 1.1rem;
+    border-radius: var(--radius);
+    font-family: var(--font-serif);
+    font-size: 1.125rem;
+    line-height: 1.7;
   }
-  .turn p {
+  .speech-for {
+    background: var(--for-tint);
+  }
+  .speech-against {
+    background: var(--against-tint);
+  }
+  .speech p,
+  .more p {
+    margin-top: 0.85rem;
     white-space: pre-line;
   }
-  .turn-head {
+  .speech-head {
     display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.25rem 0.6rem;
+    align-items: center;
+    gap: 0.75rem;
+    font-family: var(--font-sans);
+    line-height: 1.3;
   }
-  .turn-for {
-    border-left: 4px solid var(--for);
+  .speech-head h3 {
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
   }
-  .turn-against {
-    border-left: 4px solid var(--against);
+  .speech-for h3 {
+    color: var(--for);
+  }
+  .speech-against h3 {
+    color: var(--against);
+  }
+  .speech-against .speech-head {
+    flex-direction: row-reverse;
+  }
+  .ai {
+    font-size: 0.8rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  /* The rule runs from the speaker toward the floor; it stops at the speech's edge. */
+  .rule {
+    flex: 1;
+    min-width: 1rem;
+    height: 2px;
+    background: currentColor;
+    opacity: 0.45;
+  }
+  .speech-for .rule {
+    color: var(--for);
+  }
+  .speech-against .rule {
+    color: var(--against);
+  }
+  .more summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    margin-top: 0.4rem;
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--green);
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+    cursor: pointer;
+  }
+  /* The summary stays put when open (keyboard focus stays on it) and offers to show less. */
+  .more summary .when-open,
+  .more[open] summary .when-closed {
+    display: none;
+  }
+  .more[open] summary .when-open {
+    display: inline;
+  }
+  .cut {
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    font-style: italic;
+    color: var(--muted);
   }
 </style>

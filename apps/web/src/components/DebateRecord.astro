@@ -1,0 +1,116 @@
+---
+// The closing record of a Debate: what it was, who judged, when, a link to share it and a quiet way to report it.
+import type { PublicDebate } from '@debate-arena/api-client';
+import CopyLink from '../islands/CopyLink.svelte';
+import ReportForm from '../islands/ReportForm.svelte';
+import { t } from '../i18n/t';
+import { modelLabel, type ModelInfo } from '../lib/debate';
+import { formatDate } from '../lib/format';
+
+interface Props {
+  debate: PublicDebate;
+  models: ModelInfo[];
+  signedIn: boolean;
+}
+
+const { debate, models, signedIn } = Astro.props;
+const url = new URL(`/debates/${debate.id}`, Astro.site ?? Astro.url).href;
+const format = `${debate.format.name}: ${debate.format.phases.map(p => p.name).join(', ')}`;
+// Only who judged: the API does not say whether the starter or the platform chose the Judge.
+const judges = debate.panel.map(j => modelLabel(j, models)).join(', ');
+---
+
+<section class="record" aria-labelledby="record-title">
+  <div>
+    <h2 id="record-title">{t('record.title')}</h2>
+    <dl>
+      <dt>{t('record.format')}</dt>
+      <dd>{format}</dd>
+      <dt>{t('record.judge')}</dt>
+      <dd>{judges}</dd>
+      <dt>{t('record.started')}</dt>
+      <dd><time datetime={debate.createdAt}>{formatDate(debate.createdAt)}</time></dd>
+      {
+        debate.completedAt && (
+          <>
+            <dt>{t('record.finished')}</dt>
+            <dd>
+              <time datetime={debate.completedAt}>{formatDate(debate.completedAt)}</time>
+            </dd>
+          </>
+        )
+      }
+      {
+        debate.kind === 'batch' && (
+          <>
+            <dt>{t('record.kind')}</dt>
+            <dd>{t('batch.label')}</dd>
+          </>
+        )
+      }
+    </dl>
+  </div>
+  <div class="record-actions">
+    <CopyLink client:visible url={url} />
+    <details class="report">
+      <summary>
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          ><path d="M5 21V4"></path><path d="M5 4h11l-2 4 2 4H5"></path></svg
+        >
+        {t('report.summary')}
+      </summary>
+      <ReportForm client:visible debateId={debate.id} signedIn={signedIn} />
+    </details>
+    <p class="muted">{t('record.review')}</p>
+  </div>
+</section>
+
+<style>
+  .record {
+    display: grid;
+    gap: 1.5rem 3rem;
+    max-width: 52rem;
+    margin: calc(var(--space) * 2.5) auto 0;
+    padding-top: 1.5rem;
+    border-top: 2px solid var(--ink);
+  }
+  dl {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.35rem 1.25rem;
+    margin-top: 0.85rem;
+  }
+  dt {
+    color: var(--muted);
+  }
+  dd {
+    margin: 0;
+  }
+  .record-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .report summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    color: var(--ink);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+    cursor: pointer;
+  }
+  .report[open] summary {
+    margin-bottom: 0.75rem;
+  }
+  .record-actions > .muted {
+    font-size: 0.9rem;
+  }
+  @media (min-width: 48rem) {
+    .record {
+      grid-template-columns: minmax(0, 1fr) 18rem;
+    }
+  }
+</style>

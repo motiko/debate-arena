@@ -49,7 +49,7 @@
   }
 </script>
 
-<section class="card stack" aria-labelledby="delete-title">
+<section class="panel stack" aria-labelledby="delete-title">
   <h2 id="delete-title">{t('account.deleteTitle')}</h2>
   <p>{t('account.deleteExplain')}</p>
   {#if !confirming}

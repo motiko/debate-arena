@@ -1,6 +1,6 @@
 // Pure view helpers for Debates, shared by pages and islands.
 import type { DebateSummary } from '@debate-arena/api-client';
-import { isSelfJudging, type OxfordResult, type Phase, type Side, type Turn } from '@debate-arena/engine';
+import { isSelfJudging, type Debater, type OxfordResult, type Phase, type Side, type Turn } from '@debate-arena/engine';
 import { t } from '../i18n/t';
 
 /** Matches the API's feed page size. */
@@ -70,6 +70,15 @@ export function swingText(result: OxfordResult, voters: 'members' | 'aiVoters' =
   });
 }
 
+/** Each Side's Swing as a bar on its half of the axis: 100 points fill the half, larger Swings are capped. */
+export function swingBars(result: Pick<OxfordResult, 'swing'>): Record<Side, { points: number; width: string }> {
+  const bar = (swing: number) => {
+    const points = Math.round(swing * 10) / 10 || 0;
+    return { points, width: `${Math.min(Math.abs(points), 100) / 2}%` };
+  };
+  return { for: bar(result.swing.for), against: bar(result.swing.against) };
+}
+
 export interface SlotTurn {
   slotIndex: number;
   turn: Turn;
@@ -105,4 +114,84 @@ export function selfJudgingWarning(debaters: { for: string; against: string }, j
 
 export function modelLabel(id: string, models: ModelInfo[] = []): string {
   return models.find(m => m.id === id)?.label ?? id;
+}
+
+export function debaterLabel(debater: Debater, models: ModelInfo[]): string {
+  return debater.kind === 'ai' ? modelLabel(debater.model, models) : debater.memberId;
+}
+
+export type MotionSize = 'l' | 'm' | 's';
+
+/** The Motion's type size on the band: long Motions step down so the benches stay in view. */
+export function motionSize(text: string): MotionSize {
+  return text.length <= 120 ? 'l' : text.length <= 200 ? 'm' : 's';
+}
+
+/** The slot after `count` Turns in the Format's speaking order, or null once every slot is filled. */
+export function nextSpeaker(format: { phases: { order: Side[] }[] }, count: number): { phaseIndex: number; side: Side } | null {
+  const slots = format.phases.flatMap((phase, phaseIndex) => phase.order.map(side => ({ phaseIndex, side })));
+  return slots[count] ?? null;
+}
+
+export function spokeCount(turns: Pick<Turn, 'side'>[], side: Side): number {
+  return turns.filter(turn => turn.side === side).length;
+}
+
+export type DispatchState = 'ask' | 'generating' | 'live' | 'judgingFailed' | 'failed' | 'revealed' | 'hidden';
+
+interface DispatchInput {
+  kind: 'live' | 'batch';
+  status: 'running' | 'complete' | 'failed';
+  turnsHidden: boolean;
+  turns: unknown[];
+  myVote: { before: unknown; after: unknown } | null;
+  audienceResult: { votingClosesAt: string | null };
+}
+
+/**
+ * What the dispatch box shows (spec: the dispatch box table, first match wins). The outcome is open only to a
+ * reader of a live Debate with nothing left to vote on; everyone else asks for it ("Show the result").
+ */
+export function dispatchState(d: DispatchInput, now = Date.now()): DispatchState {
+  if (d.turnsHidden) return 'ask';
+  if (d.kind === 'batch' && d.status === 'running') return 'generating';
+  if (d.status === 'running') return 'live';
+  if (d.status === 'failed') return d.turns.length > 0 ? 'judgingFailed' : 'failed';
+  const closesAt = d.audienceResult.votingClosesAt;
+  const votingClosed = closesAt !== null && Date.parse(closesAt) <= now;
+  return d.kind === 'live' && (d.myVote?.after || votingClosed) ? 'revealed' : 'hidden';
+}
+
+export interface Outcome {
+  headline: string;
+  judge: string;
+  audience: string | null;
+  split: boolean;
+}
+
+interface OutcomeInput {
+  kind: 'live' | 'batch';
+  debaters: Record<Side, Debater>;
+  verdict: { winner: Side } | null;
+  audienceResult: OxfordResult;
+}
+
+/** The outcome in words: who carried or defeated the Motion, by the Judge and (live Debates) the audience. */
+export function outcome(d: OutcomeInput, models: ModelInfo[]): Outcome | null {
+  if (!d.verdict) return null;
+  const { winner } = d.verdict;
+  const result = d.audienceResult;
+  const counted = d.kind === 'live' && result.counted > 0;
+  const split = counted && result.winner !== 'tie' && result.winner !== winner;
+  const model = debaterLabel(d.debaters[winner], models);
+  const headline = split
+    ? t('outcome.split')
+    : t(winner === 'for' ? 'outcome.carries' : 'outcome.defeats', { model });
+  let audience: string | null = null;
+  if (d.kind === 'live') {
+    if (!counted) audience = t('outcome.audienceNone');
+    else if (result.winner === 'tie') audience = t('outcome.audienceTied');
+    else audience = t('outcome.audience', { side: sideLabel(result.winner), points: signed(result.swing[result.winner]) });
+  }
+  return { headline, judge: t('outcome.judge', { side: sideLabel(winner) }), audience, split };
 }

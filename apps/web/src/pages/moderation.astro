@@ -36,7 +36,7 @@ const reason = (r: string) => t(`report.reason.${r}` as MessageKey);
   <h1>{t('moderation.title')}</h1>
   {
     !me ? (
-      <div class="card stack">
+      <div class="panel stack">
         <p>{t('moderation.signIn')}</p>
         <SignInButton client:load callbackPath="/moderation" />
       </div>
@@ -49,7 +49,7 @@ const reason = (r: string) => t(`report.reason.${r}` as MessageKey);
         <p class="muted">{t('moderation.intro')}</p>
         <ol class="queue stack" role="list">
           {items.map(item => (
-            <li class="card stack">
+            <li class="panel stack">
               <h2>
                 <a href={`/debates/${item.id}`}>{item.motion}</a>
               </h2>
@@ -101,7 +101,7 @@ const reason = (r: string) => t(`report.reason.${r}` as MessageKey);
     font-size: 1.15rem;
   }
   .reports li {
-    border-left: 3px solid var(--border);
+    border-left: 3px solid var(--line);
     padding-left: 0.75rem;
   }
 </style>
