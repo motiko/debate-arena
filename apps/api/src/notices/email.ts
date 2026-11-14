@@ -37,7 +37,8 @@ export class ScalewayEmailSender implements EmailSender {
         project_id: this.projectId,
       }),
     });
-    if (!response.ok) throw new Error(`Scaleway email ${response.status}: ${await response.text().catch(() => '')}`);
+    // Status only: the response body may echo the recipient address, and errors are logged.
+    if (!response.ok) throw new Error(`Scaleway email failed with status ${response.status}`);
   }
 }
 

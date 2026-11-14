@@ -82,6 +82,13 @@ test('Scaleway sender fails loudly on an error response', async () => {
   await expect(new ScalewayEmailSender('k', 'p', 'f@x.test', fetcher).send({ to: 'a@b.test', subject: 's', text: 't' })).rejects.toThrow(/400/);
 });
 
+test('a Scaleway error does not carry the response body (it may echo the address) into logs', async () => {
+  const fetcher = (async () => Response.json({ message: 'invalid recipient rae@example.test' }, { status: 422 })) as unknown as typeof fetch;
+  const error = await new ScalewayEmailSender('k', 'p', 'f@x.test', fetcher).send({ to: 'rae@example.test', subject: 's', text: 't' }).catch(e => e);
+  expect(String(error)).toMatch(/422/);
+  expect(String(error)).not.toContain('rae@example.test');
+});
+
 test('with EMAIL_PROVIDER none nothing is sent', async () => {
   const log = vi.spyOn(console, 'log').mockImplementation(() => {});
   expect(createEmailSender({ EMAIL_PROVIDER: 'none', EMAIL_FROM: '' })).toBeInstanceOf(NoEmailSender);
