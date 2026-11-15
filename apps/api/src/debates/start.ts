@@ -40,7 +40,13 @@ export interface StartDebateInput {
  * One queued step. For a Batch Debate's step, `waits` counts how often it has already waited for batch results
  * and `attempt` which try of the step this is (both reset when the Debate moves on to its next step).
  */
-export interface StepJob { debateId: string; waits?: number; attempt?: number }
+export interface StepJob {
+  debateId: string;
+  waits?: number;
+  attempt?: number;
+  /** A deadline check: the Debate fails if this API slot is still empty. */
+  deadlineFor?: number;
+}
 export interface StartDeps {
   db: D1Database;
   catalog: Catalog;

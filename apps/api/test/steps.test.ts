@@ -37,6 +37,7 @@ function makeDeps() {
     enqueue: async job => {
       jobs.push(job);
     },
+    enqueueLater: async () => {},
     now: () => new Date('2026-11-13T12:30:00Z'),
     screener: 'fake-guard/one',
   };

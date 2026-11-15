@@ -21,7 +21,7 @@ import { noticeDecision, noticeReportReceived, type NoticeDeps } from './notices
 import { keyedHash, parseReport, rateLimitNetwork, REPORT_UNLIST_THRESHOLD, REPORTS_PER_IP_PER_HOUR } from './moderation/reports';
 import { DAILY_QUOTA_POINTS, quotaRemaining } from './db/quota';
 import { hasUnlimitedQuota } from './auth/allowlists';
-import { getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
+import { awaitingOf, getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
 import { castAfter, castBefore, getVote, listVotes, type AudienceVote } from './db/votes';
 import { audienceResult, checkVote, votingClosesAt, type VotePhase } from './votes/rules';
 import { voterKey } from './votes/voter-key';
@@ -46,6 +46,8 @@ function publicView(d: DebateRecord) {
     // Disclosed like Self-Judging: an AI Voter that is the same model as a Debater (GLOSSARY: AI Voter).
     aiVotersShareDebaterModel: isSelfJudging(d.aiVoters, [d.setup.debaters.for, d.setup.debaters.against]),
     turns: d.turns,
+    // The API slot the Debate waits for, and until when (null when it is not waiting).
+    awaiting: awaitingOf(d),
     verdict: d.verdict,
     aiAudience: d.aiAudience,
     createdAt: d.createdAt,

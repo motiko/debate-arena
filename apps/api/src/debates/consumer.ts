@@ -101,6 +101,9 @@ export async function consumer(
       enqueue: async job => {
         await env.STEP_QUEUE.send(job);
       },
+      enqueueLater: async (job, delaySeconds) => {
+        await env.STEP_QUEUE.send(job, { delaySeconds });
+      },
       now: () => new Date(),
       screener: screenerFor(models.catalog),
     };

@@ -1,4 +1,15 @@
-import type { AiAudienceResult, DebateSetup, ModelId, ModelPrice, ScreenResult, Turn, Verdict } from '@debate-arena/engine';
+import {
+  isApiSlot,
+  nextSlot,
+  type AiAudienceResult,
+  type DebateSetup,
+  type ModelId,
+  type ModelPrice,
+  type ScreenResult,
+  type Side,
+  type Turn,
+  type Verdict,
+} from '@debate-arena/engine';
 import type { DebateKind, ReasoningSupport } from '../models/catalog';
 
 /** The price (as the Debate pays it) and reasoning setting of every model a Debate calls, frozen at its start. */
@@ -161,6 +172,33 @@ export async function appendTurn(db: D1Database, id: string, slotIndex: number, 
     .bind(id, slotIndex, turn.phaseIndex, turn.side, turn.text, turn.truncated ? 1 : 0, id)
     .run();
   return changed(result);
+}
+
+/**
+ * Sets the deadline for an awaited API slot, unless that slot already has one, and returns the deadline in force
+ * (null if the Debate is not running). A redelivered step therefore never moves a deadline.
+ */
+export async function setTurnDeadline(db: D1Database, id: string, slotIndex: number, deadline: string): Promise<string | null> {
+  const prefix = `${slotIndex}@`;
+  await db
+    .prepare(
+      `UPDATE debates SET turn_deadline = ? WHERE id = ? AND status = 'running'
+         AND (turn_deadline IS NULL OR substr(turn_deadline, 1, length(?)) != ?)`,
+    )
+    .bind(`${prefix}${deadline}`, id, prefix, prefix)
+    .run();
+  const row = await db.prepare(`SELECT turn_deadline FROM debates WHERE id = ? AND status = 'running'`).bind(id).first<{ turn_deadline: string | null }>();
+  return row?.turn_deadline?.startsWith(prefix) ? row.turn_deadline.slice(prefix.length) : null;
+}
+
+/** The awaited API slot of a running Debate and its deadline, or null when it is not waiting for one. */
+export function awaitingOf(debate: DebateRecord): { slotIndex: number; side: Side; deadline: string } | null {
+  if (debate.status !== 'running' || !debate.turnDeadline) return null;
+  const slot = nextSlot(debate.setup.format, debate.turns);
+  if (!slot || !isApiSlot(debate.setup, slot)) return null;
+  const prefix = `${debate.turns.length}@`;
+  if (!debate.turnDeadline.startsWith(prefix)) return null;
+  return { slotIndex: debate.turns.length, side: slot.side, deadline: debate.turnDeadline.slice(prefix.length) };
 }
 
 export async function saveVerdict(db: D1Database, id: string, verdict: Verdict): Promise<boolean> {

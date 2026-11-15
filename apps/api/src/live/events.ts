@@ -4,6 +4,8 @@ import type { AiAudienceResult, Turn, Verdict } from '@debate-arena/engine';
 export type DebateEvent =
   /** The Turn in this slot as written so far (the whole text, never past its word limit); empty text clears it. */
   | { type: 'draft'; slotIndex: number; text: string }
+  /** The Debate waits for an API Debater's Turn in this slot until the deadline (ISO-8601 UTC). */
+  | { type: 'awaiting'; slotIndex: number; deadline: string }
   | { type: 'turn'; slotIndex: number; turn: Turn }
   | { type: 'verdict'; verdict: Verdict }
   | { type: 'complete'; aiAudience: AiAudienceResult | null }
