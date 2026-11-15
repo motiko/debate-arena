@@ -10,6 +10,7 @@
   import { applyDraft, mergeTurns, nextSpeaker, type Draft, type SlotTurn } from '../lib/debate';
   import { connectLive, liveUrl, type LiveStatus } from '../lib/live';
   import { refreshRegions, type RefreshOptions } from '../lib/refresh';
+  import { Typist } from '../lib/typist';
 
   interface Props {
     debateId: string;
@@ -20,6 +21,8 @@
     WebSocketImpl?: typeof WebSocket;
     reload?: () => void;
     refresh?: (options: RefreshOptions) => Promise<boolean>;
+    /** Write speeches out at an even pace; off when the reader prefers reduced motion. */
+    smooth?: boolean;
   }
 
   let {
@@ -31,7 +34,13 @@
     WebSocketImpl,
     reload = () => location.reload(),
     refresh = refreshRegions,
+    smooth = !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches),
   }: Props = $props();
+
+  const now = () => performance.now();
+  const requestFrame = (callback: () => void) =>
+    typeof requestAnimationFrame === 'function' ? requestAnimationFrame(callback) : window.setTimeout(callback, 16);
+  const cancelFrame = (id: number) => (typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame(id) : clearTimeout(id));
 
   // svelte-ignore state_referenced_locally
   let turns = $state<Turn[]>(initialTurns);
@@ -41,7 +50,19 @@
   // Whether the page around the floor caught up with the end; false offers a reload instead.
   let caughtUp = $state<boolean | null>(null);
 
-  const next = $derived(outcome === 'running' ? nextSpeaker(format, turns.length) : null);
+  // The next speech as it has arrived; gone once its Turn is on the floor.
+  let draft = $state<Draft | null>(null);
+
+  // What the floor shows of it: written out at an even pace by the Typist, so chunks do not land all at once. A
+  // finished Turn whose writing has not caught up stays in the seat (`settling`) until it has, then takes its place
+  // on the floor, where the live region announces it. With reduced motion, drafts show as they arrive.
+  let written = $state<Draft | null>(null);
+  let settling = $state<number | null>(null);
+  let typist: { slotIndex: number; typist: Typist } | null = null;
+  let frame: number | null = null;
+
+  const floorTurns = $derived(settling === null ? turns : turns.slice(0, settling));
+  const next = $derived(settling !== null ? nextSpeaker(format, settling) : outcome === 'running' ? nextSpeaker(format, turns.length) : null);
   const statusText = $derived(
     outcome === 'failed'
       ? t('debate.failed')
@@ -50,13 +71,57 @@
         : t(`live.${status}`),
   );
 
-  // The next speech as it is being written; gone once its Turn is on the floor.
-  let draft = $state<Draft | null>(null);
+  function write() {
+    if (!smooth) {
+      written = draft;
+      return;
+    }
+    const slotIndex = settling ?? draft?.slotIndex;
+    const text = settling !== null ? turns[settling]!.text : draft?.text;
+    if (slotIndex === undefined || text === undefined) return stopWriting();
+    if (typist?.slotIndex !== slotIndex) typist = { slotIndex, typist: new Typist() };
+    typist.typist.push(text, now(), settling !== null);
+    frame ??= requestFrame(step);
+  }
+
+  function step() {
+    frame = null;
+    if (!typist) return;
+    typist.typist.tick(now());
+    written = { slotIndex: typist.slotIndex, text: typist.typist.text };
+    if (typist.typist.done) {
+      // The finished Turn is written: it takes its place, and the next speech (if it has begun) is written next.
+      settling = null;
+      typist = null;
+      written = null;
+      if (draft && draft.slotIndex === turns.length) write();
+    } else if (!typist.typist.caughtUp) frame = requestFrame(step);
+  }
+
+  function stopWriting() {
+    if (frame !== null) cancelFrame(frame);
+    frame = null;
+    typist = null;
+    written = null;
+    settling = null;
+  }
 
   function add(incoming: SlotTurn[]) {
+    const before = turns.length;
     turns = mergeTurns(turns, [...waiting, ...incoming]);
     waiting = [...waiting, ...incoming].filter(s => s.slotIndex >= turns.length);
     if (draft && draft.slotIndex < turns.length) draft = null;
+    if (turns.length === before) return;
+    // The speech being written is finished: write it to its end. Any later Turn is already history; show it now.
+    if (smooth && typist && typist.slotIndex === before && turns.length === before + 1) {
+      settling = before;
+      write();
+    } else stopWriting();
+  }
+
+  function onDraft(event: Draft) {
+    draft = applyDraft(draft, event, turns.length);
+    if (settling === null) write();
   }
 
   async function catchUp(live: { close(): void }) {
@@ -77,6 +142,7 @@
     turns = [];
     waiting = [];
     draft = null;
+    stopWriting();
     live.close();
     reload();
   }
@@ -95,7 +161,7 @@
       liveUrl(location, debateId),
       {
         onEvent(event: DebateEvent) {
-          if (event.type === 'draft') draft = applyDraft(draft, event, turns.length);
+          if (event.type === 'draft') onDraft(event);
           else if (event.type === 'turn') add([{ slotIndex: event.slotIndex, turn: event.turn }]);
           // The Verdict comes first, then the AI Audience; the Debate is complete (and votes open) after both.
           else if (event.type === 'complete') void finish('complete', live);
@@ -109,12 +175,15 @@
       },
       WebSocketImpl ? { WebSocketImpl } : {},
     );
-    return () => live.close();
+    return () => {
+      live.close();
+      stopWriting();
+    };
   });
 </script>
 
 <div role="log" aria-live="polite" aria-relevant="additions" aria-label={t('live.region')} class="stack">
-  <PhaseFloor {format} {turns} {speakers} {next} {draft} />
+  <PhaseFloor {format} turns={floorTurns} {speakers} {next} draft={written} />
 </div>
 
 <div class="live-status" class:closing={outcome === 'complete'} role="status">

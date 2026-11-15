@@ -9,7 +9,7 @@ import {
 } from '@debate-arena/engine';
 import { expect, test, vi } from 'vitest';
 import { FAKE_CATALOG, hasRole, PRODUCTION_CATALOG, screenerFor } from '../src/models/catalog';
-import { BudgetExhaustedError, createModels, devFakeReply, meteredClient, SLOW_FAKE_DELAY_MS } from '../src/models/factory';
+import { BudgetExhaustedError, createModels, devFakeReply, meteredClient, SLOW_FAKE_DELAY_MS, STREAM_FAKE_SPEECH } from '../src/models/factory';
 import { OpenRouterError, OpenRouterModelClient } from '../src/models/openrouter';
 
 test('fake provider uses the fake catalog', () => {
@@ -70,6 +70,32 @@ test('the local slow fake streams a reply worth watching over SLOW_FAKE_DELAY_MS
     expect(seen.length).toBeGreaterThan(halfway);
     expect(seen.at(-1)).toBe(text);
     expect(text.split(/\s+/).length).toBeGreaterThanOrEqual(30);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("the local streaming fake sends a full-length speech in uneven bursts, at a real model's pace", async () => {
+  vi.useFakeTimers();
+  try {
+    const { client } = createModels({ MODEL_PROVIDER: 'fake' });
+    const seen: { at: number; text: string }[] = [];
+    const reply = client.complete(
+      { model: 'fake-stream/one', messages: [{ role: 'user', content: 'x' }], maxOutputTokens: 1000 },
+      { onText: text => seen.push({ at: Date.now(), text }) },
+    );
+    await vi.advanceTimersByTimeAsync(30_000);
+    const { text } = await reply;
+    expect(text).toBe(STREAM_FAKE_SPEECH);
+    expect(text.split('\n\n')).toHaveLength(4);
+    const took = seen.at(-1)!.at - seen[0]!.at;
+    expect(took).toBeGreaterThan(4_000);
+    expect(took).toBeLessThan(12_000);
+    // Several words share an instant, as network chunks do, and the gaps between instants vary.
+    const instants = [...new Set(seen.map(s => s.at))];
+    expect(instants.length).toBeLessThan(seen.length / 3);
+    const gaps = instants.slice(1).map((at, i) => at - instants[i]!);
+    expect(Math.max(...gaps)).toBeGreaterThan(2 * Math.min(...gaps));
   } finally {
     vi.useRealTimers();
   }
@@ -160,4 +186,9 @@ test('each catalog has a screener that screens only', () => {
 test('fake-slow is a Debater only', () => {
   expect(hasRole(FAKE_CATALOG, 'fake-slow/one', 'debater')).toBe(true);
   expect(hasRole(FAKE_CATALOG, 'fake-slow/one', 'judge')).toBe(false);
+});
+
+test('fake-stream is a Debater only', () => {
+  expect(hasRole(FAKE_CATALOG, 'fake-stream/one', 'debater')).toBe(true);
+  expect(hasRole(FAKE_CATALOG, 'fake-stream/one', 'judge')).toBe(false);
 });

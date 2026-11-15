@@ -313,6 +313,8 @@ export const en = {
   'floor.next': '{side} speaks next',
   'floor.speaking': '{side} is speaking',
   'floor.more': 'Read the full speech',
+  'floor.moreWords.one': '{count} more word',
+  'floor.moreWords.other': '{count} more words',
   'verdict.side': '{side}: {model}',
   'record.title': 'Record of this Debate',
   'record.format': 'Format',

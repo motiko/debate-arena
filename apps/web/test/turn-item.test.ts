@@ -32,8 +32,14 @@ test('shows the speech up to its first argument and keeps the rest behind "Read 
   // Greeting, promise and two paragraphs of argument: about 60 words in view.
   expect(container.querySelectorAll('article > p')).toHaveLength(4);
   const more = container.querySelector('details.more');
-  expect(more?.querySelector('summary .when-closed')?.textContent).toBe('Read the full speech');
+  expect(more?.querySelector('summary .when-closed')?.textContent).toBe(`Read the full speech · ${argument.split(/\s+/).length} more words`);
   expect(more?.querySelectorAll('p')).toHaveLength(1);
+});
+
+test('a draft cut off inside emphasis shows it emphasised, never a stray asterisk', () => {
+  const { container } = render(TurnItem, { phase: 'Opening', speaker: 'Fake A', side: 'for', text: 'Nuclear is **the only ro', truncated: false, draft: true });
+  expect(container.querySelector('article strong')?.textContent).toBe('the only ro');
+  expect(container.querySelector('article > p')?.textContent).not.toContain('*');
 });
 
 test('renders *emphasis* and **strong** text, never the asterisks', () => {

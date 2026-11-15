@@ -116,6 +116,33 @@ test('shows a draft as it is written, then replaces it with the finished Turn', 
   expect(document.querySelector('.speech-draft')).toBeNull();
 });
 
+test('a finished Turn is written out to its end in the seat, then takes its place on the floor', async () => {
+  const long = { ...turn(1), text: `Madam Chair, ${'and so on, '.repeat(40)}the end.` };
+  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [turn(0)], fetcher: debateFetcher([turn(0)]), WebSocketImpl: impl });
+  FakeSocket.last.open();
+  FakeSocket.last.emit({ type: 'draft', slotIndex: 1, text: 'Madam Chair' });
+  await vi.waitFor(() => expect(document.querySelector('.speech-draft')).toHaveTextContent('Madam Chair'));
+  FakeSocket.last.emit({ type: 'turn', slotIndex: 1, turn: long });
+  // Not swapped in at once: the rest is still being written, and the live region has not announced it yet.
+  await new Promise(r => setTimeout(r, 50));
+  const seat = document.querySelector('.speech-draft')!;
+  expect(seat).not.toBeNull();
+  expect(seat.textContent!.length).toBeLessThan(long.text.length);
+  expect(screen.getAllByRole('article')).toHaveLength(1);
+  await vi.waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(2), { timeout: 3000 });
+  expect(document.querySelector('.speech-draft')).toBeNull();
+});
+
+test('with reduced motion, a draft shows as it arrives', async () => {
+  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [turn(0)], fetcher: debateFetcher([turn(0)]), WebSocketImpl: impl, smooth: false });
+  FakeSocket.last.open();
+  const text = `Madam Chair, ${'and so on, '.repeat(40)}`;
+  FakeSocket.last.emit({ type: 'draft', slotIndex: 1, text });
+  await vi.waitFor(() => expect(document.querySelector('.speech-draft')?.textContent).toContain(text.trim()));
+  FakeSocket.last.emit({ type: 'turn', slotIndex: 1, turn: turn(1) });
+  await vi.waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(2));
+});
+
 test('a draft for a Turn that catch-up already loaded is dropped', async () => {
   let release!: () => void;
   const gate = new Promise<void>(resolve => (release = resolve));

@@ -41,15 +41,41 @@ const SLOW_FAKE_SPEECH =
   'Madam Chair, this is a fake speech for local development. It is long enough to watch it being written, word by word, ' +
   'the way a real model streams its Turn. First, a point. Second, a rebuttal. Finally, a closing line that ends the speech.';
 
+/**
+ * The `fake-stream/` Debater's speech: a real Turn's length and shape (paragraphs, emphasis), longer than the
+ * Closing limit, so a local Debate shows how a real one streams, folds and is cut off.
+ */
+export const STREAM_FAKE_SPEECH = [
+  'Madam Chair, members of the house: this is a fake speech, written so you can watch a Turn arrive the way a real ' +
+    'model sends one. It comes in uneven pieces, a few words at a time, with the *occasional* pause while the model thinks.',
+  'My first point is simple. A debate is read as it is written, and a reader should never have to chase the text ' +
+    'down the page. **Steady words beat sudden paragraphs**, every time, because the eye can follow a pen but not a ' +
+    'landslide.',
+  'My second point answers the other side. They will say speed is all that matters, that the sooner the words are ' +
+    'on the page the better. But a page that lurches is a page that is skimmed, and a skimmed argument is a lost one.',
+  'And so, in closing, I ask the house to judge this motion on the evidence of its own eyes. Watch the words arrive, ' +
+    'notice whether they flow or stumble, and vote for the side that let you read in peace. I commend the motion.',
+].join('\n\n');
+
+/** The fake-stream Debater's pace: about a real model's 40 words a second, in bursts, with a pause now and then. */
+export function streamFakePause(wordIndex: number): number {
+  if (wordIndex % 37 === 36) return 700; // the model thinks
+  if (wordIndex % 5 !== 4) return 0; // words arrive together, in network-sized pieces
+  return 90 + ((wordIndex * 53) % 70); // and the pieces are not evenly spaced
+}
+
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * The local fake models. The `fake-slow/` Debater takes SLOW_FAKE_DELAY_MS per reply: all at once, or, when the
- * reply is streamed, spread over its words, so a local live Debate shows a speech growing.
+ * reply is streamed, spread over its words, so a local live Debate shows a speech growing. The `fake-stream/`
+ * Debater streams a full-length speech at a real model's uneven pace.
  */
 class DevFakeModelClient extends FakeModelClient {
   constructor() {
-    super(request => (request.model.startsWith('fake-slow/') ? SLOW_FAKE_SPEECH : devFakeReply(request)));
+    super(request =>
+      request.model.startsWith('fake-slow/') ? SLOW_FAKE_SPEECH : request.model.startsWith('fake-stream/') ? STREAM_FAKE_SPEECH : devFakeReply(request),
+    );
   }
 
   override async complete(request: ModelRequest, options?: CompleteOptions) {
@@ -59,6 +85,10 @@ class DevFakeModelClient extends FakeModelClient {
 
   protected override async beforeWord(text: string, prefix: string, onText: (textSoFar: string) => void) {
     if (text === SLOW_FAKE_SPEECH) await sleep(SLOW_FAKE_DELAY_MS / text.split(/\s+/).length);
+    if (text === STREAM_FAKE_SPEECH) {
+      const pause = streamFakePause(prefix.split(/\s+/).length - 1);
+      if (pause > 0) await sleep(pause);
+    }
     onText(prefix);
   }
 }

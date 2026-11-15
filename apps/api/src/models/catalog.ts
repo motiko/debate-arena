@@ -60,6 +60,8 @@ export const FAKE_CATALOG: Catalog = {
     { id: 'fake-guard/one', label: 'Fake Guard (screener)', price: price(1, 1), roles: ['screener'], reasoning: 'unsupported' },
     // Replies after a delay, so a local Debate stays live long enough to watch (and to test live pages).
     { id: 'fake-slow/one', label: 'Fake Slow (Debater only)', price: price(1, 1), roles: ['debater'], reasoning: 'unsupported' },
+    // Streams a full-length speech at a real model's uneven pace, to see locally how a live speech reads.
+    { id: 'fake-stream/one', label: 'Fake Streaming (Debater only)', price: price(1, 1), roles: ['debater'], reasoning: 'unsupported' },
   ],
 };
 

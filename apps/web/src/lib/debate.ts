@@ -44,6 +44,22 @@ export function applyDraft(_current: Draft | null, event: Draft, finished: numbe
   return { slotIndex: event.slotIndex, text: event.text };
 }
 
+/**
+ * A draft cut off inside emphasis, closed so it already shows as emphasis: "a **strong po" reads as "a **strong po**",
+ * and a marker with nothing after it yet is held back, so a speech being written never flashes its asterisks.
+ */
+export function closeEmphasis(text: string): string {
+  let out = text.replace(/\*+$/, '');
+  for (const marker of ['**', '*']) {
+    const plain = marker === '*' ? out.replaceAll('**', '') : out;
+    if (plain.split(marker).length % 2 === 1) continue; // every marker has its pair
+    // The open run must hug non-space text, as inlineEmphasis needs, or it is a lone asterisk, not emphasis.
+    const after = out.slice(out.lastIndexOf(marker) + marker.length);
+    if (/^\S/.test(after)) out = `${out.trimEnd()}${marker}`;
+  }
+  return out;
+}
+
 /** A run of a paragraph's text, plain or with the emphasis the model marked with asterisks. */
 export interface TextRun {
   text: string;

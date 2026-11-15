@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import {
   applyDraft,
+  closeEmphasis,
   debaterLabel,
   dispatchState,
   feedOutcome,
@@ -277,4 +278,14 @@ describe('otherLanguage', () => {
     expect(otherLanguage('正方论证更有力。', '远程办公优于办公室办公')).toBeUndefined();
     expect(otherLanguage('…', motion)).toBeUndefined();
   });
+});
+
+test('closeEmphasis closes a draft cut inside emphasis and holds back a bare marker', () => {
+  expect(closeEmphasis('a **strong po')).toBe('a **strong po**');
+  expect(closeEmphasis('an *aside ')).toBe('an *aside*');
+  expect(closeEmphasis('then **')).toBe('then ');
+  expect(closeEmphasis('then *')).toBe('then ');
+  expect(closeEmphasis('done **well**')).toBe('done **well**');
+  expect(closeEmphasis('5 * 3 is fifteen')).toBe('5 * 3 is fifteen');
+  expect(closeEmphasis('plain words')).toBe('plain words');
 });
