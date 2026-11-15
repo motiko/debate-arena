@@ -7,7 +7,11 @@ import { DAILY_QUOTA_POINTS } from '../lib/debate';
 const { me } = Astro.locals;
 const callbackPath = Astro.url.pathname + Astro.url.search;
 // One lozenge per Quota point in a day: filled for each point left, hollow for each spent.
-const points = me ? Array.from({ length: DAILY_QUOTA_POINTS }, (_, i) => i < me.quotaRemaining) : [];
+// One lozenge per QUOTA_PER_LOZENGE points: a whole day's 24 would not fit the panel.
+const QUOTA_PER_LOZENGE = 4;
+const points = me
+  ? Array.from({ length: DAILY_QUOTA_POINTS / QUOTA_PER_LOZENGE }, (_, i) => i < Math.ceil(me.quotaRemaining / QUOTA_PER_LOZENGE))
+  : [];
 const initial = me ? (Array.from(me.name.trim())[0] ?? '?').toUpperCase() : '';
 ---
 

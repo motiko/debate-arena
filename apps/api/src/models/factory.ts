@@ -5,10 +5,11 @@ import {
   STANCE_OUTPUT_TOKENS,
   type CompleteOptions,
   type ModelClient,
+  type ModelId,
   type ModelRequest,
   type PriceTable,
 } from '@debate-arena/engine';
-import { FAKE_CATALOG, PRODUCTION_CATALOG, type Catalog } from './catalog';
+import { FAKE_CATALOG, PRODUCTION_CATALOG, reasoningOf, type Catalog, type ReasoningMode } from './catalog';
 import { FakeBatchApi, OpenRouterBatchApi, type BatchApi } from './batch';
 import { OpenRouterError, OpenRouterModelClient } from './openrouter';
 
@@ -93,24 +94,27 @@ class DevFakeModelClient extends FakeModelClient {
   }
 }
 
-export function createModels(env: ModelEnv): Models {
+/**
+ * The models for a catalog (OpenRouter's, built by loadModels; the curated one by default). The client treats each
+ * model's reasoning as `reasoning` says, else as the catalog does: a Debate passes its frozen snapshot.
+ */
+export function createModels(env: ModelEnv, catalog: Catalog = PRODUCTION_CATALOG, reasoning = reasoningOf(catalog)): Models {
   if (env.MODEL_PROVIDER === 'fake') return { client: new DevFakeModelClient(), catalog: FAKE_CATALOG };
   if (!env.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY is required when MODEL_PROVIDER is openrouter');
-  const catalog = PRODUCTION_CATALOG;
-  const client = new OpenRouterModelClient(env.OPENROUTER_API_KEY, {
-    disableReasoning: id => catalog.entries.some(e => e.id === id && e.reasoning === 'optional'),
-  });
-  return { client, catalog };
+  return { client: new OpenRouterModelClient(env.OPENROUTER_API_KEY, { reasoning }), catalog };
 }
 
 /** The Batch API for Batch Debates: OpenRouter's, or an offline fake that answers after FAKE_BATCH_DELAY_MS. */
-export function createBatchApi(env: ModelEnv & { BETTER_AUTH_URL?: string; OPENROUTER_WEBHOOK_SECRET?: string }): BatchApi {
+export function createBatchApi(
+  env: ModelEnv & { BETTER_AUTH_URL?: string; OPENROUTER_WEBHOOK_SECRET?: string },
+  reasoning: (id: ModelId) => ReasoningMode = reasoningOf(PRODUCTION_CATALOG),
+): BatchApi {
   if (env.MODEL_PROVIDER === 'fake') return new FakeBatchApi(devFakeReply);
   if (!env.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY is required when MODEL_PROVIDER is openrouter');
   // OpenRouter calls back only to a public HTTPS address, and we only accept signed calls: both must be set.
   const callback = env.OPENROUTER_WEBHOOK_SECRET && env.BETTER_AUTH_URL?.startsWith('https://');
   return new OpenRouterBatchApi(env.OPENROUTER_API_KEY, {
-    disableReasoning: id => PRODUCTION_CATALOG.entries.some(e => e.id === id && e.reasoning === 'optional'),
+    reasoning,
     ...(callback ? { callbackUrl: `${env.BETTER_AUTH_URL!.replace(/\/$/, '')}/api/webhooks/openrouter` } : {}),
   });
 }

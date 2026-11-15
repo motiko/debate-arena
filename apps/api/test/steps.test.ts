@@ -37,6 +37,7 @@ function makeDeps() {
     enqueue: async job => {
       jobs.push(job);
     },
+    enqueueLater: async () => {},
     now: () => new Date('2026-11-13T12:30:00Z'),
     screener: 'fake-guard/one',
   };
@@ -207,7 +208,7 @@ test('a failed Debate that already spent money is not refunded', async () => {
   await createDebate(env.DB, d);
   await addCost(env.DB, d.id, 1);
   await failStep(deps, d.id, 'Judge never returned a Verdict');
-  expect(await quotaRemaining(env.DB, d.memberId, new Date(d.createdAt))).toBe(4);
+  expect(await quotaRemaining(env.DB, d.memberId, new Date(d.createdAt))).toBe(22);
 });
 
 test('a live Turn sends draft events before its turn event, none after', async () => {
@@ -265,7 +266,7 @@ test('failStep refunds Quota once and notifies failed once', async () => {
   await createDebate(env.DB, d);
   await failStep(deps, d.id, 'Model unavailable');
   await failStep(deps, d.id, 'Model unavailable');
-  expect(await quotaRemaining(env.DB, d.memberId, new Date(d.createdAt))).toBe(6);
+  expect(await quotaRemaining(env.DB, d.memberId, new Date(d.createdAt))).toBe(24);
   // Viewers get a plain message; the internal reason is only stored.
   expect(events).toEqual([{ type: 'failed', reason: 'The Debate could not be completed.' }]);
   expect((await getDebate(env.DB, d.id))?.failureReason).toBe('Model unavailable');

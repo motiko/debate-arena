@@ -39,6 +39,7 @@ test('a Batch Debate completes through batch calls, without live events', async 
       isPending: e => e instanceof BatchPendingError,
       notify: async (_id, event) => void events.push(event),
       enqueue: async next => void jobs.push(next),
+      enqueueLater: async () => {},
       now: () => new Date('2026-11-14T12:00:00Z'),
       screener: 'fake-guard/one',
     };

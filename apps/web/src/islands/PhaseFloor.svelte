@@ -14,9 +14,13 @@
     next?: TurnSlot | null;
     /** The next speech as it is being written (live only). */
     draft?: Draft | null;
+    /** The Sides whose Debater is an API Debater: their Turns are labelled as submitted via API. */
+    apiSides?: Side[];
+    /** The Debate waits for the next slot's Turn through the API (live only). */
+    awaiting?: boolean;
   }
 
-  let { format, turns, speakers, next = null, draft = null }: Props = $props();
+  let { format, turns, speakers, next = null, draft = null, apiSides = [], awaiting = false }: Props = $props();
 
   // Only the next slot is being written; any other draft is stale.
   const writing = $derived(next && draft && draft.slotIndex === turns.length ? draft.text : null);
@@ -41,7 +45,14 @@
       </h2>
       {#each section.turns as turn, i (i)}
         <div class="seat seat-{turn.side}">
-          <TurnItem phase={section.phase.name} speaker={speakers[turn.side]} side={turn.side} text={turn.text} truncated={turn.truncated} />
+          <TurnItem
+            phase={section.phase.name}
+            speaker={speakers[turn.side]}
+            side={turn.side}
+            text={turn.text}
+            truncated={turn.truncated}
+            submitted={apiSides.includes(turn.side)}
+          />
         </div>
       {/each}
       {#if section.next}
@@ -49,11 +60,21 @@
              and a screen reader hears who is speaking from the line below. -->
         {#if writing !== null}
           <div class="seat seat-{section.next}" aria-hidden="true">
-            <TurnItem phase={section.phase.name} speaker={speakers[section.next]} side={section.next} text={writing} truncated={false} draft />
+            <TurnItem
+              phase={section.phase.name}
+              speaker={speakers[section.next]}
+              side={section.next}
+              text={writing}
+              truncated={false}
+              draft
+              submitted={apiSides.includes(section.next)}
+            />
           </div>
         {/if}
         <p class="seat seat-{section.next} next" class:visually-hidden={writing !== null}>
-          <span class="live-dot" aria-hidden="true"></span>{t(writing !== null ? 'floor.speaking' : 'floor.next', { side: sideLabel(section.next) })}
+          <span class="live-dot" aria-hidden="true"></span>{t(writing !== null ? 'floor.speaking' : awaiting ? 'floor.awaiting' : 'floor.next', {
+            side: sideLabel(section.next),
+          })}
         </p>
       {/if}
     </section>

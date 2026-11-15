@@ -20,5 +20,5 @@ test('picks the plural form by count', () => {
   expect(tn('moderation.anonymousReports', 1)).toBe('1 anonymous Report');
   expect(tn('header.quota', 1)).toBe('1 Quota point left today');
   expect(tn('header.quota', 0)).toBe('0 Quota points left today');
-  expect(tn('account.quota', 1, { cost: 2 })).toBe('You have 1 Quota point left today. A Debate costs 2.');
+  expect(tn('account.quota', 1)).toBe('You have 1 Quota point left today. What a Debate costs depends on its models; you see it before you start.');
 });

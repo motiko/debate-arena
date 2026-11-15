@@ -1,5 +1,19 @@
-import type { AiAudienceResult, DebateSetup, ModelId, ScreenResult, Turn, Verdict } from '@debate-arena/engine';
-import type { DebateKind } from '../models/catalog';
+import {
+  isApiSlot,
+  nextSlot,
+  type AiAudienceResult,
+  type DebateSetup,
+  type ModelId,
+  type ModelPrice,
+  type ScreenResult,
+  type Side,
+  type Turn,
+  type Verdict,
+} from '@debate-arena/engine';
+import type { DebateKind, ReasoningSupport } from '../models/catalog';
+
+/** The price (as the Debate pays it) and reasoning setting of every model a Debate calls, frozen at its start. */
+export type ModelSnapshot = Record<ModelId, { price: ModelPrice; reasoning: ReasoningSupport; leastEffort?: string }>;
 import type { Visibility } from './moderation';
 
 export type DebateStatus = 'running' | 'complete' | 'failed';
@@ -28,12 +42,16 @@ export interface DebateRecord {
   reviewedAt: string | null;
   /** 'batch': a Batch Debate, generated through batch processing and published only when complete. */
   kind: DebateKind;
+  /** Null for Debates started before prices were frozen: they use the catalog. */
+  models: ModelSnapshot | null;
+  /** While waiting for an API Debater's Turn: "<slot index>@<ISO deadline>". */
+  turnDeadline: string | null;
 }
 
 export type NewDebate = Pick<
   DebateRecord,
   'id' | 'memberId' | 'setup' | 'aiVoters' | 'selfJudging' | 'quotaPoints' | 'budgetReservedMicroUsd' | 'createdAt'
-> & { kind?: DebateKind };
+> & { kind?: DebateKind; models?: ModelSnapshot };
 
 interface DebateRow {
   id: string;
@@ -56,6 +74,8 @@ interface DebateRow {
   screened_at: string | null;
   reviewed_at: string | null;
   kind: DebateKind;
+  models_json: string | null;
+  turn_deadline: string | null;
 }
 
 interface TurnRow { phase_index: number; side: Turn['side']; text: string; truncated: number }
@@ -83,6 +103,8 @@ function toRecord(row: DebateRow, turns: Turn[]): DebateRecord {
     screenedAt: row.screened_at,
     reviewedAt: row.reviewed_at,
     kind: row.kind,
+    models: row.models_json ? (JSON.parse(row.models_json) as ModelSnapshot) : null,
+    turnDeadline: row.turn_deadline,
   };
 }
 
@@ -92,8 +114,8 @@ export async function createDebate(db: D1Database, debate: NewDebate): Promise<v
   await db
     .prepare(
       `INSERT INTO debates (id, member_id, status, setup_json, ai_voters_json, self_judging, quota_points,
-         budget_reserved_micro_usd, created_at, kind)
-       VALUES (?, ?, 'running', ?, ?, ?, ?, ?, ?, ?)`,
+         budget_reserved_micro_usd, created_at, kind, models_json)
+       VALUES (?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       debate.id,
@@ -105,6 +127,7 @@ export async function createDebate(db: D1Database, debate: NewDebate): Promise<v
       debate.budgetReservedMicroUsd,
       debate.createdAt,
       debate.kind ?? 'live',
+      debate.models ? JSON.stringify(debate.models) : null,
     )
     .run();
 }
@@ -149,6 +172,33 @@ export async function appendTurn(db: D1Database, id: string, slotIndex: number, 
     .bind(id, slotIndex, turn.phaseIndex, turn.side, turn.text, turn.truncated ? 1 : 0, id)
     .run();
   return changed(result);
+}
+
+/**
+ * Sets the deadline for an awaited API slot, unless that slot already has one, and returns the deadline in force
+ * (null if the Debate is not running). A redelivered step therefore never moves a deadline.
+ */
+export async function setTurnDeadline(db: D1Database, id: string, slotIndex: number, deadline: string): Promise<string | null> {
+  const prefix = `${slotIndex}@`;
+  await db
+    .prepare(
+      `UPDATE debates SET turn_deadline = ? WHERE id = ? AND status = 'running'
+         AND (turn_deadline IS NULL OR substr(turn_deadline, 1, length(?)) != ?)`,
+    )
+    .bind(`${prefix}${deadline}`, id, prefix, prefix)
+    .run();
+  const row = await db.prepare(`SELECT turn_deadline FROM debates WHERE id = ? AND status = 'running'`).bind(id).first<{ turn_deadline: string | null }>();
+  return row?.turn_deadline?.startsWith(prefix) ? row.turn_deadline.slice(prefix.length) : null;
+}
+
+/** The awaited API slot of a running Debate and its deadline, or null when it is not waiting for one. */
+export function awaitingOf(debate: DebateRecord): { slotIndex: number; side: Side; deadline: string } | null {
+  if (debate.status !== 'running' || !debate.turnDeadline) return null;
+  const slot = nextSlot(debate.setup.format, debate.turns);
+  if (!slot || !isApiSlot(debate.setup, slot)) return null;
+  const prefix = `${debate.turns.length}@`;
+  if (!debate.turnDeadline.startsWith(prefix)) return null;
+  return { slotIndex: debate.turns.length, side: slot.side, deadline: debate.turnDeadline.slice(prefix.length) };
 }
 
 export async function saveVerdict(db: D1Database, id: string, verdict: Verdict): Promise<boolean> {

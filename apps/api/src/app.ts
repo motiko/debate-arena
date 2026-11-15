@@ -21,12 +21,16 @@ import { noticeDecision, noticeReportReceived, type NoticeDeps } from './notices
 import { keyedHash, parseReport, rateLimitNetwork, REPORT_UNLIST_THRESHOLD, REPORTS_PER_IP_PER_HOUR } from './moderation/reports';
 import { DAILY_QUOTA_POINTS, quotaRemaining } from './db/quota';
 import { hasUnlimitedQuota } from './auth/allowlists';
-import { getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
+import { addCost, awaitingOf, getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
+import { relayDraft, screenApiTurn, submitApiTurn } from './debates/api-turn';
+import { notifyViewers } from './debates/consumer';
+import { meteredClient } from './models/factory';
 import { castAfter, castBefore, getVote, listVotes, type AudienceVote } from './db/votes';
 import { audienceResult, checkVote, votingClosesAt, type VotePhase } from './votes/rules';
 import { voterKey } from './votes/voter-key';
-import { startDebate } from './debates/start';
-import { createModels } from './models/factory';
+import { planDebate, startDebate } from './debates/start';
+import { isBatchCapable, priceTable, screenerFor } from './models/catalog';
+import { loadModels } from './models/live-catalog';
 
 const FEED_PAGE_SIZE = 20;
 
@@ -45,6 +49,8 @@ function publicView(d: DebateRecord) {
     // Disclosed like Self-Judging: an AI Voter that is the same model as a Debater (GLOSSARY: AI Voter).
     aiVotersShareDebaterModel: isSelfJudging(d.aiVoters, [d.setup.debaters.for, d.setup.debaters.against]),
     turns: d.turns,
+    // The API slot the Debate waits for, and until when (null when it is not waiting).
+    awaiting: awaitingOf(d),
     verdict: d.verdict,
     aiAudience: d.aiAudience,
     createdAt: d.createdAt,
@@ -150,6 +156,30 @@ async function requireModerator(env: Env, request: Request): Promise<{ memberId:
   return { memberId };
 }
 
+const TEXT_ONLY = 'Send the Turn as text with Content-Type: text/plain';
+const isText = (contentType: string | undefined) => contentType?.split(';')[0]?.trim().toLowerCase() === 'text/plain';
+
+/**
+ * The Debate and slot an API Turn (or its draft) is for, checked: text body, an API token of the Member who started
+ * the Debate (never a session cookie: a cross-site form can send text/plain), an existing Debate that is not Blocked.
+ */
+async function apiTurnTarget(
+  env: Env,
+  request: Request,
+  id: string,
+  slotParam: string,
+): Promise<{ debate: DebateRecord; slot: number } | { status: 400 | 401 | 403 | 404 | 410 | 415; error: string }> {
+  if (!isText(request.headers.get('content-type') ?? undefined)) return { status: 415, error: TEXT_ONLY };
+  const memberId = await memberResolver(env, { tokensOnly: true })(request);
+  if (!memberId) return { status: 401, error: 'Send your API token as Authorization: Bearer <token>' };
+  if (!/^\d{1,3}$/.test(slotParam)) return { status: 400, error: 'The slot must be a Turn number' };
+  const debate = await getDebate(env.DB, id);
+  if (!debate) return { status: 404, error: 'Debate not found' };
+  if (debate.visibility === 'blocked') return { status: 410, error: BLOCKED };
+  if (debate.memberId !== memberId) return { status: 403, error: 'Only the Member who started this Debate submits its API Turns' };
+  return { debate, slot: Number(slotParam) };
+}
+
 export const app = new Hono<{ Bindings: Env }>()
   .basePath('/api')
   .get('/health', c => c.json({ ok: true }))
@@ -193,9 +223,20 @@ export const app = new Hono<{ Bindings: Env }>()
     if (!data) return c.json({ error: 'Not signed in' }, 401);
     return c.json(data);
   })
-  .get('/models', c => {
-    const { catalog } = createModels(c.env);
-    return c.json({ models: catalog.entries.map(e => ({ id: e.id, label: e.label, roles: e.roles, batch: e.batchPrice !== undefined })) });
+  .get('/models', async c => {
+    const { catalog } = await loadModels(c.env);
+    return c.json({
+      models: catalog.entries.map(e => ({
+        id: e.id,
+        label: e.label,
+        roles: e.roles,
+        // Batch-capable: may take part in a Slow Debate.
+        batch: isBatchCapable(catalog, e.id),
+        inputPerMTokUsd: e.price.inputPerMTokUsd,
+        outputPerMTokUsd: e.price.outputPerMTokUsd,
+        contextLength: e.contextLength ?? null,
+      })),
+    });
   })
   .post('/debates', async c => {
     if (!isJson(c.req.header('content-type'))) return c.json({ error: NOT_JSON }, 415);
@@ -207,7 +248,7 @@ export const app = new Hono<{ Bindings: Env }>()
     } catch {
       return c.json({ error: 'Request body must be JSON' }, 400);
     }
-    const { catalog } = createModels(c.env);
+    const { catalog } = await loadModels(c.env);
     const result = await startDebate(
       {
         db: c.env.DB,
@@ -224,6 +265,62 @@ export const app = new Hono<{ Bindings: Env }>()
     );
     if (!result.ok) return c.json({ error: result.error }, result.status);
     return c.json({ id: result.id, panel: result.panel, selfJudging: result.selfJudging }, 201);
+  })
+  .post('/debates/quote', async c => {
+    if (!isJson(c.req.header('content-type'))) return c.json({ error: NOT_JSON }, 415);
+    const memberId = await memberResolver(c.env, { tokens: true })(c.req.raw);
+    if (!memberId) return c.json({ error: 'Sign in to start a Debate' }, 401);
+    let input: unknown;
+    try {
+      input = await c.req.json();
+    } catch {
+      return c.json({ error: 'Request body must be JSON' }, 400);
+    }
+    const { catalog } = await loadModels(c.env);
+    const plan = planDebate({ catalog, unlimitedQuota: await hasUnlimitedQuota(c.env, memberId) }, input);
+    if (!plan.ok) return c.json({ error: plan.error }, plan.status);
+    return c.json({
+      budgetMicroUsd: plan.budgetMicroUsd,
+      quotaPoints: plan.quotaPoints,
+      quotaRemaining: await memberQuotaRemaining(c.env, memberId),
+      slowAvailable: plan.slowAvailable,
+      panel: plan.setup.panel,
+      selfJudging: plan.selfJudging,
+    });
+  })
+  .post('/debates/:id/turns/:slot', async c => {
+    const found = await apiTurnTarget(c.env, c.req.raw, c.req.param('id'), c.req.param('slot'));
+    if ('error' in found) return c.json({ error: found.error }, found.status);
+    const { debate, slot } = found;
+    const result = await submitApiTurn(
+      { db: c.env.DB, notify: (id, event) => notifyViewers(c.env, id, event), enqueue: async job => void (await c.env.STEP_QUEUE.send(job)) },
+      debate,
+      slot,
+      c.req.raw.body,
+    );
+    if (result.status !== 201) return c.json({ error: result.error }, result.status);
+    // Screened after the answer, charged to the Debate's Budget at its frozen prices; a screen that fails Flags.
+    c.executionCtx.waitUntil(
+      screenApiTurn(
+        async () => {
+          const { client, catalog } = await loadModels(c.env);
+          const frozen = Object.fromEntries(Object.entries(debate.models ?? {}).map(([id, m]) => [id, m.price]));
+          const metered = meteredClient(client, { ...priceTable(catalog), ...frozen }, cost => addCost(c.env.DB, debate.id, cost));
+          return { client: metered, screener: screenerFor(catalog) };
+        },
+        c.env.DB,
+        debate.id,
+        result.turn.text,
+      ),
+    );
+    return c.json({ slotIndex: result.slotIndex, turn: result.turn }, 201);
+  })
+  .put('/debates/:id/turns/:slot/draft', async c => {
+    const found = await apiTurnTarget(c.env, c.req.raw, c.req.param('id'), c.req.param('slot'));
+    if ('error' in found) return c.json({ error: found.error }, found.status);
+    const result = await relayDraft({ notify: (id, event) => notifyViewers(c.env, id, event) }, found.debate, found.slot, c.req.raw.body);
+    if (result.status !== 204) return c.json({ error: result.error }, result.status);
+    return c.body(null, 204);
   })
   .get('/debates', async c => {
     const before = c.req.query('before');

@@ -22,6 +22,10 @@ _Avoid_: Pro/Con, Proposition/Opposition, team
 A participant arguing one Side of a Debate; either a human or an AI.
 _Avoid_: Player, contestant, bot
 
+**API Debater**:
+A Debater whose Turns the starting Member submits through the platform API, written by hand or by their own program, instead of a platform model generating them. Its Turns are labelled as submitted via API, never as AI-generated.
+_Avoid_: Human Debater, external bot, BYO model
+
 **Format**:
 The rules that structure a Debate: its ordered Phases and which Side speaks in each, its Rubric, and its Voting Method.
 _Avoid_: Template, mode, ruleset, style
@@ -35,7 +39,7 @@ The total AI cost a Debate may consume, covering its AI Debaters, Judges, AI Vot
 _Avoid_: Credits, allowance, cost limit
 
 **Quota**:
-How many Debates a Member may start per day. A Slow Debate counts as less than a full Debate.
+How many Quota points a Member may spend per day on starting Debates. A Debate costs points in proportion to its worst-case Budget, so free models and Slow Debates cost less and expensive models, Judges or AI Voters more.
 _Avoid_: Budget, limit, credits, allowance
 
 **Rubric**:

@@ -17,7 +17,7 @@ export {
   wordsToTokens,
 } from './debate/schedule';
 export { buildTurnMessages, UNTRUSTED_NOTICE } from './debate/prompts';
-export { generateTurn, type GenerateTurnOptions } from './debate/generate-turn';
+export { generateTurn, isApiSlot, submittedTurn, type GenerateTurnOptions } from './debate/generate-turn';
 export { isSelfJudging, modelFamily, suggestPanel, validatePanel } from './judging/panel';
 export { buildJudgeMessages, judgeDebate, parseVerdict } from './judging/judge';
 export { computeOxfordResult, type OxfordResult, type VoterStances } from './voting/oxford';
@@ -33,6 +33,10 @@ export {
 export {
   JUDGE_OUTPUT_TOKENS,
   PROMPT_OVERHEAD_TOKENS,
+  API_TURN_BYTES_PER_WORD,
+  apiTurnMaxBytes,
+  QUOTA_POINT_MICRO_USD,
+  quotaPointsFor,
   STANCE_OUTPUT_TOKENS,
   utf8Length,
   worstCaseBudgetMicroUsd,

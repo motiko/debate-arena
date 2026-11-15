@@ -84,5 +84,5 @@ test('a failed Batch Debate that already sent batches is not refunded', async ()
   await createScreened(env.DB, d);
   await drive(d.id, alwaysFailing);
   expect((await getDebate(env.DB, d.id))?.status).toBe('failed');
-  expect(await quotaRemaining(env.DB, member, new Date())).toBe(5);
+  expect(await quotaRemaining(env.DB, member, new Date())).toBe(23);
 });

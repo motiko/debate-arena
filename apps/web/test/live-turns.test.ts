@@ -21,6 +21,39 @@ function debateFetcher(turns: ReturnType<typeof turn>[], status = 'running') {
   return vi.fn(async () => Response.json({ status, turns })) as unknown as typeof fetch;
 }
 
+const apiSpeakers = { for: 'API Debater', against: 'Fake B' };
+
+test('while the Debate waits for an API Turn, the seat says so; a draft turns it into speaking', async () => {
+  render(LiveTurns, { debateId: 'd1', format, speakers: apiSpeakers, apiSides: ['for'], initialTurns: [], fetcher: debateFetcher([]), WebSocketImpl: impl, smooth: false });
+  FakeSocket.last.open();
+  FakeSocket.last.emit({ type: 'awaiting', slotIndex: 0, deadline: '2026-11-15T12:10:00.000Z' });
+  await vi.waitFor(() => expect(screen.getByText('For is preparing a Turn via the API')).toBeInTheDocument());
+  FakeSocket.last.emit({ type: 'draft', slotIndex: 0, text: 'Half a' });
+  await vi.waitFor(() => expect(screen.getByText('For is speaking')).toBeInTheDocument());
+  expect(screen.queryByText('For is preparing a Turn via the API')).toBeNull();
+});
+
+test('a page opened while the Debate waits shows the wait at once', () => {
+  render(LiveTurns, { debateId: 'd1', format, speakers: apiSpeakers, apiSides: ['for'], initialTurns: [], initialAwaiting: 0, fetcher: debateFetcher([]), WebSocketImpl: impl });
+  expect(screen.getByText('For is preparing a Turn via the API')).toBeInTheDocument();
+});
+
+test('a stale awaiting event for a slot already written is ignored', async () => {
+  render(LiveTurns, { debateId: 'd1', format, speakers: apiSpeakers, apiSides: ['for'], initialTurns: [turn(0)], fetcher: debateFetcher([turn(0)]), WebSocketImpl: impl });
+  FakeSocket.last.open();
+  FakeSocket.last.emit({ type: 'awaiting', slotIndex: 0, deadline: '2026-11-15T12:10:00.000Z' });
+  await new Promise(r => setTimeout(r, 0));
+  expect(screen.queryByText(/preparing a Turn via the API/)).toBeNull();
+  expect(screen.getByText('Against speaks next')).toBeInTheDocument();
+});
+
+test("the API side's Turns are labelled as submitted via API", () => {
+  render(LiveTurns, { debateId: 'd1', format, speakers: apiSpeakers, apiSides: ['for'], initialTurns: [turn(0), turn(1)], fetcher: debateFetcher([turn(0), turn(1)]), WebSocketImpl: impl });
+  const [first, second] = screen.getAllByRole('article');
+  expect(first).toHaveTextContent('Submitted via API');
+  expect(second).toHaveTextContent('AI-generated');
+});
+
 test('mergeTurns places Turns by slot and ignores duplicates', () => {
   expect(mergeTurns([turn(0)], [{ slotIndex: 1, turn: turn(1) }, { slotIndex: 0, turn: turn(0) }, { slotIndex: 1, turn: turn(1) }])).toEqual([turn(0), turn(1)]);
 });

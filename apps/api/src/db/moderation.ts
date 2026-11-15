@@ -33,6 +33,21 @@ export async function saveScreen(db: D1Database, debateId: string, result: Scree
   return changed(saved);
 }
 
+/**
+ * Flags a Debate whose API Turn the screener flagged: Unlisted (if listed) until a Moderator reviews it again, which
+ * is why an earlier review no longer counts.
+ */
+export async function flagDebate(db: D1Database, debateId: string): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE debates SET flagged = 1, reviewed_at = NULL,
+         visibility = CASE WHEN visibility = 'listed' THEN 'unlisted' ELSE visibility END
+       WHERE id = ?`,
+    )
+    .bind(debateId)
+    .run();
+}
+
 /** Unlists a listed Debate that reached the Report threshold. */
 export async function unlistForReports(db: D1Database, debateId: string): Promise<boolean> {
   return changed(await db.prepare(`UPDATE debates SET visibility = 'unlisted' WHERE id = ? AND visibility = 'listed'`).bind(debateId).run());

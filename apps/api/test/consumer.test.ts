@@ -23,6 +23,19 @@ test('a successful step is acked and writes a Turn', async () => {
   expect((await getDebate(env.DB, d.id))?.turns).toHaveLength(1);
 });
 
+test('a step charges by the prices frozen at start, even for a model the catalog no longer has', async () => {
+  const gone = { kind: 'ai' as const, model: 'gone/model' };
+  const d = newDebate({
+    setup: { ...sampleSetup, debaters: { for: gone, against: gone } },
+    models: { 'gone/model': { price: { inputPerMTokUsd: 10, outputPerMTokUsd: 10 }, reasoning: 'unsupported' } },
+  });
+  await createScreened(env.DB, d);
+  await deliver({ debateId: d.id }, 1);
+  const stored = await getDebate(env.DB, d.id);
+  expect(stored?.turns).toHaveLength(1);
+  expect(stored?.costMicroUsd).toBeGreaterThan(0);
+});
+
 test('a Debate whose Budget is used up fails at once, without a retry or model call', async () => {
   const d = newDebate({ budgetReservedMicroUsd: 0 });
   await createDebate(env.DB, d);

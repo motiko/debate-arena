@@ -14,7 +14,7 @@ test('GET /api/me with a session returns the Member and their Quota', async () =
   const { userId, headers } = await signedInHeaders('Ada');
   const res = await exports.default.fetch('https://api.test/api/me', { headers });
   expect(res.status).toBe(200);
-  expect(await res.json()).toEqual({ id: userId, name: 'Ada', image: null, quotaRemaining: 6, isModerator: false });
+  expect(await res.json()).toEqual({ id: userId, name: 'Ada', image: null, quotaRemaining: 24, isModerator: false });
 });
 
 test('GET /api/me passes on a refreshed session cookie, so active Members stay signed in', async () => {
@@ -31,7 +31,7 @@ test('GET /api/me names a dev Member while DEV_AUTH is on', async () => {
   // vitest.config sets DEV_AUTH "true", as `pnpm dev` does; production config has "false".
   const res = await exports.default.fetch('https://api.test/api/me', { headers: { 'x-dev-member': 'dev-7' } });
   expect(res.status).toBe(200);
-  expect(await res.json()).toEqual({ id: 'dev-7', name: 'dev-7', image: null, quotaRemaining: 6, isModerator: false });
+  expect(await res.json()).toEqual({ id: 'dev-7', name: 'dev-7', image: null, quotaRemaining: 24, isModerator: false });
 });
 
 test('the GitHub sign-in route sends the browser to GitHub', async () => {

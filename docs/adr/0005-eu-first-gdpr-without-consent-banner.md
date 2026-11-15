@@ -7,3 +7,4 @@ The platform is operated from the EU, so Member data is stored under D1's EU jur
 - No third-party marketing or tracking scripts; any analytics must work without cookies or personal identifiers.
 - The site needs an Impressum and a privacy policy, and Members can export and delete their account data.
 - Every AI-generated Turn, Verdict and AI Audience Result is visibly labeled as AI-generated, to meet EU AI Act transparency obligations.
+- A Turn submitted through the API by an API Debater is labeled as submitted via API, not as AI-generated: the platform did not generate it and cannot know how it was written.

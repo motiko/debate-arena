@@ -1,9 +1,10 @@
 import { expect, test, vi } from 'vitest';
-import { DebateCompleteError, EmptyTurnError, HumanTurnNotSupportedError } from '../errors';
+import { ApiTurnError, DebateCompleteError, EmptyTurnError, HumanTurnNotSupportedError } from '../errors';
 import { FakeModelClient } from '../models/fake';
 import { setup, sixTurns } from '../testing/fixtures';
 import { countWords } from '../turns/words';
-import { generateTurn } from './generate-turn';
+import { utf8Length } from '../budget/estimate';
+import { generateTurn, isApiSlot, submittedTurn } from './generate-turn';
 import { buildTurnMessages } from './prompts';
 
 test('prompt names the Motion, Side, Phase, word limit and language rule', () => {
@@ -78,6 +79,52 @@ test('empty replies throw EmptyTurnError', async () => {
 
 test('a finished Debate has no next Turn', async () => {
   await expect(generateTurn(setup, sixTurns, new FakeModelClient())).rejects.toBeInstanceOf(DebateCompleteError);
+});
+
+test('API Debaters are not generated', async () => {
+  const apiSetup = { ...setup, debaters: { ...setup.debaters, for: { kind: 'api' } as const } };
+  await expect(generateTurn(apiSetup, [], new FakeModelClient())).rejects.toBeInstanceOf(ApiTurnError);
+});
+
+test("isApiSlot tells an API Debater's slots", () => {
+  const apiSetup = { ...setup, debaters: { ...setup.debaters, against: { kind: 'api' } as const } };
+  expect(isApiSlot(apiSetup, { phaseIndex: 0, side: 'against' })).toBe(true);
+  expect(isApiSlot(apiSetup, { phaseIndex: 0, side: 'for' })).toBe(false);
+});
+
+test('submittedTurn stores a text in the next slot, trimmed', () => {
+  expect(submittedTurn(setup, [], '  A short speech.  ')).toEqual({ phaseIndex: 0, side: 'for', text: 'A short speech.', truncated: false });
+  expect(submittedTurn(setup, sixTurns.slice(0, 3), 'Next.')).toMatchObject({ phaseIndex: 1, side: 'against' });
+});
+
+test('submittedTurn cuts a long text at the word limit, back to its last full sentence', () => {
+  const long = `${'One sentence here. '.repeat(100)}`; // 300 words of Opening limit, 300 here
+  const turn = submittedTurn(setup, [], `${long} And then some more words without end`);
+  expect(turn.truncated).toBe(true);
+  expect(turn.text.endsWith('here.')).toBe(true);
+  expect(countWords(turn.text)).toBeLessThanOrEqual(300);
+});
+
+test('submittedTurn cuts a text padded with symbols to its byte cap, back to its last full sentence', () => {
+  // 300 "words" of 40 symbols each would be 12 kB: far more tokens than the Budget reserves for a Turn.
+  const padded = Array.from({ length: 300 }, (_, i) => `${'%'.repeat(39)}${i % 10 === 9 ? '.' : '%'}`).join(' ');
+  const turn = submittedTurn(setup, [], padded);
+  expect(turn.truncated).toBe(true);
+  expect(utf8Length(turn.text)).toBeLessThanOrEqual(2400);
+  expect(turn.text.endsWith('.')).toBe(true);
+});
+
+test('submittedTurn never splits a character at the byte cap', () => {
+  const emoji = Array.from({ length: 300 }, () => '😀😀😀').join(' '); // 13 bytes a word
+  const turn = submittedTurn(setup, [], emoji);
+  expect(utf8Length(turn.text)).toBeLessThanOrEqual(2400);
+  expect(turn.text).not.toContain('�');
+  expect([...turn.text].every(ch => ch === '😀' || ch === ' ')).toBe(true);
+});
+
+test('submittedTurn refuses an empty text and a finished Debate', () => {
+  expect(() => submittedTurn(setup, [], '  \n ')).toThrow(EmptyTurnError);
+  expect(() => submittedTurn(setup, sixTurns, 'Too late.')).toThrow(DebateCompleteError);
 });
 
 test('human Debaters are not generated', async () => {

@@ -110,13 +110,14 @@ test("the account is one avatar button whose panel shows the name, Quota, the ac
   const member = `panel-${Date.now()}`;
   await page.setExtraHTTPHeaders({ 'x-dev-member': member });
   await page.goto('/');
-  const avatar = page.getByRole('button', { name: 'Your account, 6 Quota points left today' });
+  const avatar = page.getByRole('button', { name: 'Your account, 24 Quota points left today' });
   const panel = page.locator('#account-panel');
   await expect(panel).toBeHidden();
   await avatar.click();
   await expect(panel).toBeVisible();
   await expect(panel).toContainText(member);
-  await expect(panel).toContainText('6 Quota points left today');
+  await expect(panel).toContainText('24 Quota points left today');
+  // One lozenge per 4 points.
   await expect(panel.locator('.lozenge:not(.spent)')).toHaveCount(6);
   await expect(panel.getByRole('link', { name: 'Account settings' })).toHaveAttribute('href', '/account');
   await expect(panel.getByRole('button', { name: 'Sign out' })).toBeVisible();
@@ -271,7 +272,7 @@ test.describe('dark mode', () => {
     await expectNoAxeViolations(page);
     await page.setExtraHTTPHeaders({ 'x-dev-member': `dark-${Date.now()}` });
     await page.goto('/new');
-    await expect(page.getByLabel('Debater For')).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Debater For' })).toBeVisible();
     await expectNoAxeViolations(page);
   });
 });

@@ -1,5 +1,15 @@
-import { generateTurn, judgeDebate, nextSlot, runAiAudience, screenMotion, type ModelClient, type ModelId, type Turn } from '@debate-arena/engine';
-import { appendTurn, completeDebate, failDebate, getDebate, saveVerdict } from '../db/debates';
+import {
+  generateTurn,
+  isApiSlot,
+  judgeDebate,
+  nextSlot,
+  runAiAudience,
+  screenMotion,
+  type ModelClient,
+  type ModelId,
+  type Turn,
+} from '@debate-arena/engine';
+import { appendTurn, awaitingOf, completeDebate, failDebate, getDebate, saveVerdict, setTurnDeadline } from '../db/debates';
 import { saveScreen } from '../db/moderation';
 import { refundQuota, utcDay } from '../db/quota';
 import { BudgetExhaustedError } from '../models/factory';
@@ -12,6 +22,8 @@ export interface StepDeps {
   client: ModelClient;
   notify: (debateId: string, event: DebateEvent) => Promise<void>;
   enqueue: (job: StepJob) => Promise<void>;
+  /** Queues a job to run after a delay: an API slot's deadline check. */
+  enqueueLater: (job: StepJob, delaySeconds: number) => Promise<void>;
   now: () => Date;
   /** The model that screens Motions (catalog role 'screener'). */
   screener: ModelId;
@@ -21,7 +33,10 @@ export interface StepDeps {
   isPending?: (error: unknown) => boolean;
 }
 
-export type StepOutcome = 'screen' | 'turn' | 'verdict' | 'complete' | 'skipped';
+export type StepOutcome = 'screen' | 'turn' | 'awaiting' | 'missed' | 'verdict' | 'complete' | 'skipped';
+
+/** How long an API Debater has for each Turn. */
+export const API_TURN_TIMEOUT_SECONDS = 600;
 
 export const PUBLIC_FAILURE_REASON = 'The Debate could not be completed.';
 
@@ -36,6 +51,13 @@ export async function runStep(deps: StepDeps, job: StepJob): Promise<StepOutcome
   if (!debate || debate.status !== 'running' || debate.visibility === 'blocked') return 'skipped';
   const { id, setup, turns } = debate;
 
+  // A deadline check only ever fails a Debate whose API slot is still empty; it never moves a Debate on.
+  if (job.deadlineFor !== undefined) {
+    if (turns.length !== job.deadlineFor || awaitingOf(debate)?.slotIndex !== job.deadlineFor) return 'skipped';
+    await failStep(deps, id, `API Debater missed the deadline for slot ${job.deadlineFor}`);
+    return 'missed';
+  }
+
   // First, screen the Motion. A Flag Unlists the Debate but it runs on; Viewers are not told.
   if (debate.screenedAt === null) {
     const result = await screenMotion(setup.motion.text, deps.screener, deps.screenClient ?? client, {
@@ -46,7 +68,20 @@ export async function runStep(deps: StepDeps, job: StepJob): Promise<StepOutcome
     return 'screen';
   }
 
-  if (nextSlot(setup.format, turns)) {
+  const slot = nextSlot(setup.format, turns);
+  if (slot && isApiSlot(setup, slot)) {
+    // The Turn comes through the API (POST /debates/:id/turns/:slot), which moves the Debate on. Until the deadline.
+    const slotIndex = turns.length;
+    const now = deps.now();
+    const deadline = await setTurnDeadline(db, id, slotIndex, new Date(now.getTime() + API_TURN_TIMEOUT_SECONDS * 1000).toISOString());
+    if (!deadline) return 'skipped';
+    await notify(id, { type: 'awaiting', slotIndex, deadline });
+    const left = Math.max(0, Math.ceil((Date.parse(deadline) - now.getTime()) / 1000));
+    await deps.enqueueLater({ debateId: id, deadlineFor: slotIndex }, left);
+    return 'awaiting';
+  }
+
+  if (slot) {
     const slotIndex = turns.length;
     // Viewers see the Turn as it is written. The last draft never follows the Turn itself, and a Turn that fails
     // (written or stored) clears its draft, so a retry starts from an empty seat. A Slow Debate's notify does nothing.

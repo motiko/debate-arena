@@ -34,7 +34,14 @@ export async function hydrated(scope: Page | Locator): Promise<void> {
   await expect(scope.locator(selector)).toHaveCount(0);
 }
 
+/** Chooses a model in a picker the way a keyboard user does: type, go down to the first match, Enter. */
+export async function pickModel(page: Page, label: string, text: string): Promise<void> {
+  const picker = page.getByRole('combobox', { name: label });
+  await picker.fill(text);
+  await picker.press('ArrowDown');
+  await picker.press('Enter');
+}
+
 export async function expectNoAxeViolations(page: Page): Promise<void> {
-  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
-  expect(results.violations.map(v => ({ id: v.id, help: v.help, nodes: v.nodes.map(n => n.target.join(' ')) }))).toEqual([]);
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();  expect(results.violations.map(v => ({ id: v.id, help: v.help, nodes: v.nodes.map(n => n.target.join(' ')) }))).toEqual([]);
 }

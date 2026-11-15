@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { wordsToTokens } from '../debate/schedule';
 import { UnknownModelPriceError } from '../errors';
 import { setup } from '../testing/fixtures';
-import { type PriceTable, utf8Length, worstCaseBudgetMicroUsd } from './estimate';
+import { apiTurnMaxBytes, type PriceTable, quotaPointsFor, utf8Length, worstCaseBudgetMicroUsd } from './estimate';
 
 // Every model at 1 USD per million tokens in and out, so micro-USD equals tokens.
 const unit = { inputPerMTokUsd: 1, outputPerMTokUsd: 1 };
@@ -41,6 +41,44 @@ test('human Debaters cost nothing', () => {
   const humanFor = { ...setup, debaters: { ...setup.debaters, for: { kind: 'human', memberId: 'm1' } as const } };
   // Drops the three For Turns: (629+840) + (2309+560) + (3429+420) = 8187, twice
   expect(worstCaseBudgetMicroUsd(humanFor, [], unitPrices)).toBe(46526 - 16374);
+});
+
+test('an API Debater costs no model calls, one screen per Turn, and its Turns are read at their byte cap', () => {
+  const apiFor = { ...setup, debaters: { ...setup.debaters, for: { kind: 'api' } as const } };
+  const prices = { ...unitPrices, 'g/guard': unit };
+  // AI Debate with the Motion screen: 46526 + 1290. Drops the For Turns (16374). An API Turn is at most
+  // 8 bytes per word (2400, 1600, 1200), and bytes bound tokens. Screens: (629+2400+16) + (629+1600+16) + (629+1200+16)
+  // = 7135, twice. Later calls read the larger For Turns: Against 2 reads +1560, Against 4 +2600, Against 6 and the
+  // Judge +3380 each = 10920, twice.
+  expect(worstCaseBudgetMicroUsd(apiFor, [], prices, 'g/guard')).toBe(46526 + 1290 - 16374 + 14270 + 21840);
+});
+
+test('apiTurnMaxBytes is 8 bytes per word of the Phase', () => {
+  expect(apiTurnMaxBytes(300)).toBe(2400);
+});
+
+test('extraOutputTokens is charged on every call of that model', () => {
+  const plain = worstCaseBudgetMicroUsd(setup, [], unitPrices);
+  const reasoning = worstCaseBudgetMicroUsd(setup, [], { ...unitPrices, 'c/judge': { ...unit, extraOutputTokens: 2048 } });
+  expect(reasoning - plain).toBe(2 * 2048);
+});
+
+test('an invalid reasoning allowance is an error, never a smaller Budget', () => {
+  for (const bad of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    const prices = { ...unitPrices, 'c/judge': { ...unit, extraOutputTokens: bad } };
+    expect(() => worstCaseBudgetMicroUsd(setup, [], prices)).toThrow(UnknownModelPriceError);
+  }
+});
+
+test('quotaPointsFor refuses a Budget that is not a finite number', () => {
+  for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, -1]) expect(() => quotaPointsFor(bad)).toThrow(RangeError);
+});
+
+test('quotaPointsFor: one point per 1.25 cents, rounded up, at least 1', () => {
+  expect(quotaPointsFor(0)).toBe(1);
+  expect(quotaPointsFor(12_500)).toBe(1);
+  expect(quotaPointsFor(12_501)).toBe(2);
+  expect(quotaPointsFor(300_000)).toBe(24);
 });
 
 test('prices scale cost', () => {

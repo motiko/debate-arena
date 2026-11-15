@@ -17,6 +17,10 @@
     format: { phases: { name: string; order: Side[]; maxWords: number }[] };
     speakers: Record<Side, string>;
     initialTurns: Turn[];
+    /** The Sides whose Debater is an API Debater. */
+    apiSides?: Side[];
+    /** The API slot the Debate already waits for when the page is rendered. */
+    initialAwaiting?: number | null;
     fetcher?: typeof fetch;
     WebSocketImpl?: typeof WebSocket;
     reload?: () => void;
@@ -30,6 +34,8 @@
     format,
     speakers,
     initialTurns,
+    apiSides = [],
+    initialAwaiting = null,
     fetcher = fetch,
     WebSocketImpl,
     reload = () => location.reload(),
@@ -52,6 +58,9 @@
 
   // The next speech as it has arrived; gone once its Turn is on the floor.
   let draft = $state<Draft | null>(null);
+  // The API slot the Debate waits for; only ever the next slot counts, so a stale one shows nothing.
+  // svelte-ignore state_referenced_locally
+  let awaitingSlot = $state<number | null>(initialAwaiting);
 
   // What the floor shows of it: written out at an even pace by the Typist, so chunks do not land all at once. A
   // finished Turn whose writing has not caught up stays in the seat (`settling`) until it has, then takes its place
@@ -162,6 +171,7 @@
       {
         onEvent(event: DebateEvent) {
           if (event.type === 'draft') onDraft(event);
+          else if (event.type === 'awaiting') awaitingSlot = event.slotIndex;
           else if (event.type === 'turn') add([{ slotIndex: event.slotIndex, turn: event.turn }]);
           // The Verdict comes first, then the AI Audience; the Debate is complete (and votes open) after both.
           else if (event.type === 'complete') void finish('complete', live);
@@ -183,7 +193,15 @@
 </script>
 
 <div role="log" aria-live="polite" aria-relevant="additions" aria-label={t('live.region')} class="stack">
-  <PhaseFloor {format} turns={floorTurns} {speakers} {next} draft={written} />
+  <PhaseFloor
+    {format}
+    turns={floorTurns}
+    {speakers}
+    {next}
+    draft={written}
+    {apiSides}
+    awaiting={settling === null && awaitingSlot === turns.length}
+  />
 </div>
 
 <div class="live-status" class:closing={outcome === 'complete'} role="status">

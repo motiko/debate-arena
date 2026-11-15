@@ -2,9 +2,11 @@ import { MAX_ATTEMPTS } from '@debate-arena/engine';
 import { addCost, getBudget } from '../db/debates';
 import type { DebateEvent } from '../live/events';
 import { BatchCallFailedError, BatchPendingError, type BatchApi } from '../models/batch';
-import { catalogFor, priceTable, screenerFor, type DebateKind } from '../models/catalog';
+import type { ModelSnapshot } from '../db/debates';
+import { catalogFor, priceTable, reasoningOf, screenerFor, type DebateKind, type ReasoningMode } from '../models/catalog';
 import { deferredClient } from '../models/deferred';
 import { BudgetExhaustedError, createBatchApi, createModels, meteredClient } from '../models/factory';
+import { loadModels } from '../models/live-catalog';
 import type { StepJob } from './start';
 import { failStep, runStep, type StepDeps } from './steps';
 
@@ -23,7 +25,7 @@ export function pollDelaySeconds(waits: number, provider: string): number {
  * Live updates are best-effort: Viewers can always reload state over HTTP. A failed broadcast must not
  * spend a retry, because the retried message would move on to the next step and this event would be lost anyway.
  */
-async function notifyViewers(env: Env, debateId: string, event: DebateEvent): Promise<void> {
+export async function notifyViewers(env: Env, debateId: string, event: DebateEvent): Promise<void> {
   try {
     await env.DEBATE_ROOM.getByName(debateId).broadcast(event);
   } catch (error) {
@@ -49,7 +51,7 @@ export async function consumer(
   overrides: { batchApi?: BatchApi } = {},
 ): Promise<void> {
   const modelEnv = env as Env & { OPENROUTER_API_KEY?: string };
-  const models = createModels(modelEnv);
+  const models = await loadModels(modelEnv);
   const prices = priceTable(models.catalog);
   const batchPrices = priceTable(catalogFor(models.catalog, 'batch'));
 
@@ -64,15 +66,26 @@ export async function consumer(
         throw new BudgetExhaustedError(`Spent ${budget.spentMicroUsd} of ${budget.reservedMicroUsd} micro-USD`);
       }
     };
-    const kind = (await env.DB.prepare('SELECT kind FROM debates WHERE id = ?').bind(debateId).first<{ kind: DebateKind }>())?.kind;
-    const live = meteredClient(models.client, prices, cost => addCost(env.DB, debateId, cost), budgetGuard);
-    const batchDebate = kind === 'batch';
+    const row = await env.DB.prepare('SELECT kind, models_json FROM debates WHERE id = ?')
+      .bind(debateId)
+      .first<{ kind: DebateKind; models_json: string | null }>();
+    // The prices and reasoning settings frozen when the Debate started win over today's catalog (older Debates have none).
+    const snapshot = row?.models_json ? (JSON.parse(row.models_json) as ModelSnapshot) : {};
+    const frozenPrices = Object.fromEntries(Object.entries(snapshot).map(([id, m]) => [id, m.price]));
+    const catalogReasoning = reasoningOf(models.catalog);
+    const reasoning = (id: string): ReasoningMode => {
+      const frozen = Object.hasOwn(snapshot, id) ? snapshot[id] : undefined;
+      return frozen ? { support: frozen.reasoning, ...(frozen.leastEffort ? { leastEffort: frozen.leastEffort } : {}) } : catalogReasoning(id);
+    };
+    const { client } = createModels(modelEnv, models.catalog, reasoning);
+    const live = meteredClient(client, { ...prices, ...frozenPrices }, cost => addCost(env.DB, debateId, cost), budgetGuard);
+    const batchDebate = row?.kind === 'batch';
     const deferred = batchDebate
       ? deferredClient({
           db: env.DB,
           debateId,
-          api: overrides.batchApi ?? createBatchApi(modelEnv),
-          prices: batchPrices,
+          api: overrides.batchApi ?? createBatchApi(modelEnv, reasoning),
+          prices: { ...batchPrices, ...frozenPrices },
           onCost: cost => addCost(env.DB, debateId, cost),
           guard: budgetGuard,
         })
@@ -87,6 +100,9 @@ export async function consumer(
       notify: batchDebate ? async () => {} : (id, event) => notifyViewers(env, id, event),
       enqueue: async job => {
         await env.STEP_QUEUE.send(job);
+      },
+      enqueueLater: async (job, delaySeconds) => {
+        await env.STEP_QUEUE.send(job, { delaySeconds });
       },
       now: () => new Date(),
       screener: screenerFor(models.catalog),

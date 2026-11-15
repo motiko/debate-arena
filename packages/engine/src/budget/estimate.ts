@@ -7,10 +7,31 @@ import { STANCE_OUTPUT_TOKENS } from '../voting/ai-voter';
 
 export { JUDGE_OUTPUT_TOKENS, STANCE_OUTPUT_TOKENS };
 
-export interface ModelPrice { inputPerMTokUsd: number; outputPerMTokUsd: number }
+export interface ModelPrice {
+  inputPerMTokUsd: number;
+  outputPerMTokUsd: number;
+  /** Output tokens reserved on every call beyond the asked cap: a mandatory-reasoning model's reasoning allowance. */
+  extraOutputTokens?: number;
+}
 export type PriceTable = Record<ModelId, ModelPrice>;
 
 export const PROMPT_OVERHEAD_TOKENS = 600;
+
+/**
+ * An API Debater's Turn may be at most this many bytes per word of its Phase. Its words are not a model's output,
+ * so its token cap does not bound it: its bytes do (a token covers at least one byte), and the Budget reads it so.
+ */
+export const API_TURN_BYTES_PER_WORD = 8;
+export const apiTurnMaxBytes = (maxWords: number) => maxWords * API_TURN_BYTES_PER_WORD;
+
+/** A Quota point buys this much worst-case Budget: 1.25 US cents. */
+export const QUOTA_POINT_MICRO_USD = 12_500;
+
+/** The Quota points a Debate costs: one per QUOTA_POINT_MICRO_USD of its worst-case Budget, rounded up, at least 1. */
+export function quotaPointsFor(budgetMicroUsd: number): number {
+  if (!Number.isFinite(budgetMicroUsd) || budgetMicroUsd < 0) throw new RangeError(`Not a Budget: ${budgetMicroUsd}`);
+  return Math.max(1, Math.ceil(budgetMicroUsd / QUOTA_POINT_MICRO_USD));
+}
 
 /** UTF-8 byte length: an upper bound on tokens for any script, since a token covers at least one byte. */
 export function utf8Length(text: string): number {
@@ -26,7 +47,12 @@ const isValidPrice = (n: unknown) => typeof n === 'number' && Number.isFinite(n)
 
 function priceOf(prices: PriceTable, model: ModelId): ModelPrice {
   const price = Object.hasOwn(prices, model) ? prices[model] : undefined;
-  if (!price || !isValidPrice(price.inputPerMTokUsd) || !isValidPrice(price.outputPerMTokUsd))
+  if (
+    !price ||
+    !isValidPrice(price.inputPerMTokUsd) ||
+    !isValidPrice(price.outputPerMTokUsd) ||
+    (price.extraOutputTokens !== undefined && !isValidPrice(price.extraOutputTokens))
+  )
     throw new UnknownModelPriceError(`No valid price for ${model}`);
   return price;
 }
@@ -40,7 +66,7 @@ export function worstCaseBudgetMicroUsd(setup: DebateSetup, aiVoters: ModelId[],
   // tokens × USD per million tokens = micro-USD
   const cost = (model: ModelId, input: number, output: number) => {
     const price = priceOf(prices, model);
-    return MAX_ATTEMPTS * (input * price.inputPerMTokUsd + output * price.outputPerMTokUsd);
+    return MAX_ATTEMPTS * (input * price.inputPerMTokUsd + (output + (price.extraOutputTokens ?? 0)) * price.outputPerMTokUsd);
   };
 
   const base = PROMPT_OVERHEAD_TOKENS + utf8Length(setup.motion.text);
@@ -48,10 +74,14 @@ export function worstCaseBudgetMicroUsd(setup: DebateSetup, aiVoters: ModelId[],
   let total = screener ? cost(screener, base, SCREEN_OUTPUT_TOKENS) : 0;
 
   for (const slot of turnSlots(setup.format)) {
-    const output = turnOutputCap(setup.format.phases[slot.phaseIndex]!.maxWords);
+    const maxWords = setup.format.phases[slot.phaseIndex]!.maxWords;
     const debater = setup.debaters[slot.side];
-    if (debater.kind === 'ai') total += cost(debater.model, base + transcript, output);
-    transcript += output;
+    // An AI Turn is at most its output cap in tokens; an API Turn at most its byte cap, which bounds its tokens.
+    const length = debater.kind === 'api' ? apiTurnMaxBytes(maxWords) : turnOutputCap(maxWords);
+    if (debater.kind === 'ai') total += cost(debater.model, base + transcript, length);
+    // Each API Turn is screened, as a Motion is.
+    if (debater.kind === 'api' && screener) total += cost(screener, base + length, SCREEN_OUTPUT_TOKENS);
+    transcript += length;
   }
   for (const judge of setup.panel) total += cost(judge, base + transcript, JUDGE_OUTPUT_TOKENS);
   for (const voter of aiVoters) {
