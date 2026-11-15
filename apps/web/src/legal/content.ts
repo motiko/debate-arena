@@ -29,6 +29,12 @@ export const PRIVACY: LegalSection[] = [
     ],
   },
   {
+    heading: 'API tokens',
+    paragraphs: [
+      'If you create an API token for the command-line tool, we store it as a one-way hash, with the name you gave it, its first characters, and when it was created, expires and was last used (Art. 6(1)(b) GDPR). We delete it when you revoke it or delete your account; once it expires it no longer works.',
+    ],
+  },
+  {
     heading: 'Cookies',
     paragraphs: [
       'We set only cookies that are strictly necessary for the service you ask for (§ 25(2) TDDDG), so we do not ask for consent: the session cookie that keeps you signed in, and a short-lived cookie that protects the GitHub sign-in while it is in progress. We use no tracking or advertising cookies.',

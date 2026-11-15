@@ -72,6 +72,10 @@ _Avoid_: Visitor, spectator, audience member
 A Viewer with an account; only Members can cast Audience Votes and start Debates.
 _Avoid_: User, account, subscriber
 
+**API token**:
+A secret a Member creates on their account page so a Venue that is not a browser, such as the CLI, can start Debates as them. Shown once, revocable, and it expires.
+_Avoid_: API key, access token, personal access token
+
 **AI Voter**:
 An AI model that casts votes on a Debate under the Format's Voting Method, standing in for the audience. A Debate has AI Voters only if its starting Member opts in; the platform chooses which models, and any AI Voter that is the same model as a Debater is disclosed, as with Self-Judging.
 _Avoid_: Bot voter, synthetic voter, AI Judge

@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // fetch and WebSocket are Node 24 globals with the browser's types.
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    // Node runs this source directly (type stripping), so relative imports name their .ts files.
+    "allowImportingTsExtensions": true
+  },
+  // The API's route types refer to Workers globals (Env, D1Database), so their declarations are loaded too.
+  "include": ["src", "../../apps/api/worker-configuration.d.ts", "../../apps/api/src/secrets.d.ts"]
+}

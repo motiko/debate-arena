@@ -131,6 +131,14 @@ test.describe('axe signed in', () => {
     await expectNoAxeViolations(page);
   });
 
+  // Dev Members have no Better Auth session, so creating a token is covered by the island's unit tests.
+  test('the account page has an API tokens section', async ({ page }) => {
+    await page.goto('/account');
+    await expect(page.getByRole('heading', { level: 2, name: 'API tokens' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Create token' })).toBeVisible();
+    await expectNoAxeViolations(page);
+  });
+
   test('Debate page awaiting the before-vote', async ({ page, request }) => {
     const { id } = await startDebate(request);
     await waitComplete(request, id);

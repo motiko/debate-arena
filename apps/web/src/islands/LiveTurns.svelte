@@ -8,7 +8,7 @@
   import PhaseFloor from './PhaseFloor.svelte';
   import { t } from '../i18n/t';
   import { applyDraft, mergeTurns, nextSpeaker, type Draft, type SlotTurn } from '../lib/debate';
-  import { connectLive, liveUrl, type LiveStatus } from '../lib/live';
+  import { connectLive, liveUrl, type LiveStatus } from '@debate-arena/api-client/live';
   import { refreshRegions, type RefreshOptions } from '../lib/refresh';
   import { Typist } from '../lib/typist';
 
@@ -158,7 +158,7 @@
 
   onMount(() => {
     const live = connectLive(
-      liveUrl(location, debateId),
+      liveUrl(location.origin, debateId),
       {
         onEvent(event: DebateEvent) {
           if (event.type === 'draft') onDraft(event);

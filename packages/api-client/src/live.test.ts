@@ -1,15 +1,16 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { connectLive, liveUrl } from '../src/lib/live';
-import { FakeSocket } from './fake-socket';
+import { connectLive, liveUrl } from './index.ts';
+import { FakeSocket } from './testing/fake-socket.ts';
 
 beforeEach(() => FakeSocket.reset());
 afterEach(() => vi.useRealTimers());
 
 const impl = FakeSocket as unknown as typeof WebSocket;
 
-test('liveUrl uses ws: or wss: on the same host', () => {
-  expect(liveUrl({ protocol: 'https:', host: 'arena.test' }, 'd1')).toBe('wss://arena.test/api/debates/d1/live');
-  expect(liveUrl({ protocol: 'http:', host: 'localhost:4321' }, 'd1')).toBe('ws://localhost:4321/api/debates/d1/live');
+test('liveUrl uses ws: or wss: on the base URL host', () => {
+  expect(liveUrl('https://x.test', 'a b')).toBe('wss://x.test/api/debates/a%20b/live');
+  expect(liveUrl('http://localhost:4321', 'd')).toBe('ws://localhost:4321/api/debates/d/live');
+  expect(liveUrl('https://x.test/some/path/', 'd')).toBe('wss://x.test/api/debates/d/live');
 });
 
 test('passes Debate events on and ignores pongs', () => {

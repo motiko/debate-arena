@@ -25,11 +25,13 @@ export interface MemberExport {
     explanation: string | null;
     decidedAt: string;
   }[];
+  /** API tokens: never the key or its hash. */
+  apiTokens: { name: string | null; start: string | null; createdAt: string; expiresAt: string | null; lastRequest: string | null }[];
 }
 
 /** Everything the platform holds about a Member (GDPR access/portability). Null if there is no such Member. */
 export async function exportMember(db: D1Database, memberId: string): Promise<MemberExport | null> {
-  const [users, debates, votes, sessions, accounts, quota, reports, decisions, blocks] = await db.batch([
+  const [users, debates, votes, sessions, accounts, quota, reports, decisions, blocks, tokens] = await db.batch([
     db.prepare('SELECT id, name, email, image, "createdAt" FROM "user" WHERE id = ?').bind(memberId),
     db
       .prepare('SELECT id, setup_json, status, created_at, completed_at, visibility FROM debates WHERE member_id = ? ORDER BY created_at')
@@ -56,6 +58,7 @@ export async function exportMember(db: D1Database, memberId: string): Promise<Me
          JOIN debates d ON d.id = m.debate_id WHERE d.member_id = ? AND m.action = 'block'`,
       )
       .bind(memberId),
+    db.prepare('SELECT name, start, "createdAt", "expiresAt", "lastRequest" FROM apikey WHERE "referenceId" = ? ORDER BY "createdAt"').bind(memberId),
   ]);
   const user = users?.results[0] as
     | { id: string; name: string; email: string; image: string | null; createdAt: string | number }
@@ -117,6 +120,11 @@ export async function exportMember(db: D1Database, memberId: string): Promise<Me
         decided_at: string;
       }[]
     ).map(m => ({ debateId: m.debate_id, action: m.action, ground: m.ground, groundRef: m.ground_ref, explanation: m.explanation, decidedAt: m.decided_at })),
+    apiTokens: (tokens?.results ?? []).map(row => {
+      const t = row as { name: string | null; start: string | null; createdAt: string | number; expiresAt: string | number | null; lastRequest: string | number | null };
+      const iso = (value: string | number | null) => (value === null ? null : new Date(value).toISOString());
+      return { name: t.name, start: t.start, createdAt: new Date(t.createdAt).toISOString(), expiresAt: iso(t.expiresAt), lastRequest: iso(t.lastRequest) };
+    }),
   };
 }
 
