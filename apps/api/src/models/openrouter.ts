@@ -1,4 +1,5 @@
 import { utf8Length, type CompleteOptions, type ModelClient, type ModelId, type ModelRequest, type ModelResponse } from '@debate-arena/engine';
+import { REASONING_ALLOWANCE_TOKENS, type ReasoningMode } from './catalog';
 import { sseData } from './sse';
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
@@ -23,8 +24,20 @@ export class OpenRouterError extends Error {
 
 export interface OpenRouterOptions {
   fetcher?: typeof fetch;
-  /** Whether to send `reasoning: { enabled: false }` for a model; true for catalog models with optional reasoning. */
-  disableReasoning?: (model: ModelId) => boolean;
+  /** How to treat each model's reasoning (the catalog's view); by default it is left alone. */
+  reasoning?: (model: ModelId) => ReasoningMode;
+}
+
+/**
+ * The token cap and reasoning setting for a call: optional reasoning is switched off; mandatory reasoning asks for
+ * the least effort and gets REASONING_ALLOWANCE_TOKENS more, as it counts against max_tokens.
+ */
+export function reasoningFields(mode: ReasoningMode, maxOutputTokens: number): { max_tokens: number; reasoning?: object } {
+  if (mode.support === 'optional') return { max_tokens: maxOutputTokens, reasoning: { enabled: false } };
+  if (mode.support === 'mandatory') {
+    return { max_tokens: maxOutputTokens + REASONING_ALLOWANCE_TOKENS, reasoning: { effort: mode.leastEffort ?? 'low' } };
+  }
+  return { max_tokens: maxOutputTokens };
 }
 
 /** OpenRouter's error; a provider's own error sits in metadata.raw (often a JSON string) behind a generic message. */
@@ -58,7 +71,7 @@ export function describeError(error: OpenRouterErrorBody | undefined, fallback: 
 
 export class OpenRouterModelClient implements ModelClient {
   private readonly fetcher: typeof fetch;
-  private readonly disableReasoning: (model: ModelId) => boolean;
+  private readonly reasoning: (model: ModelId) => ReasoningMode;
 
   constructor(
     private readonly apiKey: string,
@@ -66,7 +79,7 @@ export class OpenRouterModelClient implements ModelClient {
   ) {
     // Wrapped so the global fetch is never called detached from its receiver.
     this.fetcher = options.fetcher ?? ((input, init) => fetch(input, init));
-    this.disableReasoning = options.disableReasoning ?? (() => false);
+    this.reasoning = options.reasoning ?? (() => ({ support: 'unsupported' }));
   }
 
   async complete(request: ModelRequest, options: CompleteOptions = {}): Promise<ModelResponse> {
@@ -82,8 +95,7 @@ export class OpenRouterModelClient implements ModelClient {
       body: JSON.stringify({
         model: request.model,
         messages: request.messages,
-        max_tokens: request.maxOutputTokens,
-        ...(this.disableReasoning(request.model) ? { reasoning: { enabled: false } } : {}),
+        ...reasoningFields(this.reasoning(request.model), request.maxOutputTokens),
         // Only a caller that shows the reply as it is written asks for a stream.
         ...(onText ? { stream: true } : {}),
       }),

@@ -76,6 +76,10 @@ pnpm exec wrangler secret put OPENROUTER_API_KEY --env production
 Secrets can only be set on a Worker that exists. If `secret put` says the Worker does not exist, run the first deploy
 (step 6) once — the API will refuse requests until its secrets are set — then set them.
 
+For free models (`…:free`), allow providers that may keep prompts in OpenRouter's privacy settings
+(**Settings → Privacy**, the free-endpoints switch); without it OpenRouter refuses them and every Debate with a free
+Debater fails (its Quota is refunded). Debates are public, so nothing private is sent.
+
 Optional:
 
 - **Email notices** (Report receipts and decisions; statements of reasons to authors of Blocked Debates): create a

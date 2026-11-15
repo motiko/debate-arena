@@ -84,3 +84,10 @@ test('GET /models lists the fake catalog locally', async () => {
   expect(models.map(m => m.id)).toContain('fake-a/one');
   expect(models[0]).not.toHaveProperty('price');
 });
+
+test('GET /models gives each model its price per million tokens and whether it is batch-capable', async () => {
+  const res = await exports.default.fetch(`${base}/models`);
+  const { models } = (await res.json()) as { models: Record<string, unknown>[] };
+  expect(models.find(m => m.id === 'fake-a/one')).toMatchObject({ inputPerMTokUsd: 1, outputPerMTokUsd: 1, batch: true });
+  expect(models.find(m => m.id === 'fake-slow/one')).toMatchObject({ batch: false });
+});

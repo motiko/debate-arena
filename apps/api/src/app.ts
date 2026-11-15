@@ -26,7 +26,8 @@ import { castAfter, castBefore, getVote, listVotes, type AudienceVote } from './
 import { audienceResult, checkVote, votingClosesAt, type VotePhase } from './votes/rules';
 import { voterKey } from './votes/voter-key';
 import { startDebate } from './debates/start';
-import { createModels } from './models/factory';
+import { isBatchCapable } from './models/catalog';
+import { loadModels } from './models/live-catalog';
 
 const FEED_PAGE_SIZE = 20;
 
@@ -193,9 +194,20 @@ export const app = new Hono<{ Bindings: Env }>()
     if (!data) return c.json({ error: 'Not signed in' }, 401);
     return c.json(data);
   })
-  .get('/models', c => {
-    const { catalog } = createModels(c.env);
-    return c.json({ models: catalog.entries.map(e => ({ id: e.id, label: e.label, roles: e.roles, batch: e.batchPrice !== undefined })) });
+  .get('/models', async c => {
+    const { catalog } = await loadModels(c.env);
+    return c.json({
+      models: catalog.entries.map(e => ({
+        id: e.id,
+        label: e.label,
+        roles: e.roles,
+        // Batch-capable: may take part in a Slow Debate.
+        batch: isBatchCapable(catalog, e.id),
+        inputPerMTokUsd: e.price.inputPerMTokUsd,
+        outputPerMTokUsd: e.price.outputPerMTokUsd,
+        contextLength: e.contextLength ?? null,
+      })),
+    });
   })
   .post('/debates', async c => {
     if (!isJson(c.req.header('content-type'))) return c.json({ error: NOT_JSON }, 415);
@@ -207,7 +219,7 @@ export const app = new Hono<{ Bindings: Env }>()
     } catch {
       return c.json({ error: 'Request body must be JSON' }, 400);
     }
-    const { catalog } = createModels(c.env);
+    const { catalog } = await loadModels(c.env);
     const result = await startDebate(
       {
         db: c.env.DB,

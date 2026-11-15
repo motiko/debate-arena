@@ -2,9 +2,10 @@ import { MAX_ATTEMPTS } from '@debate-arena/engine';
 import { addCost, getBudget } from '../db/debates';
 import type { DebateEvent } from '../live/events';
 import { BatchCallFailedError, BatchPendingError, type BatchApi } from '../models/batch';
-import { catalogFor, priceTable, screenerFor, type DebateKind } from '../models/catalog';
+import { catalogFor, priceTable, reasoningOf, screenerFor, type DebateKind } from '../models/catalog';
 import { deferredClient } from '../models/deferred';
-import { BudgetExhaustedError, createBatchApi, createModels, meteredClient } from '../models/factory';
+import { BudgetExhaustedError, createBatchApi, meteredClient } from '../models/factory';
+import { loadModels } from '../models/live-catalog';
 import type { StepJob } from './start';
 import { failStep, runStep, type StepDeps } from './steps';
 
@@ -49,7 +50,7 @@ export async function consumer(
   overrides: { batchApi?: BatchApi } = {},
 ): Promise<void> {
   const modelEnv = env as Env & { OPENROUTER_API_KEY?: string };
-  const models = createModels(modelEnv);
+  const models = await loadModels(modelEnv);
   const prices = priceTable(models.catalog);
   const batchPrices = priceTable(catalogFor(models.catalog, 'batch'));
 
@@ -71,7 +72,7 @@ export async function consumer(
       ? deferredClient({
           db: env.DB,
           debateId,
-          api: overrides.batchApi ?? createBatchApi(modelEnv),
+          api: overrides.batchApi ?? createBatchApi(modelEnv, reasoningOf(models.catalog)),
           prices: batchPrices,
           onCost: cost => addCost(env.DB, debateId, cost),
           guard: budgetGuard,

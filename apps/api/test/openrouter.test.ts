@@ -18,7 +18,7 @@ const ok = { choices: [{ message: { content: 'Hello' }, finish_reason: 'stop' }]
 
 test('sends the model, messages, token cap and disabled reasoning', async () => {
   const { sent, fetcher } = stub(200, ok);
-  await new OpenRouterModelClient('test-key', { fetcher, disableReasoning: () => true }).complete(req);
+  await new OpenRouterModelClient('test-key', { fetcher, reasoning: () => ({ support: 'optional' }) }).complete(req);
   expect(sent[0]?.url).toBe('https://openrouter.ai/api/v1/chat/completions');
   expect(sent[0]?.headers.get('authorization')).toBe('Bearer test-key');
   expect(sent[0]?.headers.get('x-openrouter-title')).toBe('Debate Arena');
@@ -32,8 +32,20 @@ test('sends the model, messages, token cap and disabled reasoning', async () => 
 
 test('omits the reasoning setting for models that do not reason', async () => {
   const { sent, fetcher } = stub(200, ok);
-  await new OpenRouterModelClient('k', { fetcher, disableReasoning: () => false }).complete(req);
+  await new OpenRouterModelClient('k', { fetcher, reasoning: () => ({ support: 'unsupported' }) }).complete(req);
   expect(JSON.parse(sent[0]!.body)).not.toHaveProperty('reasoning');
+});
+
+test('asks a mandatory-reasoning model for its least effort, with the reasoning allowance on top of the cap', async () => {
+  const { sent, fetcher } = stub(200, ok);
+  await new OpenRouterModelClient('k', { fetcher, reasoning: () => ({ support: 'mandatory', leastEffort: 'minimal' }) }).complete(req);
+  expect(JSON.parse(sent[0]!.body)).toMatchObject({ max_tokens: 10 + 2048, reasoning: { effort: 'minimal' } });
+});
+
+test('a mandatory-reasoning model without a known least effort asks for low', async () => {
+  const { sent, fetcher } = stub(200, ok);
+  await new OpenRouterModelClient('k', { fetcher, reasoning: () => ({ support: 'mandatory' }) }).complete(req);
+  expect(JSON.parse(sent[0]!.body).reasoning).toEqual({ effort: 'low' });
 });
 
 test('maps text, usage and a length stop', async () => {

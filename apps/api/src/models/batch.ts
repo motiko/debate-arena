@@ -1,7 +1,8 @@
 // OpenRouter's Batch API (about half price; results in minutes to hours). A Batch Debate sends each model call as
 // a one-request batch and polls for its result; the engine never waits inside a Worker request.
 import type { ModelId, ModelRequest, ModelResponse } from '@debate-arena/engine';
-import { describeError, OpenRouterError, readCompletion, type CompletionBody, type OpenRouterErrorBody } from './openrouter';
+import type { ReasoningMode } from './catalog';
+import { describeError, OpenRouterError, readCompletion, reasoningFields, type CompletionBody, type OpenRouterErrorBody } from './openrouter';
 
 const BATCHES = 'https://openrouter.ai/api/v1/batches';
 
@@ -43,15 +44,15 @@ interface BatchBody {
 
 export class OpenRouterBatchApi implements BatchApi {
   private readonly fetcher: typeof fetch;
-  private readonly disableReasoning: (model: ModelId) => boolean;
+  private readonly reasoning: (model: ModelId) => ReasoningMode;
   private readonly callbackUrl: string | undefined;
 
   constructor(
     private readonly apiKey: string,
-    options: { fetcher?: typeof fetch; disableReasoning?: (model: ModelId) => boolean; callbackUrl?: string } = {},
+    options: { fetcher?: typeof fetch; reasoning?: (model: ModelId) => ReasoningMode; callbackUrl?: string } = {},
   ) {
     this.fetcher = options.fetcher ?? ((input, init) => fetch(input, init));
-    this.disableReasoning = options.disableReasoning ?? (() => false);
+    this.reasoning = options.reasoning ?? (() => ({ support: 'unsupported' }));
     this.callbackUrl = options.callbackUrl;
   }
 
@@ -80,8 +81,7 @@ export class OpenRouterBatchApi implements BatchApi {
             body: {
               model: request.model,
               messages: request.messages,
-              max_tokens: request.maxOutputTokens,
-              ...(this.disableReasoning(request.model) ? { reasoning: { enabled: false } } : {}),
+              ...reasoningFields(this.reasoning(request.model), request.maxOutputTokens),
             },
           },
         ],

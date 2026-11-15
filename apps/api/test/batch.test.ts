@@ -14,7 +14,7 @@ function fakeFetch(respond: (url: string, init?: RequestInit) => Response) {
 
 test('OpenRouterBatchApi submits one request with the base model id', async () => {
   const { fetcher, calls } = fakeFetch(() => Response.json({ id: 'batch_1', status: 'validating' }, { status: 202 }));
-  const api = new OpenRouterBatchApi('key-1', { fetcher, disableReasoning: () => true });
+  const api = new OpenRouterBatchApi('key-1', { fetcher, reasoning: () => ({ support: 'optional' }) });
   expect(await api.submit(request)).toBe('batch_1');
   expect(calls[0]?.url).toBe('https://openrouter.ai/api/v1/batches');
   expect(calls[0]?.init?.method).toBe('POST');

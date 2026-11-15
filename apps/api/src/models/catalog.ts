@@ -4,10 +4,14 @@ export type ModelRole = 'debater' | 'judge' | 'voter' | 'screener';
 
 /**
  * 'optional': reasoning can be switched off, and the OpenRouter client does so.
- * 'unsupported': the model does not reason. Models with mandatory reasoning are not allowed yet, because
- * hidden reasoning tokens would eat Turn token caps and break the worst-case Budget.
+ * 'unsupported': the model does not reason.
+ * 'mandatory': the model always reasons. Its calls ask for its least effort and get REASONING_ALLOWANCE_TOKENS more
+ * output, which the worst-case Budget reserves, so hidden reasoning cannot eat the Turn's cap unpaid.
  */
-export type ReasoningSupport = 'optional' | 'unsupported';
+export type ReasoningSupport = 'optional' | 'unsupported' | 'mandatory';
+
+/** Extra output tokens on every call to a mandatory-reasoning model (reasoning counts against max_tokens). */
+export const REASONING_ALLOWANCE_TOKENS = 2048;
 
 export interface CatalogEntry {
   id: ModelId;
@@ -15,9 +19,17 @@ export interface CatalogEntry {
   price: ModelPrice;
   roles: ModelRole[];
   reasoning: ReasoningSupport;
-  /** Present when OpenRouter's Batch API serves this model (its `<id>:batch` price); Batch Debates use only these. */
+  /** Present when OpenRouter's Batch API serves this model (its `<id>:batch` price). See isBatchCapable. */
   batchPrice?: ModelPrice;
+  contextLength?: number;
+  /** Hand-picked and verified: only curated models are AI Voters, the screener and suggested Judges. */
+  curated?: true;
+  /** For a mandatory-reasoning model: the least reasoning effort it accepts. */
+  leastEffort?: string;
 }
+
+/** How the OpenRouter clients treat a model's reasoning. */
+export interface ReasoningMode { support: ReasoningSupport; leastEffort?: string }
 export interface Catalog { entries: CatalogEntry[] }
 
 export const AI_VOTER_COUNT = 10;
@@ -32,7 +44,8 @@ const price = (inputPerMTokUsd: number, outputPerMTokUsd: number): ModelPrice =>
  * and batch) and Mistral Large 4 (its provider accepts reasoning_effort low, medium or high only, not "none").
  */
 export const PRODUCTION_CATALOG: Catalog = {
-  entries: [
+  entries: (
+    [
     { id: 'anthropic/claude-haiku-5.5', label: 'Claude Haiku 5.5', price: price(0.1, 0.5), roles: ALL_ROLES, reasoning: 'optional', batchPrice: price(0.05, 0.25) },
     { id: 'openai/gpt-6.1-terra', label: 'GPT-6.1 Terra', price: price(1, 5), roles: ALL_ROLES, reasoning: 'optional', batchPrice: price(0.5, 2.5) },
     // Batch-capable; its batch price is above the cheapest normal provider (0.051/0.203 on 2026-11-14), not a discount.
@@ -42,7 +55,8 @@ export const PRODUCTION_CATALOG: Catalog = {
     { id: 'mistralai/mistral-small-2603', label: 'Mistral Small', price: price(0.15, 0.6), roles: ['voter'], reasoning: 'optional' },
     // Screens Motions for abuse (flag only). Answers "safe" or "unsafe" plus hazard codes.
     { id: 'meta-llama/llama-guard-4-12b', label: 'Llama Guard 4', price: price(0.18, 0.18), roles: ['screener'], reasoning: 'unsupported' },
-  ],
+    ] satisfies CatalogEntry[]
+  ).map(e => ({ ...e, curated: true as const })),
 };
 
 /** Offline catalog for local dev and tests (MODEL_PROVIDER=fake). */
@@ -67,8 +81,19 @@ export const FAKE_CATALOG: Catalog = {
 
 export type DebateKind = 'live' | 'batch';
 
+/** Served by the Batch API, and not mandatory-reasoning (a batch call cannot be capped against hidden reasoning). */
+const batchCapable = (e: CatalogEntry) => e.batchPrice !== undefined && e.reasoning !== 'mandatory';
+
 export function isBatchCapable(catalog: Catalog, id: ModelId): boolean {
-  return catalog.entries.some(e => e.id === id && e.batchPrice !== undefined);
+  return catalog.entries.some(e => e.id === id && batchCapable(e));
+}
+
+/** How the OpenRouter clients treat each model's reasoning; a model not in the catalog is left alone. */
+export function reasoningOf(catalog: Catalog): (id: ModelId) => ReasoningMode {
+  return id => {
+    const e = catalog.entries.find(entry => entry.id === id);
+    return { support: e?.reasoning ?? 'unsupported', ...(e?.leastEffort ? { leastEffort: e.leastEffort } : {}) };
+  };
 }
 
 /**
@@ -79,14 +104,16 @@ export function catalogFor(catalog: Catalog, kind: DebateKind): Catalog {
   if (kind === 'live') return catalog;
   return {
     entries: catalog.entries.flatMap(e => {
-      if (e.batchPrice) return [{ ...e, price: e.batchPrice }];
+      if (batchCapable(e)) return [{ ...e, price: e.batchPrice! }];
       return e.roles.includes('screener') ? [e] : [];
     }),
   };
 }
 
 export function priceTable(catalog: Catalog): PriceTable {
-  return Object.fromEntries(catalog.entries.map(e => [e.id, e.price]));
+  return Object.fromEntries(
+    catalog.entries.map(e => [e.id, e.reasoning === 'mandatory' ? { ...e.price, extraOutputTokens: REASONING_ALLOWANCE_TOKENS } : e.price]),
+  );
 }
 
 /** The model that screens Motions. */
