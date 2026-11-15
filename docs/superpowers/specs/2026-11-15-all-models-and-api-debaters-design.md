@@ -35,6 +35,8 @@ The API Worker reads `GET https://openrouter.ai/api/v1/models?output_modalities=
 - `pricing.prompt` and `pricing.completion` parse as numbers ≥ 0 (routers such as `openrouter/auto` report −1);
 - it does not start with `openrouter/`, and its id has no variant suffix other than `:free` (`:batch` variants are not
   models of their own, see below; other variants such as `:nitro` or `:thinking` are left out);
+- it costs tokens only: no non-zero `pricing.request`, and not `perplexity/*`, which searches the web (and pays per
+  search) on every call — fees the meter and the Budget would not see;
 - `supported_parameters` includes `max_tokens`;
 - `context_length` ≥ 16 000 (a Classic Debate's Judge prompt is about 5 000 tokens).
 
@@ -71,7 +73,8 @@ Member who does not choose gets the same Debate as today. Every listed model may
 Worker isolate. Not the Cache API: it does nothing on a workers.dev address, where production runs
 (https://developers.cloudflare.com/workers/runtime-apis/cache/), and KV would be a new binding for one value. If
 OpenRouter cannot be reached or answers with something unreadable, the last cached copy is used, however old; with
-none, the curated catalog alone. A request never waits more than 3 s for the list.
+none, the curated catalog alone. A request never waits more than 3 s for the list, and after a failed fetch the
+fallback is served from memory for a minute before OpenRouter is asked again, so an outage does not slow every request.
 
 **Prices are frozen per Debate.** A Debate stores, at start, the price and reasoning setting of every model it
 will call (Debaters, Judge, AI Voters, screener). Its steps charge and call by that snapshot, so a model that
@@ -112,7 +115,12 @@ Debates started before this change fall back to the catalog, as today.
   the server reads it as it arrives (today Cloudflare hands it over only once complete, see below). The Turn ends
   when the body ends.
 - **Stored Turn:** the text, trimmed, cut at the Phase's word limit and then back to its last full sentence when
-  cut (as an AI Turn), `truncated` set accordingly. Bodies over 64 KiB are refused with 413 and nothing is stored.
+  cut (as an AI Turn), `truncated` set accordingly. It is also cut at 8 bytes per word of the Phase (2 400 bytes
+  for an Opening), never inside a character: the Budget reserves every later call's reading of an API Turn at that
+  size (bytes bound tokens), so text padded with symbols cannot spend past the reserve. Bodies over 64 KiB are
+  refused with 413 and nothing is stored.
+- **Only once awaited:** a Turn is accepted only after the step has set its slot's deadline (the `awaiting` event).
+  Sent earlier, it gets 409, so exactly one step job moves the Debate on and the next AI Turn is paid for once.
 - **Verified 2026-11-15: Cloudflare buffers request bodies.** A throwaway Worker received a body sent in six pieces a
   second apart (Node `fetch` with `duplex: 'half'`, and `curl -T -`) as one chunk, at 0 ms, after the upload ended.
   So a streamed body works but shows no drafts. **Live drafts come from

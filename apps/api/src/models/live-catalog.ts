@@ -4,6 +4,8 @@ import { createModels, type ModelEnv, type Models } from './factory';
 
 export const CATALOG_TTL_SECONDS = 3600;
 export const CATALOG_FETCH_TIMEOUT_MS = 3000;
+/** After a failed fetch, how long the fallback is served before OpenRouter is asked again. */
+export const CATALOG_RETRY_SECONDS = 60;
 /** A Classic Debate's Judge prompt is about 5 000 tokens. */
 export const MIN_CONTEXT_TOKENS = 16_000;
 // Only models that write text and take a token cap; the parser checks both again.
@@ -15,7 +17,7 @@ interface OpenRouterModel {
   name?: unknown;
   context_length?: unknown;
   architecture?: { input_modalities?: unknown; output_modalities?: unknown };
-  pricing?: { prompt?: unknown; completion?: unknown };
+  pricing?: { prompt?: unknown; completion?: unknown; request?: unknown };
   supported_parameters?: unknown;
   reasoning?: { mandatory?: unknown; supported_efforts?: unknown } | null;
 }
@@ -77,6 +79,8 @@ export function parseOpenRouterModels(body: unknown, curated: Catalog): Catalog 
     if (typeof m.context_length !== 'number' || m.context_length < MIN_CONTEXT_TOKENS) continue;
     const price = perMillion(m.pricing);
     if (!price) continue;
+    // The meter and the Budget count tokens only: no fee per request, and no model that searches the web on every call.
+    if (Number(m.pricing?.request ?? 0) !== 0 || base.startsWith('perplexity/')) continue;
 
     const label = labelOf(m.name);
     const batchPrice = variant === undefined ? batchPrices.get(base) : undefined;
@@ -132,10 +136,12 @@ async function fetchCatalog(env: CatalogEnv, fetcher: typeof fetch, timeoutMs: n
 /**
  * A loader with its own in-memory copy. Order: memory younger than CATALOG_TTL_SECONDS, then the stored row younger
  * than that, then OpenRouter (stored and remembered). When OpenRouter fails: the stored row however old, else the
- * curated catalog; neither is remembered, so the next request tries again.
+ * curated catalog, served from memory for CATALOG_RETRY_SECONDS so an outage does not slow every request by the
+ * timeout; then OpenRouter is asked again.
  */
 export function createCatalogLoader(): (env: CatalogEnv, deps?: CatalogDeps) => Promise<Models> {
   let memo: { catalog: Catalog; at: number } | undefined;
+  let fallback: { catalog: Catalog; until: number } | undefined;
   return async (env, deps = {}) => {
     if (env.MODEL_PROVIDER === 'fake') return createModels(env);
     const now = deps.now ?? Date.now;
@@ -143,6 +149,7 @@ export function createCatalogLoader(): (env: CatalogEnv, deps?: CatalogDeps) => 
     const withCatalog = (catalog: Catalog) => createModels(env, catalog);
 
     if (memo && fresh(memo.at)) return withCatalog(memo.catalog);
+    if (fallback && now() < fallback.until) return withCatalog(fallback.catalog);
     const row = await env.DB.prepare('SELECT catalog_json, fetched_at FROM model_catalog WHERE id = 1').first<{
       catalog_json: string;
       fetched_at: string;
@@ -165,7 +172,8 @@ export function createCatalogLoader(): (env: CatalogEnv, deps?: CatalogDeps) => 
       return withCatalog(catalog);
     } catch (error) {
       console.warn('Could not load the OpenRouter model list', error);
-      return withCatalog(stored?.catalog ?? PRODUCTION_CATALOG);
+      fallback = { catalog: stored?.catalog ?? PRODUCTION_CATALOG, until: now() + CATALOG_RETRY_SECONDS * 1000 };
+      return withCatalog(fallback.catalog);
     }
   };
 }

@@ -1,7 +1,7 @@
 import { FakeModelClient } from '@debate-arena/engine';
 import { env, exports } from 'cloudflare:workers';
 import { expect, test } from 'vitest';
-import { appendTurn, failDebate, getDebate, type DebateRecord } from '../src/db/debates';
+import { appendTurn, failDebate, getDebate, setTurnDeadline, type DebateRecord } from '../src/db/debates';
 import { MAX_API_TURN_BYTES, readTurnBody, relayDraft, screenApiTurn, submitApiTurn, TurnTooLargeError, type ApiTurnDeps } from '../src/debates/api-turn';
 import type { StepJob } from '../src/debates/start';
 import type { DebateEvent } from '../src/live/events';
@@ -35,11 +35,21 @@ function makeDeps() {
   return { deps, events, jobs };
 }
 
-async function apiDebate(memberId = `m-${crypto.randomUUID()}`): Promise<DebateRecord> {
+/** A screened Debate whose For bench is an API Debater, with slot 0 awaited (as its step leaves it), unless `awaited` is false. */
+async function apiDebate(memberId = `m-${crypto.randomUUID()}`, awaited = true): Promise<DebateRecord> {
   const d = newDebate({ memberId, setup: { ...sampleSetup, debaters: { ...sampleSetup.debaters, for: { kind: 'api' } } } });
   await createScreened(env.DB, d);
+  if (awaited) await setTurnDeadline(env.DB, d.id, 0, '2026-11-15T12:10:00.000Z');
   return (await getDebate(env.DB, d.id))!;
 }
+
+test('a Turn sent before its slot is awaited is refused, so only the step moves the Debate on', async () => {
+  const { deps, jobs } = makeDeps();
+  const d = await apiDebate(undefined, false);
+  expect(await submitApiTurn(deps, d, 0, streamOf(['Too early.']))).toEqual({ status: 409, error: 'This Debate is not waiting for Turn 0' });
+  expect(jobs).toEqual([]);
+  expect((await getDebate(env.DB, d.id))?.turns).toEqual([]);
+});
 
 test('readTurnBody decodes a character split across pieces', async () => {
   const bytes = encoder.encode('café.');

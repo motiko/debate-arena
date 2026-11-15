@@ -81,13 +81,12 @@ test('a line-up over $5 is refused for everyone', async () => {
   }
 });
 
-test('an API Debater is stored as one and costs only its screens', async () => {
+test('an API Debater is stored as one and reserved as the engine reckons it', async () => {
   const r = await startDebate(deps(), uniqueId('m'), { ...valid, debaters: { for: 'api', against: 'fake-b/one' } });
   if (!r.ok) throw new Error(r.error);
   const stored = await getDebate(env.DB, r.id);
   expect(stored?.setup.debaters.for).toEqual({ kind: 'api' });
   expect(r.budgetReservedMicroUsd).toBe(worstCaseBudgetMicroUsd(stored!.setup, [], priceTable(CATALOG), 'fake-guard/one'));
-  expect(r.budgetReservedMicroUsd).toBeLessThan(47_816);
 });
 
 test('both benches may be API Debaters', async () => {

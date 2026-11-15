@@ -33,6 +33,8 @@ export {
 export {
   JUDGE_OUTPUT_TOKENS,
   PROMPT_OVERHEAD_TOKENS,
+  API_TURN_BYTES_PER_WORD,
+  apiTurnMaxBytes,
   QUOTA_POINT_MICRO_USD,
   quotaPointsFor,
   STANCE_OUTPUT_TOKENS,

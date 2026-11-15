@@ -3,6 +3,7 @@ import { ApiTurnError, DebateCompleteError, EmptyTurnError, HumanTurnNotSupporte
 import { FakeModelClient } from '../models/fake';
 import { setup, sixTurns } from '../testing/fixtures';
 import { countWords } from '../turns/words';
+import { utf8Length } from '../budget/estimate';
 import { generateTurn, isApiSlot, submittedTurn } from './generate-turn';
 import { buildTurnMessages } from './prompts';
 
@@ -102,6 +103,23 @@ test('submittedTurn cuts a long text at the word limit, back to its last full se
   expect(turn.truncated).toBe(true);
   expect(turn.text.endsWith('here.')).toBe(true);
   expect(countWords(turn.text)).toBeLessThanOrEqual(300);
+});
+
+test('submittedTurn cuts a text padded with symbols to its byte cap, back to its last full sentence', () => {
+  // 300 "words" of 40 symbols each would be 12 kB: far more tokens than the Budget reserves for a Turn.
+  const padded = Array.from({ length: 300 }, (_, i) => `${'%'.repeat(39)}${i % 10 === 9 ? '.' : '%'}`).join(' ');
+  const turn = submittedTurn(setup, [], padded);
+  expect(turn.truncated).toBe(true);
+  expect(utf8Length(turn.text)).toBeLessThanOrEqual(2400);
+  expect(turn.text.endsWith('.')).toBe(true);
+});
+
+test('submittedTurn never splits a character at the byte cap', () => {
+  const emoji = Array.from({ length: 300 }, () => '😀😀😀').join(' '); // 13 bytes a word
+  const turn = submittedTurn(setup, [], emoji);
+  expect(utf8Length(turn.text)).toBeLessThanOrEqual(2400);
+  expect(turn.text).not.toContain('�');
+  expect([...turn.text].every(ch => ch === '😀' || ch === ' ')).toBe(true);
 });
 
 test('submittedTurn refuses an empty text and a finished Debate', () => {

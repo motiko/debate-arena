@@ -17,6 +17,13 @@ export type PriceTable = Record<ModelId, ModelPrice>;
 
 export const PROMPT_OVERHEAD_TOKENS = 600;
 
+/**
+ * An API Debater's Turn may be at most this many bytes per word of its Phase. Its words are not a model's output,
+ * so its token cap does not bound it: its bytes do (a token covers at least one byte), and the Budget reads it so.
+ */
+export const API_TURN_BYTES_PER_WORD = 8;
+export const apiTurnMaxBytes = (maxWords: number) => maxWords * API_TURN_BYTES_PER_WORD;
+
 /** A Quota point buys this much worst-case Budget: 1.25 US cents. */
 export const QUOTA_POINT_MICRO_USD = 12_500;
 
@@ -67,12 +74,14 @@ export function worstCaseBudgetMicroUsd(setup: DebateSetup, aiVoters: ModelId[],
   let total = screener ? cost(screener, base, SCREEN_OUTPUT_TOKENS) : 0;
 
   for (const slot of turnSlots(setup.format)) {
-    const output = turnOutputCap(setup.format.phases[slot.phaseIndex]!.maxWords);
+    const maxWords = setup.format.phases[slot.phaseIndex]!.maxWords;
     const debater = setup.debaters[slot.side];
-    if (debater.kind === 'ai') total += cost(debater.model, base + transcript, output);
-    // Each API Turn is screened, as a Motion is: its text is at most the Turn's output cap.
-    if (debater.kind === 'api' && screener) total += cost(screener, base + output, SCREEN_OUTPUT_TOKENS);
-    transcript += output;
+    // An AI Turn is at most its output cap in tokens; an API Turn at most its byte cap, which bounds its tokens.
+    const length = debater.kind === 'api' ? apiTurnMaxBytes(maxWords) : turnOutputCap(maxWords);
+    if (debater.kind === 'ai') total += cost(debater.model, base + transcript, length);
+    // Each API Turn is screened, as a Motion is.
+    if (debater.kind === 'api' && screener) total += cost(screener, base + length, SCREEN_OUTPUT_TOKENS);
+    transcript += length;
   }
   for (const judge of setup.panel) total += cost(judge, base + transcript, JUDGE_OUTPUT_TOKENS);
   for (const voter of aiVoters) {

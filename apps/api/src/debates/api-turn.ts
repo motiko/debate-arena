@@ -1,8 +1,8 @@
 // An API Debater's Turns arrive through the API: `POST /debates/:id/turns/:slot` stores one (its body read as it
 // arrives, shown to Viewers as drafts), and `PUT …/draft` shows the text so far, for clients whose uploads the edge
 // buffers (Cloudflare hands a Worker the body only once it is complete).
-import { isApiSlot, nextSlot, screenMotion, submittedTurn, truncateToWords, type ModelClient, type ModelId, type Turn } from '@debate-arena/engine';
-import { appendTurn, type DebateRecord } from '../db/debates';
+import { nextSlot, screenMotion, submittedTurn, truncateToWords, type ModelClient, type ModelId, type Turn } from '@debate-arena/engine';
+import { appendTurn, awaitingOf, type DebateRecord } from '../db/debates';
 import { flagDebate } from '../db/moderation';
 import { createDraftSender } from '../live/drafts';
 import type { DebateEvent } from '../live/events';
@@ -27,11 +27,13 @@ export type ApiTurnResult =
 const notWaiting = (slot: number) => ({ status: 409 as const, error: `This Debate is not waiting for Turn ${slot}` });
 const tooLarge = { status: 413 as const, error: `A Turn may be at most ${MAX_API_TURN_BYTES} bytes` };
 
-/** Whether the Debate's next slot is this one, and an API Debater's, while it runs. */
+/**
+ * Whether the Debate waits for this API slot: its step has set the slot's deadline. A Turn sent earlier is refused,
+ * so the one step job that set the deadline is the only one that moves the Debate on (two would pay for the next
+ * AI Turn twice).
+ */
 function waitsFor(debate: DebateRecord, slot: number): boolean {
-  if (debate.status !== 'running' || debate.visibility === 'blocked' || debate.turns.length !== slot) return false;
-  const next = nextSlot(debate.setup.format, debate.turns);
-  return next !== null && isApiSlot(debate.setup, next);
+  return debate.visibility !== 'blocked' && awaitingOf(debate)?.slotIndex === slot;
 }
 
 const maxWordsOf = (debate: DebateRecord) => debate.setup.format.phases[nextSlot(debate.setup.format, debate.turns)!.phaseIndex]!.maxWords;

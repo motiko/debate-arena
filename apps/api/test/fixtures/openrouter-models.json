@@ -506,6 +506,55 @@
     "tools",
     "top_p"
    ]
+  },
+  {
+   "id": "perplexity/sonar",
+   "name": "Perplexity: Sonar",
+   "context_length": 127072,
+   "supported_parameters": [
+    "frequency_penalty",
+    "max_tokens",
+    "presence_penalty",
+    "temperature",
+    "top_k",
+    "top_p",
+    "web_search_options"
+   ],
+   "architecture": {
+    "input_modalities": [
+     "text",
+     "image"
+    ],
+    "output_modalities": [
+     "text"
+    ]
+   },
+   "pricing": {
+    "prompt": "0.000001",
+    "completion": "0.000001",
+    "web_search": "0.005"
+   }
+  },
+  {
+   "id": "acme/per-call",
+   "name": "Acme: Per Call",
+   "context_length": 128000,
+   "architecture": {
+    "input_modalities": [
+     "text"
+    ],
+    "output_modalities": [
+     "text"
+    ]
+   },
+   "pricing": {
+    "prompt": "0.0000001",
+    "completion": "0.0000001",
+    "request": "0.01"
+   },
+   "supported_parameters": [
+    "max_tokens"
+   ]
   }
  ]
 }

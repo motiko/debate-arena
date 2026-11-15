@@ -15,9 +15,9 @@ test('keeps text models with real prices, a token cap and enough context; curate
   expect(live).toEqual(['google/gemini-4-hydrogen', 'google/gemma-4-31b-it:free', 'openai/gpt-5.4-nano', 'unbiased/pareto-26.10']);
 });
 
-test('drops routers, aliases, non-text output, small context and models without max_tokens', () => {
+test('drops routers, aliases, non-text output, small context, models without max_tokens, and models with fees beyond tokens', () => {
   const ids = parsed().entries.map(e => e.id);
-  for (const dropped of ['openrouter/auto', '~unbiased/pareto-latest', 'google/gemini-nano-banana-2.1', 'openai/gpt-4', 'sakana/fugu-max']) {
+  for (const dropped of ['openrouter/auto', '~unbiased/pareto-latest', 'google/gemini-nano-banana-2.1', 'openai/gpt-4', 'sakana/fugu-max', 'perplexity/sonar', 'acme/per-call']) {
     expect(ids).not.toContain(dropped);
   }
   expect(ids.some(id => id.endsWith(':batch'))).toBe(false);
@@ -131,6 +131,21 @@ test('OpenRouter answers HTML: the stale stored catalog, which is not overwritte
   expect(models.catalog.entries.map(e => e.id)).toContain('openai/gpt-5.4-nano');
   const row = await env.DB.prepare('SELECT fetched_at FROM model_catalog').first<{ fetched_at: string }>();
   expect(row?.fetched_at).toBe(new Date(0).toISOString());
+});
+
+test('after a failed fetch, OpenRouter is not asked again for a minute: the fallback is served at once', async () => {
+  let fetches = 0;
+  const fetcher = (async () => {
+    fetches += 1;
+    throw new Error('network down');
+  }) as typeof fetch;
+  const load = createCatalogLoader();
+  await load(modelEnv, { fetcher, now: () => 0 });
+  const again = await load(modelEnv, { fetcher, now: () => 59_000 });
+  expect(fetches).toBe(1);
+  expect(again.catalog).toBe(PRODUCTION_CATALOG);
+  await load(modelEnv, { fetcher, now: () => 61_000 });
+  expect(fetches).toBe(2);
 });
 
 test('the fake provider never fetches', async () => {

@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { wordsToTokens } from '../debate/schedule';
 import { UnknownModelPriceError } from '../errors';
 import { setup } from '../testing/fixtures';
-import { type PriceTable, quotaPointsFor, utf8Length, worstCaseBudgetMicroUsd } from './estimate';
+import { apiTurnMaxBytes, type PriceTable, quotaPointsFor, utf8Length, worstCaseBudgetMicroUsd } from './estimate';
 
 // Every model at 1 USD per million tokens in and out, so micro-USD equals tokens.
 const unit = { inputPerMTokUsd: 1, outputPerMTokUsd: 1 };
@@ -43,12 +43,18 @@ test('human Debaters cost nothing', () => {
   expect(worstCaseBudgetMicroUsd(humanFor, [], unitPrices)).toBe(46526 - 16374);
 });
 
-test('an API Debater costs nothing but one screen per Turn', () => {
+test('an API Debater costs no model calls, one screen per Turn, and its Turns are read at their byte cap', () => {
   const apiFor = { ...setup, debaters: { ...setup.debaters, for: { kind: 'api' } as const } };
   const prices = { ...unitPrices, 'g/guard': unit };
-  // AI Debate with the Motion screen: 46526 + 1290. Drops the For Turns (16374) and screens each For Turn:
-  // (629+840+16) + (629+560+16) + (629+420+16) = 3755, twice
-  expect(worstCaseBudgetMicroUsd(apiFor, [], prices, 'g/guard')).toBe(46526 + 1290 - 16374 + 7510);
+  // AI Debate with the Motion screen: 46526 + 1290. Drops the For Turns (16374). An API Turn is at most
+  // 8 bytes per word (2400, 1600, 1200), and bytes bound tokens. Screens: (629+2400+16) + (629+1600+16) + (629+1200+16)
+  // = 7135, twice. Later calls read the larger For Turns: Against 2 reads +1560, Against 4 +2600, Against 6 and the
+  // Judge +3380 each = 10920, twice.
+  expect(worstCaseBudgetMicroUsd(apiFor, [], prices, 'g/guard')).toBe(46526 + 1290 - 16374 + 14270 + 21840);
+});
+
+test('apiTurnMaxBytes is 8 bytes per word of the Phase', () => {
+  expect(apiTurnMaxBytes(300)).toBe(2400);
 });
 
 test('extraOutputTokens is charged on every call of that model', () => {
