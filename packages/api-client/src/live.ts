@@ -1,5 +1,5 @@
-// The live connection to a Debate's room. Events are DebateEvents; the room answers our "ping" with a pong.
-import type { DebateEvent } from '@debate-arena/api-client';
+// The live connection to a Debate's room, for every Venue. Events are DebateEvents; the room answers our "ping" with a pong.
+import type { DebateEvent } from '@debate-arena/api/events';
 
 export type LiveStatus = 'connecting' | 'open' | 'reconnecting' | 'closed';
 
@@ -16,9 +16,11 @@ export interface LiveOptions {
   pingMs?: number;
 }
 
-export function liveUrl(location: Pick<Location, 'protocol' | 'host'>, debateId: string): string {
-  const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${scheme}//${location.host}/api/debates/${encodeURIComponent(debateId)}/live`;
+/** The live URL on the base URL's host (web and API share one origin); any path in the base is ignored. */
+export function liveUrl(baseUrl: string, debateId: string): string {
+  const { protocol, host } = new URL(baseUrl);
+  const scheme = protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${scheme}//${host}/api/debates/${encodeURIComponent(debateId)}/live`;
 }
 
 /** Connects and reconnects after unexpected closes (up to maxRetries in a row) until `close()` is called. */

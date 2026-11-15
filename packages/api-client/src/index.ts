@@ -3,6 +3,7 @@ import { hc } from 'hono/client';
 
 export type { DebateEvent } from '@debate-arena/api/events';
 export type { BlockedDebate, DebateSummary, PublicDebate };
+export { connectLive, liveUrl, type LiveHandlers, type LiveOptions, type LiveStatus } from './live.ts';
 
 export interface ApiClientOptions {
   fetch?: typeof fetch;

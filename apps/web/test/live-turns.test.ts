@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
 import LiveTurns from '../src/islands/LiveTurns.svelte';
 import { mergeTurns } from '../src/lib/debate';
-import { FakeSocket } from './fake-socket';
+import { FakeSocket } from '@debate-arena/api-client/testing';
 
 beforeEach(() => FakeSocket.reset());
 

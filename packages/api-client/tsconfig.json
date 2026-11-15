@@ -1,7 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2023", "DOM"]
+    "lib": ["ES2023", "DOM"],
+    // Node runs this source directly (the CLI), so relative imports name their .ts files.
+    "allowImportingTsExtensions": true
   },
   // The API's route types refer to Workers globals (Env, D1Database), so their declarations are loaded too.
   "include": ["src", "../../apps/api/worker-configuration.d.ts", "../../apps/api/src/secrets.d.ts"]
