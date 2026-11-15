@@ -14,6 +14,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@better-auth/api-key": "1.7.23",
     "@debate-arena/engine": "workspace:*",
     "better-auth": "1.7.23",
     "hono": "^4.13.18"

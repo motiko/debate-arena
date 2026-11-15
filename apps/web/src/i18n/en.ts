@@ -123,7 +123,7 @@ export const en = {
   'account.quota.other': 'You have {count} Quota points left today. A Debate costs {cost}.',
   'account.dataTitle': 'Your data',
   'account.export': 'Download my data (JSON)',
-  'account.exportHint': 'Your profile, the Debates you started, your Audience Votes, sessions, linked accounts and Quota use.',
+  'account.exportHint': 'Your profile, the Debates you started, your Audience Votes, sessions, linked accounts, API tokens and Quota use.',
   'account.deleteTitle': 'Delete your account',
   'account.deleteExplain':
     'Deleting removes your profile, your sign-in and your sessions. Debates you started and your Audience Votes stay, under a random id that cannot be traced back to you, so past results do not change.',

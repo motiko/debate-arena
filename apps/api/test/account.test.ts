@@ -1,7 +1,7 @@
 import { env, exports } from 'cloudflare:workers';
 import { expect, test } from 'vitest';
 import { appendTurn, completeDebate, saveVerdict } from '../src/db/debates';
-import { linkGithub, signedInHeaders } from './auth-helpers';
+import { createApiToken, linkGithub, signedInHeaders } from './auth-helpers';
 import { turnAt } from './helpers';
 
 const base = 'https://api.test/api';
@@ -54,6 +54,17 @@ test('export includes sessions, linked accounts and Quota usage, without secrets
   expect(data.accounts).toEqual([expect.objectContaining({ provider: 'github', accountId: `gh-${userId}` })]);
   expect(JSON.stringify(data.accounts)).not.toMatch(/accessToken|gho_/);
   expect(data.quota).toEqual([expect.objectContaining({ points: 2 })]);
+});
+
+test('the export lists API tokens without secrets', async () => {
+  const { userId, headers } = await signedInHeaders();
+  const { key } = await createApiToken(headers, { name: 'Laptop' });
+  const hash = await env.DB.prepare('SELECT key FROM apikey WHERE "referenceId" = ?').bind(userId).first<{ key: string }>();
+  const data = (await (await exports.default.fetch(`${base}/me/export`, { headers })).json()) as { apiTokens: Record<string, unknown>[] };
+  expect(data.apiTokens).toEqual([expect.objectContaining({ name: 'Laptop', start: key.slice(0, 6) })]);
+  const text = JSON.stringify(data);
+  expect(text).not.toContain(key);
+  expect(text).not.toContain(hash?.key);
 });
 
 test('export without a session is 401', async () => {

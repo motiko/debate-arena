@@ -1,3 +1,4 @@
+import { apiKey } from '@better-auth/api-key';
 import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import { anonymiseMember } from '../account/account';
 
@@ -29,6 +30,20 @@ const withoutTokens = <T extends Record<string, unknown>>(account: T) => ({
   data: { ...account, accessToken: null, refreshToken: null, idToken: null },
 });
 
+/**
+ * API tokens (GLOSSARY): a Member creates them on their account page for the CLI. Quota already caps what a token
+ * can spend, so there is no per-token rate limit. Keys never become sessions (`enableSessionForAPIKeys` stays off):
+ * only routes that opt in accept them, so a token cannot vote, moderate or manage tokens.
+ */
+const API_TOKEN_OPTIONS = {
+  defaultPrefix: 'da_',
+  requireName: true,
+  maximumNameLength: 50,
+  // Seconds by default; the client may choose 1–365 days.
+  keyExpiration: { defaultExpiresIn: 90 * 86_400, minExpiresIn: 1, maxExpiresIn: 365 },
+  rateLimit: { enabled: false },
+};
+
 /** Better Auth settings shared by the app and the test-only instance. Members sign in with GitHub. */
 export function authOptions(env: AuthEnv) {
   const secret = requireSecret(env);
@@ -59,6 +74,7 @@ export function authOptions(env: AuthEnv) {
         update: { before: async account => withoutTokens(account) },
       },
     },
+    plugins: [apiKey(API_TOKEN_OPTIONS)],
   } satisfies BetterAuthOptions;
 }
 
