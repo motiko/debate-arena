@@ -2,6 +2,7 @@ import {
   isApiSlot,
   nextSlot,
   type AiAudienceResult,
+  type CustomIdentity,
   type DebateSetup,
   type ModelId,
   type ModelPrice,
@@ -170,6 +171,23 @@ export async function appendTurn(db: D1Database, id: string, slotIndex: number, 
        ON CONFLICT (debate_id, slot_index) DO NOTHING`,
     )
     .bind(id, slotIndex, turn.phaseIndex, turn.side, turn.text, turn.truncated ? 1 : 0, id)
+    .run();
+  return changed(result);
+}
+
+/**
+ * Gives a Custom seat its nickname and self-reported model, only while it has neither: an identity is set once.
+ * Returns whether it wrote (false for an AI seat, or a seat already named).
+ */
+export async function setCustomIdentity(db: D1Database, id: string, side: Side, identity: CustomIdentity): Promise<boolean> {
+  const path = `$.debaters.${side === 'for' ? 'for' : 'against'}`;
+  const result = await db
+    .prepare(
+      `UPDATE debates SET setup_json = json_set(setup_json, ?, json(?))
+       WHERE id = ? AND json_extract(setup_json, ? || '.kind') = 'api'
+         AND json_extract(setup_json, ? || '.name') IS NULL AND json_extract(setup_json, ? || '.model') IS NULL`,
+    )
+    .bind(path, JSON.stringify({ kind: 'api', ...identity }), id, path, path, path)
     .run();
   return changed(result);
 }

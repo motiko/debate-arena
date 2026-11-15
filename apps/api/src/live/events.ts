@@ -1,4 +1,4 @@
-import type { AiAudienceResult, Turn, Verdict } from '@debate-arena/engine';
+import type { AiAudienceResult, Debater, Side, Turn, Verdict } from '@debate-arena/engine';
 
 /** Events pushed live to Viewers of a Debate. Viewers load current state over HTTP, then apply these. */
 export type DebateEvent =
@@ -7,6 +7,8 @@ export type DebateEvent =
   /** The Debate waits for an API Debater's Turn in this slot until the deadline (ISO-8601 UTC). */
   | { type: 'awaiting'; slotIndex: number; deadline: string }
   | { type: 'turn'; slotIndex: number; turn: Turn }
+  /** A Custom Debater named itself with its first Turn: show this Side's seat as given. */
+  | { type: 'debater'; side: Side; debater: Debater }
   | { type: 'verdict'; verdict: Verdict }
   | { type: 'complete'; aiAudience: AiAudienceResult | null }
   | { type: 'failed'; reason: string }

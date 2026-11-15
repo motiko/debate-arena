@@ -2,8 +2,8 @@
 // validated here (once, for every Venue) and screened like a Motion.
 
 export interface CustomIdentity {
-  name?: string;
-  model?: string;
+  name?: string | undefined;
+  model?: string | undefined;
 }
 
 export const MAX_CUSTOM_NAME_LENGTH = 40;

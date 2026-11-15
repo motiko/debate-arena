@@ -21,7 +21,7 @@ export interface Format { id: string; name: string; phases: Phase[]; rubric: Rub
  * 'api': a Custom Debater, whose Turns the starting Member submits through the API. It may carry a nickname and the
  * model it says it runs (self-reported, never verified).
  */
-export type Debater = { kind: 'ai'; model: ModelId } | { kind: 'human'; memberId: string } | { kind: 'api'; name?: string; model?: string };
+export type Debater = { kind: 'ai'; model: ModelId } | { kind: 'human'; memberId: string } | { kind: 'api'; name?: string | undefined; model?: string | undefined };
 
 export interface TurnSlot { phaseIndex: number; side: Side }
 export interface Turn extends TurnSlot { text: string; truncated: boolean }

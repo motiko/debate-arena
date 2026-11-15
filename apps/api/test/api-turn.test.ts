@@ -67,7 +67,7 @@ test('a whole Turn is stored, announced, and moves the Debate on', async () => {
   const { deps, events, jobs } = makeDeps();
   const d = await apiDebate();
   const r = await submitApiTurn(deps, d, 0, streamOf(['  My opening speech.  ']));
-  expect(r).toEqual({ status: 201, slotIndex: 0, turn: { phaseIndex: 0, side: 'for', text: 'My opening speech.', truncated: false } });
+  expect(r).toEqual({ status: 201, slotIndex: 0, turn: { phaseIndex: 0, side: 'for', text: 'My opening speech.', truncated: false }, identitySet: false });
   expect((await getDebate(env.DB, d.id))?.turns).toHaveLength(1);
   expect(events.at(-1)).toEqual({ type: 'turn', slotIndex: 0, turn: r.status === 201 ? r.turn : null });
   expect(jobs).toEqual([{ debateId: d.id }]);
@@ -196,6 +196,67 @@ test('a safe API Turn changes nothing', async () => {
   expect(await getDebate(env.DB, d.id)).toMatchObject({ flagged: false, visibility: 'listed' });
 });
 
+const LATE = "A Custom Debater's name and model can be set only at start or with its first Turn";
+
+/** The apiDebate after its For Turn 0 and the AI's Turn 1, waiting for For's second Turn (slot 2). */
+async function secondForTurn(identity?: { name?: string; model?: string }): Promise<DebateRecord> {
+  const { deps } = makeDeps();
+  const d = await apiDebate();
+  await submitApiTurn(deps, d, 0, streamOf(['First.']), identity);
+  await appendTurn(env.DB, d.id, 1, turnAt(1));
+  await setTurnDeadline(env.DB, d.id, 2, '2026-11-15T12:30:00.000Z');
+  return (await getDebate(env.DB, d.id))!;
+}
+
+test('the first Turn may name its Custom Debater', async () => {
+  const { deps, events } = makeDeps();
+  const d = await apiDebate();
+  const r = await submitApiTurn(deps, d, 0, streamOf(['Hello.']), { name: 'Zoë', model: 'llama-4' });
+  expect(r).toMatchObject({ status: 201, identitySet: true });
+  const seat = { kind: 'api', name: 'Zoë', model: 'llama-4' };
+  expect((await getDebate(env.DB, d.id))?.setup.debaters.for).toEqual(seat);
+  const kinds = events.filter(e => e.type !== 'draft');
+  expect(kinds[0]).toEqual({ type: 'debater', side: 'for', debater: seat });
+  expect(kinds[1]?.type).toBe('turn');
+});
+
+test('resending the same identity on a later Turn is accepted', async () => {
+  const d = await secondForTurn({ name: 'Atlas' });
+  const { deps, events } = makeDeps();
+  const r = await submitApiTurn(deps, d, 2, streamOf(['Again.']), { name: ' Atlas ' });
+  expect(r).toMatchObject({ status: 201, identitySet: false });
+  expect(events.some(e => e.type === 'debater')).toBe(false);
+});
+
+test.each([
+  ['a new identity', undefined, { name: 'Atlas' }],
+  ['a different identity', { name: 'Atlas' }, { name: 'Boreas' }],
+])('%s after the first Turn is refused and the Turn not stored', async (_, first, later) => {
+  const d = await secondForTurn(first);
+  const { deps } = makeDeps();
+  expect(await submitApiTurn(deps, d, 2, streamOf(['Again.']), later)).toEqual({ status: 409, error: LATE });
+  expect((await getDebate(env.DB, d.id))?.turns).toHaveLength(2);
+});
+
+test('an identity given at start cannot be changed by the first Turn', async () => {
+  const { deps } = makeDeps();
+  const d = newDebate({ setup: { ...sampleSetup, debaters: { ...sampleSetup.debaters, for: { kind: 'api', name: 'Atlas' } } } });
+  await createScreened(env.DB, d);
+  await setTurnDeadline(env.DB, d.id, 0, '2026-11-15T12:10:00.000Z');
+  const r = await submitApiTurn(deps, (await getDebate(env.DB, d.id))!, 0, streamOf(['Hi.']), { name: 'Boreas' });
+  expect(r).toEqual({ status: 409, error: LATE });
+});
+
+test('a bad name is refused before the body is read', async () => {
+  const { deps, events } = makeDeps();
+  const body = streamOf(['Never read.']);
+  const r = await submitApiTurn(deps, await apiDebate(), 0, body, { name: 'x'.repeat(41) });
+  expect(r).toEqual({ status: 400, error: 'Custom Debater name must be 1–40 characters, without control characters' });
+  // Nothing took a reader on the body.
+  expect(body.locked).toBe(false);
+  expect(events).toEqual([]);
+});
+
 const base = 'https://api.test/api';
 const post = (path: string, body: string, headers: Record<string, string> | Headers, method = 'POST') =>
   exports.default.fetch(`${base}${path}`, { method, headers: { 'content-type': 'text/plain; charset=utf-8', ...Object.fromEntries(new Headers(headers)) }, body });
@@ -207,6 +268,13 @@ test('POST /debates/:id/turns/:slot with the starter\'s API token stores the Tur
   const res = await post(`/debates/${d.id}/turns/0`, 'A speech through the API.', { authorization: `Bearer ${key}` });
   expect(res.status).toBe(201);
   expect(await res.json()).toMatchObject({ slotIndex: 0, turn: { text: 'A speech through the API.' } });
+});
+
+test('POST …/turns/0?name=… stores a name in any script', async () => {
+  const d = await apiDebate('m-namer');
+  const res = await post(`/debates/${d.id}/turns/0?name=%E3%83%89%E3%83%A9%E3%82%B4%E3%83%B3&model=gpt-6`, 'Hi.', { 'x-dev-member': 'm-namer' });
+  expect(res.status).toBe(201);
+  expect((await getDebate(env.DB, d.id))?.setup.debaters.for).toEqual({ kind: 'api', name: 'ドラゴン', model: 'gpt-6' });
 });
 
 test('a session cookie alone cannot submit a Turn', async () => {
