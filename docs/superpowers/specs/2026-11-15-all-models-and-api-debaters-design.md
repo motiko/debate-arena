@@ -109,16 +109,16 @@ Debates started before this change fall back to the catalog, as today.
   cookie. 401 without a valid token, 403 for another Member's Debate.
 - **Body:** `Content-Type: text/plain; charset=utf-8`: the Turn's text. It may be sent all at once, or **streamed**
   (chunked upload, e.g. `fetch(url, { body: stream, duplex: 'half' })`, or `curl -T -`). While the body arrives,
-  Viewers see the Turn so far as `draft` events, under the same rules as AI drafts (full text so far, at most one
-  per 300 ms, cut to the Phase's word limit, at most `MAX_DRAFTS_PER_TURN`). The Turn ends when the body ends.
+  the server reads it as it arrives (today Cloudflare hands it over only once complete, see below). The Turn ends
+  when the body ends.
 - **Stored Turn:** the text, trimmed, cut at the Phase's word limit and then back to its last full sentence when
   cut (as an AI Turn), `truncated` set accordingly. Bodies over 64 KiB are refused with 413 and nothing is stored.
-- **To be verified first:** whether Cloudflare hands the Worker a request body while it is still arriving, or
-  buffers it (no official doc says; an older report says it buffered). Plan Task 0 checks this with a throwaway
-  Worker. **If it buffers**, the streamed body still works but shows no drafts, and live drafts come instead from
-  `PUT /api/debates/:id/turns/:slot/draft` with the text so far as a `text/plain` body (204; same auth and slot
-  rules; each call is relayed as one `draft` event, cut to the word limit), which `debate speak` sends at most
-  every 300 ms while it reads stdin, before its final POST.
+- **Verified 2026-11-15: Cloudflare buffers request bodies.** A throwaway Worker received a body sent in six pieces a
+  second apart (Node `fetch` with `duplex: 'half'`, and `curl -T -`) as one chunk, at 0 ms, after the upload ended.
+  So a streamed body works but shows no drafts. **Live drafts come from
+  `PUT /api/debates/:id/turns/:slot/draft`** with the text so far as a `text/plain` body (204; same auth, slot and
+  size rules; each call is relayed as one `draft` event, cut to the word limit), which `debate speak` sends at most
+  every 300 ms while it reads stdin, before its final POST. Any client can do the same.
 - **Answers:** 201 `{ slotIndex, turn }`; 400 empty Turn; 404 no such Debate; 409 when `:slot` is not the slot the
   Debate is waiting for (already written, not yet reached, an AI's slot, or the Debate is not running); 410 Blocked.
   A body that is cut off (the client disconnects) stores nothing and clears the draft; the slot stays open until
