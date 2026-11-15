@@ -118,6 +118,12 @@ test('an error as the first and only chunk is a failure, not an empty reply', as
   await expect(new OpenRouterModelClient('k', { fetcher }).complete(req, { onText: () => {} })).rejects.toBeInstanceOf(OpenRouterError);
 });
 
+test('a stream that ends without a finish reason is a failure, not a finished reply', async () => {
+  // The body closes after some text, with no finish chunk: a cut connection, not the end of the speech.
+  const { fetcher } = streamStub([delta({ content: 'And therefore the' })]);
+  await expect(new OpenRouterModelClient('k', { fetcher }).complete(req, { onText: () => {} })).rejects.toBeInstanceOf(OpenRouterError);
+});
+
 test('a stream without usage is charged the worst case', async () => {
   const { fetcher } = streamStub([delta({ content: 'Hi' }, 'stop')]);
   const reply = await new OpenRouterModelClient('k', { fetcher }).complete(req, { onText: () => {} });

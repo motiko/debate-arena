@@ -48,8 +48,8 @@ export async function runStep(deps: StepDeps, job: StepJob): Promise<StepOutcome
 
   if (nextSlot(setup.format, turns)) {
     const slotIndex = turns.length;
-    // Viewers see the Turn as it is written. The last draft never follows the Turn itself, and a failed Turn
-    // clears its draft, so a retry starts from an empty seat. A Slow Debate's notify does nothing.
+    // Viewers see the Turn as it is written. The last draft never follows the Turn itself, and a Turn that fails
+    // (written or stored) clears its draft, so a retry starts from an empty seat. A Slow Debate's notify does nothing.
     const drafts = createDraftSender(text => notify(id, { type: 'draft', slotIndex, text }));
     let drafted = false;
     let turn: Turn;
@@ -60,13 +60,13 @@ export async function runStep(deps: StepDeps, job: StepJob): Promise<StepOutcome
           drafts.push(text);
         },
       });
+      await drafts.stop();
+      if (!(await appendTurn(db, id, slotIndex, turn))) return 'skipped';
     } catch (error) {
       await drafts.stop();
       if (drafted) await notify(id, { type: 'draft', slotIndex, text: '' });
       throw error;
     }
-    await drafts.stop();
-    if (!(await appendTurn(db, id, slotIndex, turn))) return 'skipped';
     await notify(id, { type: 'turn', slotIndex, turn });
     await enqueue({ debateId: id });
     return 'turn';

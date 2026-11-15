@@ -237,6 +237,27 @@ test('a Turn that fails mid-stream clears its draft, then rethrows', async () =>
   expect(events.at(-1)).toEqual({ type: 'draft', slotIndex: 0, text: '' });
 });
 
+test('a Turn that cannot be stored clears its draft, then rethrows', async () => {
+  const { deps, events } = makeDeps();
+  // The database refuses the Turn (a transient D1 error): everything else works.
+  deps.db = new Proxy(env.DB, {
+    get(target, key) {
+      // Methods are bound to the real binding: it keeps its state in private fields.
+      const value: unknown = Reflect.get(target, key);
+      if (key !== 'prepare') return typeof value === 'function' ? value.bind(target) : value;
+      return (sql: string) => {
+        if (sql.includes('INSERT INTO turns')) throw new Error('D1 unavailable');
+        return target.prepare(sql);
+      };
+    },
+  });
+  const d = newDebate();
+  await createScreened(env.DB, d);
+  await expect(runStep(deps, { debateId: d.id })).rejects.toThrow('D1 unavailable');
+  expect(events.some(e => e.type === 'draft' && e.text !== '')).toBe(true);
+  expect(events.at(-1)).toEqual({ type: 'draft', slotIndex: 0, text: '' });
+});
+
 test('failStep refunds Quota once and notifies failed once', async () => {
   const { deps, events } = makeDeps();
   const d = newDebate({ memberId: `m-${crypto.randomUUID()}` });

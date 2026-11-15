@@ -129,6 +129,9 @@ async function readStream(response: Response, request: ModelRequest, onText: (te
     if (choice?.finish_reason) finishReason = choice.finish_reason;
     if (chunk.usage) usage = chunk.usage;
   }
+  // A body that just stops, with no finish reason, was cut off: keeping its text would store half a speech as
+  // a finished Turn. Failing lets the step try again.
+  if (finishReason === null) throw new OpenRouterError(`OpenRouter's stream for ${request.model} ended before the reply did`, null);
   return toResponse(text, finishReason, usage, request);
 }
 
