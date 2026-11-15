@@ -17,22 +17,68 @@ interface OpenRouterModel {
   name?: unknown;
   context_length?: unknown;
   architecture?: { input_modalities?: unknown; output_modalities?: unknown };
-  pricing?: { prompt?: unknown; completion?: unknown; request?: unknown };
+  pricing?: Record<string, unknown>;
   supported_parameters?: unknown;
   reasoning?: { mandatory?: unknown; supported_efforts?: unknown } | null;
 }
 
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
 
-/** USD per token (OpenRouter's strings) to USD per million tokens; null for a missing, negative or odd price. */
+/**
+ * Price keys a Debate never incurs, so they may be non-zero: caching (the platform asks for none, and reads cost
+ * less than prompts), the web search plugin (never requested), and image or audio (Debates send text only).
+ * `internal_reasoning` is folded into the output price. Any other non-zero key drops the model: the meter and the
+ * Budget count tokens only, so an unknown fee would be spent unseen.
+ */
+const NEVER_INCURRED = new Set(['input_cache_read', 'input_cache_write', 'input_cache_write_1h', 'web_search', 'image', 'audio', 'input_audio_cache']);
+/** A long-context price below this many prompt tokens could apply to a Debate's prompts (at most about 11k). */
+export const MIN_LONG_CONTEXT_TOKENS = 32_000;
+
+const priceNumber = (v: unknown) => {
+  const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : typeof v === 'number' ? v : Number.NaN;
+  return Number.isFinite(n) && n >= 0 ? n : null;
+};
+const toMillion = (perToken: number) => Number((perToken * 1e6).toPrecision(12));
+
+/**
+ * What a Debate pays per million tokens, from OpenRouter's USD-per-token strings: the dearest of the base price, a
+ * dearer reasoning price, and any time-of-day price. Null when a price is missing or odd, or when the model has a fee
+ * the meter cannot see (see NEVER_INCURRED) or a long-context price a Debate's prompt could reach.
+ */
 function perMillion(pricing: OpenRouterModel['pricing']): ModelPrice | null {
-  const toMillion = (v: unknown) => {
-    const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : Number.NaN;
-    return Number.isFinite(n) && n >= 0 ? Number((n * 1e6).toPrecision(12)) : null;
-  };
-  const input = toMillion(pricing?.prompt);
-  const output = toMillion(pricing?.completion);
-  return input === null || output === null ? null : { inputPerMTokUsd: input, outputPerMTokUsd: output };
+  if (!pricing) return null;
+  let input = priceNumber(pricing.prompt);
+  let output = priceNumber(pricing.completion);
+  if (input === null || output === null) return null;
+  for (const [key, value] of Object.entries(pricing)) {
+    if (key === 'prompt' || key === 'completion' || NEVER_INCURRED.has(key)) continue;
+    if (key === 'internal_reasoning') {
+      const reasoning = priceNumber(value);
+      if (reasoning === null) return null;
+      output = Math.max(output, reasoning);
+    } else if (key === 'overrides') {
+      if (!Array.isArray(value)) return null;
+      for (const override of value as Record<string, unknown>[]) {
+        const longContext = typeof override.min_prompt_tokens === 'number';
+        const timeOfDay = typeof override.utc_start === 'number' && typeof override.utc_end === 'number';
+        const conditions = Object.keys(override).filter(k => !['prompt', 'completion'].includes(k) && !NEVER_INCURRED.has(k));
+        const known = conditions.every(k => ['min_prompt_tokens', 'utc_start', 'utc_end'].includes(k));
+        if (!known || (!longContext && !timeOfDay)) return null;
+        if (longContext) {
+          if ((override.min_prompt_tokens as number) < MIN_LONG_CONTEXT_TOKENS) return null;
+          continue;
+        }
+        const peakInput = override.prompt === undefined ? input : priceNumber(override.prompt);
+        const peakOutput = override.completion === undefined ? output : priceNumber(override.completion);
+        if (peakInput === null || peakOutput === null) return null;
+        input = Math.max(input, peakInput);
+        output = Math.max(output, peakOutput);
+      }
+    } else if (priceNumber(value) !== 0) {
+      return null;
+    }
+  }
+  return { inputPerMTokUsd: toMillion(input), outputPerMTokUsd: toMillion(output) };
 }
 
 function reasoningOf(m: OpenRouterModel): { reasoning: ReasoningSupport; leastEffort?: string } {
@@ -79,8 +125,8 @@ export function parseOpenRouterModels(body: unknown, curated: Catalog): Catalog 
     if (typeof m.context_length !== 'number' || m.context_length < MIN_CONTEXT_TOKENS) continue;
     const price = perMillion(m.pricing);
     if (!price) continue;
-    // The meter and the Budget count tokens only: no fee per request, and no model that searches the web on every call.
-    if (Number(m.pricing?.request ?? 0) !== 0 || base.startsWith('perplexity/')) continue;
+    // Searches the web on every call, paying per search, though its listed search price looks like the plugin's.
+    if (base.startsWith('perplexity/')) continue;
 
     const label = labelOf(m.name);
     const batchPrice = variant === undefined ? batchPrices.get(base) : undefined;

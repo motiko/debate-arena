@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { beforeEach, expect, test } from 'vitest';
+import { beforeEach, describe, expect, test } from 'vitest';
 import { catalogFor, isBatchCapable, priceTable, PRODUCTION_CATALOG, REASONING_ALLOWANCE_TOKENS } from '../src/models/catalog';
 import { createCatalogLoader, parseOpenRouterModels } from '../src/models/live-catalog';
 import fixture from './fixtures/openrouter-models.json';
@@ -33,6 +33,51 @@ test('maps prices per million tokens, labels without the provider, and Debater a
     contextLength: 400000,
   });
   expect(entry('unbiased/pareto-26.10')?.reasoning).toBe('unsupported');
+});
+
+describe('only token prices count: other fees are allowed only when the platform never incurs them', () => {
+  const model = (id: string, pricing: Record<string, unknown>) => ({
+    id,
+    name: `Acme: ${id}`,
+    context_length: 128000,
+    architecture: { input_modalities: ['text'], output_modalities: ['text'] },
+    pricing: { prompt: '0.000001', completion: '0.000002', ...pricing },
+    supported_parameters: ['max_tokens'],
+  });
+  const ids = (...models: ReturnType<typeof model>[]) => parseOpenRouterModels({ data: models }, { entries: [] }).entries;
+
+  test('cache, web search (a plugin), image and audio prices are tolerated: Debates send text only', () => {
+    const kept = ids(model('acme/cached', { input_cache_read: '0.0000001', input_cache_write: '0.00000125', web_search: '0.01', image: '0.001', audio: '0.00001' }));
+    expect(kept.map(e => e.id)).toEqual(['acme/cached']);
+  });
+
+  test('a dearer reasoning price becomes the output price', () => {
+    const [e] = ids(model('acme/thinks', { internal_reasoning: '0.000005' }));
+    expect(e?.price).toEqual({ inputPerMTokUsd: 1, outputPerMTokUsd: 5 });
+  });
+
+  test('time-of-day prices count at their highest', () => {
+    const [e] = ids(model('acme/peak', { overrides: [{ utc_start: 100, utc_end: 1500, prompt: '0.000003', completion: '0.000001' }] }));
+    expect(e?.price).toEqual({ inputPerMTokUsd: 3, outputPerMTokUsd: 2 });
+  });
+
+  test('a long-context price from 32k prompt tokens is tolerated; one that starts lower drops the model', () => {
+    const kept = ids(
+      model('acme/long-ok', { overrides: [{ min_prompt_tokens: 32000, prompt: '0.00001', completion: '0.00002' }] }),
+      model('acme/long-low', { overrides: [{ min_prompt_tokens: 8000, prompt: '0.00001', completion: '0.00002' }] }),
+    );
+    expect(kept.map(e => e.id)).toEqual(['acme/long-ok']);
+  });
+
+  test('an unknown fee, an unknown override condition or a fee per request drops the model', () => {
+    const kept = ids(
+      model('acme/per-minute', { per_minute: '0.01' }),
+      model('acme/odd-override', { overrides: [{ weekday: 1, prompt: '0.000001', completion: '0.000002' }] }),
+      model('acme/per-request', { request: '0.001' }),
+      model('acme/zero-extras', { request: '0', per_minute: '0' }),
+    );
+    expect(kept.map(e => e.id)).toEqual(['acme/zero-extras']);
+  });
 });
 
 test('a free variant is its own entry at price 0, labelled (free)', () => {
