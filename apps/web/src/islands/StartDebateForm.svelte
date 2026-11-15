@@ -1,33 +1,22 @@
-<script module lang="ts">
-  const PROVIDERS: Record<string, string> = {
-    anthropic: 'Anthropic',
-    openai: 'OpenAI',
-    google: 'Google',
-    deepseek: 'DeepSeek',
-    'meta-llama': 'Meta',
-    qwen: 'Qwen',
-    mistralai: 'Mistral AI',
-    'x-ai': 'xAI',
-  };
-
-  /** The provider, from the model id's prefix ("anthropic/claude-…" → "Anthropic"). */
-  export function providerName(id: string): string {
-    const prefix = id.split('/')[0] ?? '';
-    return PROVIDERS[prefix] ?? prefix.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-  }
-</script>
-
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { t } from '../i18n/t';
-  import { BATCH_DEBATE_QUOTA_POINTS, DEBATE_QUOTA_POINTS, MAX_MOTION_LENGTH, selfJudgingWarning } from '../lib/debate';
+  import { t, tn } from '../i18n/t';
+  import { MAX_MOTION_LENGTH, providerName, selfJudgingWarning } from '../lib/debate';
+  import ModelPicker from './ModelPicker.svelte';
 
   interface Model {
     id: string;
     label: string;
     roles: string[];
-    /** Served by the Batch API; a Batch Debate may use only these. */
+    /** Batch-capable: may take part in a Slow Debate. */
     batch?: boolean;
+    inputPerMTokUsd?: number;
+    outputPerMTokUsd?: number;
+  }
+
+  interface Quote {
+    quotaPoints: number;
+    quotaRemaining: number;
   }
 
   interface Props {
@@ -39,36 +28,33 @@
 
   let { models, quotaRemaining, fetcher = fetch, navigate = url => location.assign(url) }: Props = $props();
 
-  // With too little Quota for a full Debate but enough for a Batch Debate, the Batch Debate is the only choice.
   // svelte-ignore state_referenced_locally
-  const canAffordFull = quotaRemaining >= DEBATE_QUOTA_POINTS;
-  // svelte-ignore state_referenced_locally
-  const canAffordAny = quotaRemaining >= BATCH_DEBATE_QUOTA_POINTS;
-  let batch = $state(!canAffordFull && canAffordAny);
+  const canAffordAny = quotaRemaining >= 1;
+  const API = 'api';
 
-  const usable = $derived(batch ? models.filter(m => m.batch) : models);
-  const debaters = $derived(usable.filter(m => m.roles.includes('debater')));
-  const judges = $derived(usable.filter(m => m.roles.includes('judge')));
+  const debaters = $derived(models.filter(m => m.roles.includes('debater')));
+  const isBatchModel = (id: string) => models.some(m => m.id === id && m.batch);
 
   let motion = $state('');
   // svelte-ignore state_referenced_locally
-  let forModel = $state(models.filter(m => m.roles.includes('debater') && (!batch || m.batch))[0]?.id ?? '');
+  let forModel = $state(models.filter(m => m.roles.includes('debater'))[0]?.id ?? '');
   // svelte-ignore state_referenced_locally
-  let againstModel = $state(models.filter(m => m.roles.includes('debater') && (!batch || m.batch))[1]?.id ?? '');
+  let againstModel = $state(models.filter(m => m.roles.includes('debater'))[1]?.id ?? '');
   let judge = $state('');
   let aiVoters = $state(false);
+  let batch = $state(false);
   let pending = $state(false);
   let motionError = $state('');
   let error = $state('');
+  let slowStatus = $state('');
   // Server HTML keeps submit disabled until the island runs: an earlier submit would reload the page and
   // lose the Motion.
   let hydrated = $state(false);
   onMount(() => (hydrated = true));
 
   let motionField: HTMLTextAreaElement | undefined = $state();
-  let forField: HTMLSelectElement | undefined = $state();
-  let againstField: HTMLSelectElement | undefined = $state();
-  let judgeField: HTMLSelectElement | undefined = $state();
+  let againstField: HTMLInputElement | undefined = $state();
+  let judgeField: HTMLInputElement | undefined = $state();
 
   // The visible count is read with the field; out loud, only when the room left crosses a step, so a screen
   // reader hears it once per step rather than on every keystroke.
@@ -83,26 +69,27 @@
           : '',
   );
 
-  const cost = $derived(batch ? BATCH_DEBATE_QUOTA_POINTS : DEBATE_QUOTA_POINTS);
-  const labelOf = (id: string) => models.find(m => m.id === id)?.label ?? id;
-  const points = (count: number) => (count === 1 ? t('new.pointsOne') : t('new.points', { count }));
+  const labelOf = (id: string) => (id === API ? t('debater.api') : (models.find(m => m.id === id)?.label ?? id));
 
-  // A choice the current kind of Debate cannot use stays selected (shown as an extra option) and is flagged,
-  // rather than silently swapped: switching back to a full Debate makes it valid again.
-  const forUnavailable = $derived(forModel !== '' && !debaters.some(m => m.id === forModel));
-  const againstUnavailable = $derived(againstModel !== '' && !debaters.some(m => m.id === againstModel));
+  // A Slow Debate is offered only when both Debaters are batch-capable models. A change that makes it unavailable
+  // unticks it, and says why.
+  const slowAvailable = $derived(forModel !== API && againstModel !== API && isBatchModel(forModel) && isBatchModel(againstModel));
+  $effect(() => {
+    if (batch && !slowAvailable) {
+      const offending = [forModel, againstModel].find(id => id === API || !isBatchModel(id)) ?? forModel;
+      batch = false;
+      slowStatus = t('new.slowUnavailable', { model: labelOf(offending) });
+    }
+  });
+
+  const judges = $derived(models.filter(m => m.roles.includes('judge') && (!batch || m.batch)));
+  // A chosen Judge the Slow Debate cannot use stays selected and is flagged, rather than silently swapped.
   const judgeUnavailable = $derived(judge !== '' && !judges.some(m => m.id === judge));
-  const unavailable = (id: string) => t('new.notBatch', { model: labelOf(id) });
-
-  const forError = $derived(forUnavailable ? unavailable(forModel) : '');
+  const judgeError = $derived(judgeUnavailable ? t('new.notBatch', { model: labelOf(judge) }) : '');
   const againstError = $derived(
-    againstUnavailable ? unavailable(againstModel) : againstModel !== '' && againstModel === forModel ? t('new.sameModel', { model: labelOf(forModel) }) : '',
+    againstModel !== '' && againstModel !== API && againstModel === forModel ? t('new.sameModel', { model: labelOf(forModel) }) : '',
   );
-  const judgeError = $derived(judgeUnavailable ? unavailable(judge) : '');
-  // One polite announcement for choices a switch of kind made invalid; the messages also sit at their fields.
-  const unavailableStatus = $derived(
-    [forUnavailable && forError, againstUnavailable && againstError, judgeUnavailable && judgeError].filter(Boolean).join(' '),
-  );
+  const status = $derived([slowStatus, judgeError].filter(Boolean).join(' '));
 
   const selfJudging = $derived(selfJudgingWarning({ for: forModel, against: againstModel }, judge || null));
   const judgePreview = $derived(
@@ -115,11 +102,47 @@
       t('new.summaryFaceOff', { for: labelOf(forModel), against: labelOf(againstModel) }),
       t('new.summaryJudge', { judge: judge ? labelOf(judge) : t('new.summaryPlatform') }),
       aiVoters && t('new.summaryAiVoters'),
-      points(cost),
     ]
       .filter(Boolean)
       .join(' · '),
   );
+
+  const body = (forMotion: string) => ({
+    motion: forMotion,
+    debaters: { for: forModel, against: againstModel },
+    aiVoters,
+    ...(judge ? { panel: [judge] } : {}),
+    ...(batch ? { batch: true } : {}),
+  });
+
+  // What this line-up costs, quoted by the API (the authority) shortly after the last change; older answers are dropped.
+  let quote = $state<Quote | null>(null);
+  let quoteError = $state('');
+  let quoteSeq = 0;
+  $effect(() => {
+    const request = JSON.stringify(body(motion.trim() || t('new.motionPlaceholder')));
+    if (!canAffordAny) return;
+    const seq = ++quoteSeq;
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetcher('/api/debates/quote', { method: 'POST', headers: { 'content-type': 'application/json' }, body: request });
+        const data = (await response.json().catch(() => ({}))) as Partial<Quote> & { error?: string };
+        if (seq !== quoteSeq) return;
+        if (response.ok && typeof data.quotaPoints === 'number' && typeof data.quotaRemaining === 'number') {
+          quote = { quotaPoints: data.quotaPoints, quotaRemaining: data.quotaRemaining };
+          quoteError = '';
+        } else {
+          quote = null;
+          quoteError = response.status === 400 && data.error ? data.error : '';
+        }
+      } catch {
+        if (seq === quoteSeq) quote = null;
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  });
+  const cost = $derived(quote ? tn('new.cost', quote.quotaPoints, { left: quote.quotaRemaining }) : '');
+  const overQuota = $derived(quote !== null && quote.quotaPoints > quote.quotaRemaining);
 
   const describedBy = (...ids: (string | false)[]) => ids.filter(Boolean).join(' ');
 
@@ -127,7 +150,7 @@
     event.preventDefault();
     error = '';
     motionError = motion.trim().length === 0 ? t('new.motionMissing') : '';
-    const invalid = motionError ? motionField : forError ? forField : againstError ? againstField : judgeError ? judgeField : undefined;
+    const invalid = motionError ? motionField : againstError ? againstField : judgeError ? judgeField : undefined;
     if (invalid) {
       // Let the message render first, so the field is announced with it.
       await tick();
@@ -139,20 +162,14 @@
       const response = await fetcher('/api/debates', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          motion: motion.trim(),
-          debaters: { for: forModel, against: againstModel },
-          aiVoters,
-          ...(judge ? { panel: [judge] } : {}),
-          ...(batch ? { batch: true } : {}),
-        }),
+        body: JSON.stringify(body(motion.trim())),
       });
-      const body = (await response.json().catch(() => ({}))) as { id?: string; error?: string };
-      if (response.status === 201 && body.id) {
-        navigate(`/debates/${body.id}`);
+      const result = (await response.json().catch(() => ({}))) as { id?: string; error?: string };
+      if (response.status === 201 && result.id) {
+        navigate(`/debates/${result.id}`);
         return;
       }
-      error = body.error ?? t('new.failed');
+      error = result.error ?? t('new.failed');
     } catch {
       error = t('new.failed');
     }
@@ -163,8 +180,6 @@
 <form onsubmit={submit} class="start" novalidate>
   {#if !canAffordAny}
     <p class="note">{t('new.noQuota')}</p>
-  {:else if !canAffordFull}
-    <p class="note">{t('new.quotaBatchOnly')}</p>
   {:else}
     <p class="quota-left">{t('new.quotaLeft', { left: quotaRemaining })}</p>
   {/if}
@@ -196,36 +211,39 @@
       <legend>{t('new.benches')}</legend>
       <div class="benches">
         <div class="field bench bench-for">
-          <label for="debater-for">{t('new.debaterFor')}</label>
-          <select
+          <ModelPicker
             id="debater-for"
-            bind:this={forField}
-            bind:value={forModel}
-            aria-invalid={forError ? 'true' : undefined}
-            aria-describedby={describedBy(forError !== '' && 'debater-for-error', 'debater-for-provider')}
-          >
-            {#if forUnavailable}<option value={forModel} disabled>{labelOf(forModel)}</option>{/if}
-            {#each debaters as m (m.id)}<option value={m.id}>{m.label}</option>{/each}
-          </select>
-          <p id="debater-for-provider" class="provider">{t('new.provider', { provider: providerName(forModel) })}</p>
-          {#if forError}<p id="debater-for-error" class="error">{forError}</p>{/if}
+            label={t('new.debaterFor')}
+            models={debaters}
+            value={forModel}
+            allowApi
+            {labelOf}
+            describedBy="debater-for-provider"
+            onchange={value => (forModel = value)}
+          />
+          <p id="debater-for-provider" class="provider">
+            {forModel === API ? t('new.apiHint') : t('new.provider', { provider: providerName(forModel) })}
+          </p>
         </div>
 
         <p class="versus" aria-hidden="true">{t('new.versus')}</p>
 
         <div class="field bench bench-against">
-          <label for="debater-against">{t('new.debaterAgainst')}</label>
-          <select
+          <ModelPicker
             id="debater-against"
-            bind:this={againstField}
-            bind:value={againstModel}
-            aria-invalid={againstError ? 'true' : undefined}
-            aria-describedby={describedBy(againstError !== '' && 'debater-against-error', 'debater-against-provider')}
-          >
-            {#if againstUnavailable}<option value={againstModel} disabled>{labelOf(againstModel)}</option>{/if}
-            {#each debaters as m (m.id)}<option value={m.id}>{m.label}</option>{/each}
-          </select>
-          <p id="debater-against-provider" class="provider">{t('new.provider', { provider: providerName(againstModel) })}</p>
+            label={t('new.debaterAgainst')}
+            models={debaters}
+            value={againstModel}
+            allowApi
+            {labelOf}
+            invalid={againstError !== ''}
+            describedBy={describedBy(againstError !== '' && 'debater-against-error', 'debater-against-provider')}
+            onchange={value => (againstModel = value)}
+            bind:input={againstField}
+          />
+          <p id="debater-against-provider" class="provider">
+            {againstModel === API ? t('new.apiHint') : t('new.provider', { provider: providerName(againstModel) })}
+          </p>
           {#if againstError}<p id="debater-against-error" class="error">{againstError}</p>{/if}
         </div>
       </div>
@@ -234,18 +252,18 @@
     <fieldset class="group">
       <legend>{t('new.verdictGroup')}</legend>
       <div class="field">
-        <label for="judge">{t('new.judge')}</label>
-        <select
+        <ModelPicker
           id="judge"
-          bind:this={judgeField}
-          bind:value={judge}
-          aria-invalid={judgeError ? 'true' : undefined}
-          aria-describedby={describedBy(judgeError !== '' && 'judge-error', 'judge-preview')}
-        >
-          <option value="">{t('new.judgeAuto')}</option>
-          {#if judgeUnavailable}<option value={judge} disabled>{labelOf(judge)}</option>{/if}
-          {#each judges as m (m.id)}<option value={m.id}>{m.label}</option>{/each}
-        </select>
+          label={t('new.judge')}
+          models={judges}
+          value={judge}
+          autoLabel={t('new.judgeAuto')}
+          {labelOf}
+          invalid={judgeError !== ''}
+          describedBy={describedBy(judgeError !== '' && 'judge-error', 'judge-preview')}
+          onchange={value => (judge = value)}
+          bind:input={judgeField}
+        />
         <p id="judge-preview" class="muted">{judgePreview}</p>
         {#if judgeError}<p id="judge-error" class="error">{judgeError}</p>{/if}
         {#if selfJudging}<p role="note" class="note">{t('new.selfJudging')}</p>{/if}
@@ -257,24 +275,29 @@
       </div>
     </fieldset>
 
-    <!-- Optional, and last: the same Debate, cheaper and slower. With Quota for nothing more it is ticked and
-         fixed, and the note above the form says why. -->
-    <div class="group field">
-      <label class="choice"
-        ><input type="checkbox" bind:checked={batch} disabled={!canAffordFull} aria-describedby="batch-hint" /> {t('new.batchChoice')}</label
-      >
-      <p id="batch-hint" class="muted">{t('new.batchHint', { points: points(BATCH_DEBATE_QUOTA_POINTS), full: DEBATE_QUOTA_POINTS })}</p>
-      <p class="visually-hidden" role="status" id="batch-status">{unavailableStatus}</p>
+    <!-- Optional, and last: the same Debate, cheaper and slower. Offered only when both Debaters can run as batch. -->
+    <div class="group field slow">
+      {#if slowAvailable}
+        <label class="choice"><input type="checkbox" bind:checked={batch} onchange={() => (slowStatus = '')} aria-describedby="batch-hint" /> {t('new.batchChoice')}</label>
+        <p id="batch-hint" class="muted">{t('new.batchHint')}</p>
+      {/if}
+      <p class="visually-hidden" role="status" id="batch-status">{status}</p>
     </div>
 
     <div class="group submit">
       <p id="start-summary" class="summary">{summary}</p>
+      <p id="start-cost" class="muted">{cost}</p>
       <div class="submit-row">
-        <button type="submit" disabled={pending || !canAffordAny || !hydrated} aria-busy={pending} aria-describedby={describedBy('start-summary', !canAffordAny && 'submit-reason')}
+        <button
+          type="submit"
+          disabled={pending || !canAffordAny || !hydrated || quoteError !== '' || overQuota}
+          aria-busy={pending}
+          aria-describedby={describedBy('start-summary', cost !== '' && 'start-cost', quoteError !== '' && 'quote-error', !canAffordAny && 'submit-reason')}
           >{t('new.submit')}</button
         >
         {#if !canAffordAny}<p id="submit-reason" class="muted">{t('new.noQuotaShort')}</p>{/if}
       </div>
+      {#if quoteError}<p id="quote-error" class="error">{quoteError}</p>{/if}
       <noscript><p class="muted">{t('new.needsJs')}</p></noscript>
       {#if error}<p role="alert" class="error">{error}</p>{/if}
     </div>
@@ -297,6 +320,12 @@
   .group + .group {
     border-top: 1px solid var(--line);
     padding-top: calc(var(--space) * 1.25);
+  }
+  /* With no Slow Debate to offer, its group is only a status line: no rule, no gap. */
+  .group.slow:not(:has(input)) {
+    border-top: 0;
+    padding-top: 0;
+    margin-top: 0;
   }
   legend,
   .motion-label {
@@ -357,13 +386,13 @@
     border-top-color: var(--against);
     background: linear-gradient(var(--against-tint), var(--against-tint)), var(--surface);
   }
-  .bench-for label {
+  .bench-for :global(label) {
     color: var(--for);
   }
-  .bench-against label {
+  .bench-against :global(label) {
     color: var(--against);
   }
-  .bench select {
+  .bench :global(input[role='combobox']) {
     font-family: var(--font-serif);
     font-size: 1.25rem;
     font-weight: 600;

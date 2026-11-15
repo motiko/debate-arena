@@ -6,7 +6,7 @@ import Base from '../layouts/Base.astro';
 import { t } from '../i18n/t';
 
 const { api, me } = Astro.locals;
-let models: { id: string; label: string; roles: string[]; batch?: boolean }[] = [];
+let models: { id: string; label: string; roles: string[]; batch?: boolean; inputPerMTokUsd?: number; outputPerMTokUsd?: number }[] = [];
 if (me) {
   const response = await api.api.models.$get();
   if (!response.ok) throw new Error(`GET /api/models failed (${response.status})`);

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { expectNoAxeViolations, hydrated, startDebate, uniqueMember, waitComplete } from './helpers';
+import { expectNoAxeViolations, hydrated, pickModel, startDebate, uniqueMember, waitComplete } from './helpers';
 
 // A dev Member: the API honours x-dev-member while DEV_AUTH is on (local dev and tests only). The web Worker
 // forwards it to the API both from the browser (/api) and from server rendering.
@@ -10,8 +10,13 @@ test('start a Debate from the form and land on its page', async ({ page }) => {
   await page.goto('/new');
   await hydrated(page);
   await page.getByLabel('Motion').fill(motion);
-  await page.getByLabel('Debater For').selectOption('fake-a/one');
-  await page.getByLabel('Debater Against').selectOption('fake-b/one');
+  // The list of matches, open, passes axe too.
+  await page.getByRole('combobox', { name: 'Debater For' }).fill('fake');
+  await expect(page.getByRole('option').first()).toBeVisible();
+  await expectNoAxeViolations(page);
+  await pickModel(page, 'Debater For', 'Fake A');
+  await pickModel(page, 'Debater Against', 'Fake B');
+  await expect(page.locator('#start-cost')).toHaveText(/^\d+ Quota points · you have 24 left today$/);
   await page.getByRole('button', { name: 'Start the Debate' }).click();
   await expect(page).toHaveURL(/\/debates\/[0-9a-f-]+$/);
   await expect(page.getByRole('heading', { level: 1, name: motion })).toBeVisible();
@@ -73,8 +78,8 @@ test('the starter of a live Debate votes before, follows it, and is asked again 
 test('Self-Judging warning shows when the Judge is a Debater', async ({ page }) => {
   await page.goto('/new');
   await hydrated(page);
-  await page.getByLabel('Debater For').selectOption('fake-a/one');
-  await page.getByLabel('Judge').selectOption('fake-a/one');
+  await pickModel(page, 'Debater For', 'Fake A');
+  await pickModel(page, 'Judge', 'Fake A');
   await expect(page.getByRole('note')).toContainText('Self-Judging');
 });
 

@@ -185,12 +185,30 @@ export function mergeTurns(known: Turn[], incoming: SlotTurn[]): Turn[] {
   return merged;
 }
 
-/** Quota points a Member gets each UTC day (the API's DAILY_QUOTA_POINTS). */
-export const DAILY_QUOTA_POINTS = 6;
-/** Quota points a Debate costs (the API's DEBATE_QUOTA_POINTS); the API is the authority. */
-export const DEBATE_QUOTA_POINTS = 2;
-/** Quota points a Batch Debate costs (the API's BATCH_DEBATE_QUOTA_POINTS). */
-export const BATCH_DEBATE_QUOTA_POINTS = 1;
+/** Quota points a Member gets each UTC day (the API's DAILY_QUOTA_POINTS). What a Debate costs, the API quotes. */
+export const DAILY_QUOTA_POINTS = 24;
+
+const PROVIDERS: Record<string, string> = {
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+  google: 'Google',
+  deepseek: 'DeepSeek',
+  'meta-llama': 'Meta',
+  qwen: 'Qwen',
+  mistralai: 'Mistral AI',
+  'x-ai': 'xAI',
+};
+
+/** The provider, from the model id's prefix ("anthropic/claude-…" → "Anthropic"). */
+export function providerName(id: string): string {
+  const prefix = id.split('/')[0] ?? '';
+  return PROVIDERS[prefix] ?? prefix.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
+/** A price in USD per million tokens: two decimals, three below ten cents ("0.15", "0.047", "5.00"). */
+export function formatPrice(usdPerMTok: number): string {
+  return usdPerMTok > 0 && usdPerMTok < 0.1 ? usdPerMTok.toFixed(3) : usdPerMTok.toFixed(2);
+}
 /** The API's limit on a Motion's length. */
 export const MAX_MOTION_LENGTH = 300;
 

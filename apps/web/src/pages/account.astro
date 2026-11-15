@@ -5,7 +5,6 @@ import ApiTokens from '../islands/ApiTokens.svelte';
 import SignInButton from '../islands/SignInButton.svelte';
 import Base from '../layouts/Base.astro';
 import { t, tn } from '../i18n/t';
-import { DEBATE_QUOTA_POINTS } from '../lib/debate';
 
 const { me } = Astro.locals;
 ---
@@ -15,7 +14,7 @@ const { me } = Astro.locals;
     me ? (
       <PageHead slot="band" title={t('account.title')}>
         <p>{t('account.name', { name: me.name })}</p>
-        <p>{tn('account.quota', me.quotaRemaining, { cost: DEBATE_QUOTA_POINTS })}</p>
+        <p>{tn('account.quota', me.quotaRemaining)}</p>
       </PageHead>
     ) : (
       <PageHead slot="band" title={t('account.title')} />
