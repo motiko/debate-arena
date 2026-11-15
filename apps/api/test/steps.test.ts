@@ -54,8 +54,10 @@ test('drives a Classic Debate to completion one step at a time', async () => {
   const stored = await getDebate(env.DB, d.id);
   expect(stored).toMatchObject({ status: 'complete', verdict: { winner: 'for' }, completedAt: '2026-11-13T12:30:00.000Z' });
   expect(stored?.turns).toHaveLength(6);
-  expect(events.map(e => e.type)).toEqual(['turn', 'turn', 'turn', 'turn', 'turn', 'turn', 'verdict', 'complete']);
-  expect(events[0]).toMatchObject({ type: 'turn', slotIndex: 0, turn: { side: 'for' } });
+  // Drafts come and go while each Turn is written (their order is tested on its own); the record is the rest.
+  const settled = events.filter(e => e.type !== 'draft');
+  expect(settled.map(e => e.type)).toEqual(['turn', 'turn', 'turn', 'turn', 'turn', 'turn', 'verdict', 'complete']);
+  expect(settled[0]).toMatchObject({ type: 'turn', slotIndex: 0, turn: { side: 'for' } });
 });
 
 test('with AI Voters the completion carries the AI Audience Result', async () => {
@@ -206,6 +208,33 @@ test('a failed Debate that already spent money is not refunded', async () => {
   await addCost(env.DB, d.id, 1);
   await failStep(deps, d.id, 'Judge never returned a Verdict');
   expect(await quotaRemaining(env.DB, d.memberId, new Date(d.createdAt))).toBe(4);
+});
+
+test('a live Turn sends draft events before its turn event, none after', async () => {
+  const { deps, events } = makeDeps();
+  const d = newDebate();
+  await createScreened(env.DB, d);
+  expect(await runStep(deps, { debateId: d.id })).toBe('turn');
+  const kinds = events.map(e => e.type);
+  expect(kinds).toContain('draft');
+  expect(kinds.indexOf('draft')).toBeLessThan(kinds.indexOf('turn'));
+  expect(kinds.slice(kinds.indexOf('turn') + 1)).not.toContain('draft');
+  expect(events.find(e => e.type === 'draft')).toMatchObject({ type: 'draft', slotIndex: 0, text: 'An' });
+});
+
+test('a Turn that fails mid-stream clears its draft, then rethrows', async () => {
+  const { deps, events } = makeDeps();
+  deps.client = {
+    complete: async (_request, options) => {
+      options?.onText?.('Half a');
+      throw new Error('provider disconnected');
+    },
+  };
+  const d = newDebate();
+  await createScreened(env.DB, d);
+  await expect(runStep(deps, { debateId: d.id })).rejects.toThrow('provider disconnected');
+  expect(events[0]).toEqual({ type: 'draft', slotIndex: 0, text: 'Half a' });
+  expect(events.at(-1)).toEqual({ type: 'draft', slotIndex: 0, text: '' });
 });
 
 test('failStep refunds Quota once and notifies failed once', async () => {

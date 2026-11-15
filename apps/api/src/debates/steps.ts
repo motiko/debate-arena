@@ -1,8 +1,9 @@
-import { generateTurn, judgeDebate, nextSlot, runAiAudience, screenMotion, type ModelClient, type ModelId } from '@debate-arena/engine';
+import { generateTurn, judgeDebate, nextSlot, runAiAudience, screenMotion, type ModelClient, type ModelId, type Turn } from '@debate-arena/engine';
 import { appendTurn, completeDebate, failDebate, getDebate, saveVerdict } from '../db/debates';
 import { saveScreen } from '../db/moderation';
 import { refundQuota, utcDay } from '../db/quota';
 import { BudgetExhaustedError } from '../models/factory';
+import { createDraftSender } from '../live/drafts';
 import type { DebateEvent } from '../live/events';
 import type { StepJob } from './start';
 
@@ -46,8 +47,25 @@ export async function runStep(deps: StepDeps, job: StepJob): Promise<StepOutcome
   }
 
   if (nextSlot(setup.format, turns)) {
-    const turn = await generateTurn(setup, turns, client);
     const slotIndex = turns.length;
+    // Viewers see the Turn as it is written. The last draft never follows the Turn itself, and a failed Turn
+    // clears its draft, so a retry starts from an empty seat. A Slow Debate's notify does nothing.
+    const drafts = createDraftSender(text => notify(id, { type: 'draft', slotIndex, text }));
+    let drafted = false;
+    let turn: Turn;
+    try {
+      turn = await generateTurn(setup, turns, client, {
+        onDraft: text => {
+          drafted = true;
+          drafts.push(text);
+        },
+      });
+    } catch (error) {
+      await drafts.stop();
+      if (drafted) await notify(id, { type: 'draft', slotIndex, text: '' });
+      throw error;
+    }
+    await drafts.stop();
     if (!(await appendTurn(db, id, slotIndex, turn))) return 'skipped';
     await notify(id, { type: 'turn', slotIndex, turn });
     await enqueue({ debateId: id });
