@@ -1,6 +1,7 @@
 import { env, exports } from 'cloudflare:workers';
 import { expect, test } from 'vitest';
 import { makeAuth } from '../src/auth/auth';
+import { DAILY_QUOTA_POINTS, spendQuota } from '../src/db/quota';
 import { linkGithub, signedInHeaders } from './auth-helpers';
 
 test('GET /api/me without a session is 401', async () => {
@@ -58,4 +59,27 @@ test.each([[''], ['too-short'], ['better-auth-secret-12345678901234567890']])('o
 
 test('local dev may run without a secret', () => {
   expect(() => makeAuth({ ...env, DEV_AUTH: 'true', BETTER_AUTH_SECRET: '' })).not.toThrow();
+});
+
+/** A signed-in Member whose GitHub account id is in UNLIMITED_QUOTA_GITHUB_IDS ('3' in tests), with today's Quota spent. */
+async function unlimitedMemberWithQuotaSpent(): Promise<{ userId: string; headers: Headers }> {
+  const member = await signedInHeaders('Una Limited');
+  await linkGithub(member.userId, '3');
+  expect(await spendQuota(env.DB, member.userId, DAILY_QUOTA_POINTS, new Date())).toBe(true);
+  return member;
+}
+
+test('GET /api/me reports a full Quota for a Member with unlimited Quota', async () => {
+  const { headers } = await unlimitedMemberWithQuotaSpent();
+  const res = await exports.default.fetch('https://api.test/api/me', { headers });
+  expect(await res.json()).toMatchObject({ quotaRemaining: DAILY_QUOTA_POINTS });
+});
+
+test('a Member with unlimited Quota starts a Debate after their daily points are spent', async () => {
+  const { headers } = await unlimitedMemberWithQuotaSpent();
+  const h = new Headers(headers);
+  h.set('content-type', 'application/json');
+  const body = { motion: 'Remote work beats office work', debaters: { for: 'fake-a/one', against: 'fake-b/one' }, aiVoters: false };
+  const res = await exports.default.fetch('https://api.test/api/debates', { method: 'POST', headers: h, body: JSON.stringify(body) });
+  expect(res.status).toBe(201);
 });

@@ -35,6 +35,8 @@ export interface StartDeps {
   enqueue: (job: StepJob) => Promise<void>;
   now: () => Date;
   newId: () => string;
+  /** The Member's Quota is unlimited: their Debates cost no Quota points. */
+  unlimitedQuota?: boolean;
 }
 export type StartResult =
   | { ok: true; id: string; panel: ModelId[]; selfJudging: boolean; budgetReservedMicroUsd: number }
@@ -100,11 +102,11 @@ export async function startDebate(deps: StartDeps, memberId: string, input: unkn
   const setup: DebateSetup = { motion: { text: motion }, format: CLASSIC_FORMAT, debaters, panel };
   const aiVoters = parsed.aiVoters ? pickAiVoters(catalog, AI_VOTER_COUNT) : [];
   const budgetReservedMicroUsd = worstCaseBudgetMicroUsd(setup, aiVoters, priceTable(catalog), screenerFor(catalog));
-  const quotaPoints = kind === 'batch' ? BATCH_DEBATE_QUOTA_POINTS : DEBATE_QUOTA_POINTS;
+  const quotaPoints = deps.unlimitedQuota ? 0 : kind === 'batch' ? BATCH_DEBATE_QUOTA_POINTS : DEBATE_QUOTA_POINTS;
   const selfJudging = isSelfJudging(panel, [debaters.for, debaters.against]);
 
   const now = deps.now();
-  if (!(await spendQuota(deps.db, memberId, quotaPoints, now))) {
+  if (quotaPoints > 0 && !(await spendQuota(deps.db, memberId, quotaPoints, now))) {
     return { ok: false, status: 429, error: 'Daily Debate limit reached' };
   }
 

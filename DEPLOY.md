@@ -56,6 +56,7 @@ the first page view.
 - `apps/web/src/legal/operator.ts`: the operator's name, postal address (no P.O. box) and email, for the Impressum and
   the privacy policy. Have the privacy policy and terms (`apps/web/src/legal/content.ts`) reviewed before launch.
 - Optionally `MODERATOR_GITHUB_IDS`: your numeric GitHub id (`curl -s https://api.github.com/users/<login>`, field `id`).
+- Optionally `UNLIMITED_QUOTA_GITHUB_IDS`: numeric GitHub ids of Members who may start Debates without a daily Quota.
 
 ## 4. Production sign-in (GitHub OAuth App)
 

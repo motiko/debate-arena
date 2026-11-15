@@ -19,6 +19,8 @@ export default defineConfig(async () => {
             GITHUB_CLIENT_SECRET: 'test-github-client-secret',
             // GitHub user ids 1 and 2 are Moderators in tests.
             MODERATOR_GITHUB_IDS: '1, 2',
+            // GitHub user id 3 has unlimited Quota in tests.
+            UNLIMITED_QUOTA_GITHUB_IDS: '3',
           },
         },
       }),

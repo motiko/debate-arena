@@ -50,6 +50,7 @@ Signed-in Members can start Debates, cast Audience Votes, download their data an
 Every Motion is screened by an AI model first (Llama Guard 4 in production). A Flag never removes anything: it takes the Debate out of the feed (Unlisted) until a Moderator reviews it. Anyone can Report a Debate from its page; five Members' Reports also Unlist it. Moderators review the queue at `/moderation` and relist a Debate or Block it with a statement of reasons.
 
 - **Who is a Moderator:** Members whose GitHub account id is in `MODERATOR_GITHUB_IDS` (comma-separated numeric ids, a var in `apps/api/wrangler.jsonc`; empty means nobody). Find your id with `curl -s https://api.github.com/users/<login>` (field `id`).
+- **Unlimited Quota:** Members whose GitHub account id is in `UNLIMITED_QUOTA_GITHUB_IDS` (same format) start Debates without spending Quota; each Debate's Budget still applies.
 - **Locally:** while `DEV_AUTH` is on, dev Members whose id starts with `dev-mod` (header `x-dev-member: dev-mod-1`) are Moderators. Put `[flag-test]` in a Motion to make the fake screener Flag it.
 
 ### Slow Debates

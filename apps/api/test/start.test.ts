@@ -122,3 +122,14 @@ test('a failed enqueue refunds the Quota and fails the Debate', async () => {
   expect(await quotaRemaining(env.DB, member, now)).toBe(6);
   expect((await getDebate(env.DB, id))?.status).toBe('failed');
 });
+
+test('a Member with unlimited Quota starts Debates without spending any', async () => {
+  const { deps } = makeDeps({ unlimitedQuota: true });
+  const member = uniqueId('m');
+  for (let i = 0; i < 4; i++) {
+    const r = await startDebate(deps, member, valid);
+    if (!r.ok) throw new Error(r.error);
+    expect((await getDebate(env.DB, r.id))?.quotaPoints).toBe(0);
+  }
+  expect(await quotaRemaining(env.DB, member, now)).toBe(6);
+});

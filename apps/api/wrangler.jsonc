@@ -27,12 +27,14 @@
     "DebateRoom": { "type": "durable-object", "storage": "sqlite" }
   },
   // MODERATOR_GITHUB_IDS: comma-separated GitHub numeric user ids of Moderators (empty: nobody).
+  // UNLIMITED_QUOTA_GITHUB_IDS: comma-separated GitHub numeric user ids of Members whose Quota is unlimited (empty: nobody).
   // EMAIL_PROVIDER: "none" (log only) or "scaleway" (needs SCALEWAY_SECRET_KEY, SCALEWAY_PROJECT_ID and EMAIL_FROM).
   "vars": {
     "MODEL_PROVIDER": "fake",
     "DEV_AUTH": "false",
     "BETTER_AUTH_URL": "http://localhost:8787",
     "MODERATOR_GITHUB_IDS": "",
+    "UNLIMITED_QUOTA_GITHUB_IDS": "",
     "EMAIL_PROVIDER": "none",
     "EMAIL_FROM": ""
   },
@@ -47,6 +49,7 @@
         // The web Worker's address, e.g. https://debate-arena-web.<subdomain>.workers.dev
         "BETTER_AUTH_URL": "https://debate-arena-web.motiko.workers.dev",
         "MODERATOR_GITHUB_IDS": "875618",
+        "UNLIMITED_QUOTA_GITHUB_IDS": "875618",
         "EMAIL_PROVIDER": "none",
         "EMAIL_FROM": ""
       },

@@ -19,7 +19,8 @@ import { endedBatchId, verifySignature } from './webhooks/openrouter';
 import { createEmailSender, type EmailEnv } from './notices/email';
 import { noticeDecision, noticeReportReceived, type NoticeDeps } from './notices/notify';
 import { keyedHash, parseReport, rateLimitNetwork, REPORT_UNLIST_THRESHOLD, REPORTS_PER_IP_PER_HOUR } from './moderation/reports';
-import { quotaRemaining } from './db/quota';
+import { DAILY_QUOTA_POINTS, quotaRemaining } from './db/quota';
+import { hasUnlimitedQuota } from './auth/allowlists';
 import { getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
 import { castAfter, castBefore, getVote, listVotes, type AudienceVote } from './db/votes';
 import { audienceResult, checkVote, votingClosesAt, type VotePhase } from './votes/rules';
@@ -135,6 +136,12 @@ function afterResponse(c: { env: Env; executionCtx: { waitUntil(promise: Promise
   c.executionCtx.waitUntil(run());
 }
 
+/** Quota points left today; a Member with unlimited Quota always has the full day's points. */
+async function memberQuotaRemaining(env: Env, memberId: string): Promise<number> {
+  if (await hasUnlimitedQuota(env, memberId)) return DAILY_QUOTA_POINTS;
+  return quotaRemaining(env.DB, memberId, new Date());
+}
+
 /** The signed-in Moderator, or why the request is refused (401 signed out, 403 not a Moderator). */
 async function requireModerator(env: Env, request: Request): Promise<{ memberId: string } | { status: 401 | 403; error: string }> {
   const memberId = await memberResolver(env)(request);
@@ -161,7 +168,7 @@ export const app = new Hono<{ Bindings: Env }>()
         id,
         name,
         image: image ?? null,
-        quotaRemaining: await quotaRemaining(c.env.DB, id, new Date()),
+        quotaRemaining: await memberQuotaRemaining(c.env, id),
         isModerator: await isModerator(c.env, id),
       });
     }
@@ -175,7 +182,7 @@ export const app = new Hono<{ Bindings: Env }>()
       id: memberId,
       name: user?.name ?? memberId,
       image: user?.image ?? null,
-      quotaRemaining: await quotaRemaining(c.env.DB, memberId, new Date()),
+      quotaRemaining: await memberQuotaRemaining(c.env, memberId),
       isModerator: await isModerator(c.env, memberId),
     });
   })
@@ -210,6 +217,7 @@ export const app = new Hono<{ Bindings: Env }>()
         },
         now: () => new Date(),
         newId: () => crypto.randomUUID(),
+        unlimitedQuota: await hasUnlimitedQuota(c.env, memberId),
       },
       memberId,
       input,

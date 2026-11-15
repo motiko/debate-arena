@@ -1,3 +1,4 @@
+import { onGithubAllowlist } from '../auth/allowlists';
 import type { BlockGround, DecisionAction } from '../db/moderation';
 
 export interface ModeratorEnv {
@@ -13,15 +14,7 @@ export interface ModeratorEnv {
  */
 export async function isModerator(env: ModeratorEnv, memberId: string): Promise<boolean> {
   if (env.DEV_AUTH === 'true' && memberId.startsWith('dev-mod')) return true;
-  const allowed = String(env.MODERATOR_GITHUB_IDS)
-    .split(',')
-    .map(id => id.trim())
-    .filter(id => id.length > 0);
-  if (allowed.length === 0) return false;
-  const { results } = await env.DB.prepare(`SELECT "accountId" FROM account WHERE "userId" = ? AND "providerId" = 'github'`)
-    .bind(memberId)
-    .all<{ accountId: string }>();
-  return results.some(row => allowed.includes(row.accountId));
+  return onGithubAllowlist(env.DB, memberId, env.MODERATOR_GITHUB_IDS);
 }
 
 export type DecisionInput =
