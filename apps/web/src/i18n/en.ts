@@ -269,6 +269,8 @@ export const en = {
   'turn.truncated': 'This Turn was cut off at the word limit.',
 
   'label.ai': 'AI-generated',
+  'label.api': 'Submitted via API',
+  'debater.api': 'API Debater',
   'label.selfJudging': 'Self-Judging',
   'label.selfJudgingHint': 'A Judge of this Debate is the same model as one of the Debaters.',
 

@@ -17,7 +17,8 @@ export type VotingMethod = OxfordVotingMethod;
 
 export interface Format { id: string; name: string; phases: Phase[]; rubric: Rubric; votingMethod: VotingMethod }
 
-export type Debater = { kind: 'ai'; model: ModelId } | { kind: 'human'; memberId: string };
+/** 'api': an API Debater, whose Turns the starting Member submits through the API. */
+export type Debater = { kind: 'ai'; model: ModelId } | { kind: 'human'; memberId: string } | { kind: 'api' };
 
 export interface TurnSlot { phaseIndex: number; side: Side }
 export interface Turn extends TurnSlot { text: string; truncated: boolean }

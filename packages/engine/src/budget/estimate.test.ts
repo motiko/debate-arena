@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { wordsToTokens } from '../debate/schedule';
 import { UnknownModelPriceError } from '../errors';
 import { setup } from '../testing/fixtures';
-import { type PriceTable, utf8Length, worstCaseBudgetMicroUsd } from './estimate';
+import { type PriceTable, quotaPointsFor, utf8Length, worstCaseBudgetMicroUsd } from './estimate';
 
 // Every model at 1 USD per million tokens in and out, so micro-USD equals tokens.
 const unit = { inputPerMTokUsd: 1, outputPerMTokUsd: 1 };
@@ -41,6 +41,27 @@ test('human Debaters cost nothing', () => {
   const humanFor = { ...setup, debaters: { ...setup.debaters, for: { kind: 'human', memberId: 'm1' } as const } };
   // Drops the three For Turns: (629+840) + (2309+560) + (3429+420) = 8187, twice
   expect(worstCaseBudgetMicroUsd(humanFor, [], unitPrices)).toBe(46526 - 16374);
+});
+
+test('an API Debater costs nothing but one screen per Turn', () => {
+  const apiFor = { ...setup, debaters: { ...setup.debaters, for: { kind: 'api' } as const } };
+  const prices = { ...unitPrices, 'g/guard': unit };
+  // AI Debate with the Motion screen: 46526 + 1290. Drops the For Turns (16374) and screens each For Turn:
+  // (629+840+16) + (629+560+16) + (629+420+16) = 3755, twice
+  expect(worstCaseBudgetMicroUsd(apiFor, [], prices, 'g/guard')).toBe(46526 + 1290 - 16374 + 7510);
+});
+
+test('extraOutputTokens is charged on every call of that model', () => {
+  const plain = worstCaseBudgetMicroUsd(setup, [], unitPrices);
+  const reasoning = worstCaseBudgetMicroUsd(setup, [], { ...unitPrices, 'c/judge': { ...unit, extraOutputTokens: 2048 } });
+  expect(reasoning - plain).toBe(2 * 2048);
+});
+
+test('quotaPointsFor: one point per 1.25 cents, rounded up, at least 1', () => {
+  expect(quotaPointsFor(0)).toBe(1);
+  expect(quotaPointsFor(12_500)).toBe(1);
+  expect(quotaPointsFor(12_501)).toBe(2);
+  expect(quotaPointsFor(300_000)).toBe(24);
 });
 
 test('prices scale cost', () => {

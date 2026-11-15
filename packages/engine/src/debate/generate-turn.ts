@@ -1,5 +1,5 @@
-import type { DebateSetup, Turn } from '../domain';
-import { DebateCompleteError, EmptyTurnError, HumanTurnNotSupportedError } from '../errors';
+import type { DebateSetup, Turn, TurnSlot } from '../domain';
+import { ApiTurnError, DebateCompleteError, EmptyTurnError, HumanTurnNotSupportedError } from '../errors';
 import type { ModelClient } from '../models/client';
 import { trimToLastSentence, truncateToWords } from '../turns/words';
 import { buildTurnMessages } from './prompts';
@@ -10,11 +10,17 @@ export interface GenerateTurnOptions {
   onDraft?: (text: string) => void;
 }
 
+/** Whether this slot belongs to an API Debater, whose Turn the platform waits for instead of generating. */
+export function isApiSlot(setup: DebateSetup, slot: TurnSlot): boolean {
+  return setup.debaters[slot.side].kind === 'api';
+}
+
 /** Generates the next AI Turn, cut at the Phase's word limit (back to the last full sentence when cut). */
 export async function generateTurn(setup: DebateSetup, priorTurns: Turn[], client: ModelClient, options: GenerateTurnOptions = {}): Promise<Turn> {
   const slot = nextSlot(setup.format, priorTurns);
   if (!slot) throw new DebateCompleteError('All Turns of this Debate exist');
   const debater = setup.debaters[slot.side];
+  if (debater.kind === 'api') throw new ApiTurnError(`The ${slot.side} Debater submits its Turns through the API`);
   if (debater.kind !== 'ai') throw new HumanTurnNotSupportedError(`The ${slot.side} Debater is human`);
   const phase = setup.format.phases[slot.phaseIndex]!;
 

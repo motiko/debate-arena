@@ -7,6 +7,8 @@ export class EngineError extends Error {
 
 export class DebateCompleteError extends EngineError {}
 export class HumanTurnNotSupportedError extends EngineError {}
+/** An API Debater's Turn is submitted through the API, never generated. */
+export class ApiTurnError extends EngineError {}
 export class EmptyTurnError extends EngineError {}
 export class DebateNotFinishedError extends EngineError {}
 export class VerdictParseError extends EngineError {}

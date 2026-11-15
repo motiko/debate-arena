@@ -208,6 +208,7 @@ export function modelLabel(id: string, models: ModelInfo[] = []): string {
 }
 
 export function debaterLabel(debater: Debater, models: ModelInfo[]): string {
+  if (debater.kind === 'api') return t('debater.api');
   return debater.kind === 'ai' ? modelLabel(debater.model, models) : debater.memberId;
 }
 

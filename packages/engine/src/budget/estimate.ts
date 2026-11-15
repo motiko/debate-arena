@@ -7,10 +7,23 @@ import { STANCE_OUTPUT_TOKENS } from '../voting/ai-voter';
 
 export { JUDGE_OUTPUT_TOKENS, STANCE_OUTPUT_TOKENS };
 
-export interface ModelPrice { inputPerMTokUsd: number; outputPerMTokUsd: number }
+export interface ModelPrice {
+  inputPerMTokUsd: number;
+  outputPerMTokUsd: number;
+  /** Output tokens reserved on every call beyond the asked cap: a mandatory-reasoning model's reasoning allowance. */
+  extraOutputTokens?: number;
+}
 export type PriceTable = Record<ModelId, ModelPrice>;
 
 export const PROMPT_OVERHEAD_TOKENS = 600;
+
+/** A Quota point buys this much worst-case Budget: 1.25 US cents. */
+export const QUOTA_POINT_MICRO_USD = 12_500;
+
+/** The Quota points a Debate costs: one per QUOTA_POINT_MICRO_USD of its worst-case Budget, rounded up, at least 1. */
+export function quotaPointsFor(budgetMicroUsd: number): number {
+  return Math.max(1, Math.ceil(budgetMicroUsd / QUOTA_POINT_MICRO_USD));
+}
 
 /** UTF-8 byte length: an upper bound on tokens for any script, since a token covers at least one byte. */
 export function utf8Length(text: string): number {
@@ -40,7 +53,7 @@ export function worstCaseBudgetMicroUsd(setup: DebateSetup, aiVoters: ModelId[],
   // tokens × USD per million tokens = micro-USD
   const cost = (model: ModelId, input: number, output: number) => {
     const price = priceOf(prices, model);
-    return MAX_ATTEMPTS * (input * price.inputPerMTokUsd + output * price.outputPerMTokUsd);
+    return MAX_ATTEMPTS * (input * price.inputPerMTokUsd + (output + (price.extraOutputTokens ?? 0)) * price.outputPerMTokUsd);
   };
 
   const base = PROMPT_OVERHEAD_TOKENS + utf8Length(setup.motion.text);
@@ -51,6 +64,8 @@ export function worstCaseBudgetMicroUsd(setup: DebateSetup, aiVoters: ModelId[],
     const output = turnOutputCap(setup.format.phases[slot.phaseIndex]!.maxWords);
     const debater = setup.debaters[slot.side];
     if (debater.kind === 'ai') total += cost(debater.model, base + transcript, output);
+    // Each API Turn is screened, as a Motion is: its text is at most the Turn's output cap.
+    if (debater.kind === 'api' && screener) total += cost(screener, base + output, SCREEN_OUTPUT_TOKENS);
     transcript += output;
   }
   for (const judge of setup.panel) total += cost(judge, base + transcript, JUDGE_OUTPUT_TOKENS);

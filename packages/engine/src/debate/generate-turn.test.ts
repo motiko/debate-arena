@@ -1,9 +1,9 @@
 import { expect, test, vi } from 'vitest';
-import { DebateCompleteError, EmptyTurnError, HumanTurnNotSupportedError } from '../errors';
+import { ApiTurnError, DebateCompleteError, EmptyTurnError, HumanTurnNotSupportedError } from '../errors';
 import { FakeModelClient } from '../models/fake';
 import { setup, sixTurns } from '../testing/fixtures';
 import { countWords } from '../turns/words';
-import { generateTurn } from './generate-turn';
+import { generateTurn, isApiSlot } from './generate-turn';
 import { buildTurnMessages } from './prompts';
 
 test('prompt names the Motion, Side, Phase, word limit and language rule', () => {
@@ -78,6 +78,17 @@ test('empty replies throw EmptyTurnError', async () => {
 
 test('a finished Debate has no next Turn', async () => {
   await expect(generateTurn(setup, sixTurns, new FakeModelClient())).rejects.toBeInstanceOf(DebateCompleteError);
+});
+
+test('API Debaters are not generated', async () => {
+  const apiSetup = { ...setup, debaters: { ...setup.debaters, for: { kind: 'api' } as const } };
+  await expect(generateTurn(apiSetup, [], new FakeModelClient())).rejects.toBeInstanceOf(ApiTurnError);
+});
+
+test("isApiSlot tells an API Debater's slots", () => {
+  const apiSetup = { ...setup, debaters: { ...setup.debaters, against: { kind: 'api' } as const } };
+  expect(isApiSlot(apiSetup, { phaseIndex: 0, side: 'against' })).toBe(true);
+  expect(isApiSlot(apiSetup, { phaseIndex: 0, side: 'for' })).toBe(false);
 });
 
 test('human Debaters are not generated', async () => {
