@@ -131,9 +131,20 @@ export async function relayDraft(
 
 /**
  * Screens a stored API Turn, as a Motion is screened: a Flag Unlists the Debate for a Moderator to review; it never
- * removes anything. A failed screen counts as unscreened, which Flags.
+ * removes anything. It fails closed: a failed screen, or no screener to ask, Flags.
  */
-export async function screenApiTurn(deps: { db: D1Database; client: ModelClient; screener: ModelId }, debateId: string, text: string): Promise<void> {
-  const result = await screenMotion(text, deps.screener, deps.client, { what: 'turn' });
-  if (result.flagged) await flagDebate(deps.db, debateId);
+export async function screenApiTurn(
+  screening: () => Promise<{ client: ModelClient; screener: ModelId }>,
+  db: D1Database,
+  debateId: string,
+  text: string,
+): Promise<void> {
+  let flagged = true;
+  try {
+    const { client, screener } = await screening();
+    flagged = (await screenMotion(text, screener, client, { what: 'turn' })).flagged;
+  } catch (error) {
+    console.error(`Could not screen an API Turn of Debate ${debateId}`, error);
+  }
+  if (flagged) await flagDebate(db, debateId);
 }

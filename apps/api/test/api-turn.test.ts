@@ -163,13 +163,26 @@ test('a draft is relayed cut to the word limit', async () => {
 test('a flagged API Turn Unlists the Debate', async () => {
   const d = await apiDebate();
   const client = new FakeModelClient(() => 'unsafe\nS10');
-  await screenApiTurn({ db: env.DB, client, screener: 'fake-guard/one' }, d.id, 'Something hateful');
+  await screenApiTurn(async () => ({ client, screener: 'fake-guard/one' }), env.DB, d.id, 'Something hateful');
+  expect(await getDebate(env.DB, d.id)).toMatchObject({ flagged: true, visibility: 'unlisted' });
+});
+
+test('an API Turn that cannot be screened at all Flags the Debate (fails closed)', async () => {
+  const d = await apiDebate();
+  await screenApiTurn(
+    async () => {
+      throw new Error('catalog unavailable');
+    },
+    env.DB,
+    d.id,
+    'Anything',
+  );
   expect(await getDebate(env.DB, d.id)).toMatchObject({ flagged: true, visibility: 'unlisted' });
 });
 
 test('a safe API Turn changes nothing', async () => {
   const d = await apiDebate();
-  await screenApiTurn({ db: env.DB, client: new FakeModelClient(() => 'safe'), screener: 'fake-guard/one' }, d.id, 'A fine speech');
+  await screenApiTurn(async () => ({ client: new FakeModelClient(() => 'safe'), screener: 'fake-guard/one' }), env.DB, d.id, 'A fine speech');
   expect(await getDebate(env.DB, d.id)).toMatchObject({ flagged: false, visibility: 'listed' });
 });
 

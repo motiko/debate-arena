@@ -299,18 +299,19 @@ export const app = new Hono<{ Bindings: Env }>()
       c.req.raw.body,
     );
     if (result.status !== 201) return c.json({ error: result.error }, result.status);
-    // Screened after the answer, charged to the Debate's Budget at its frozen prices; best-effort, as Motions are.
+    // Screened after the answer, charged to the Debate's Budget at its frozen prices; a screen that fails Flags.
     c.executionCtx.waitUntil(
-      (async () => {
-        try {
+      screenApiTurn(
+        async () => {
           const { client, catalog } = await loadModels(c.env);
           const frozen = Object.fromEntries(Object.entries(debate.models ?? {}).map(([id, m]) => [id, m.price]));
           const metered = meteredClient(client, { ...priceTable(catalog), ...frozen }, cost => addCost(c.env.DB, debate.id, cost));
-          await screenApiTurn({ db: c.env.DB, client: metered, screener: screenerFor(catalog) }, debate.id, result.turn.text);
-        } catch (error) {
-          console.error(`Could not screen API Turn ${slot} of Debate ${debate.id}`, error);
-        }
-      })(),
+          return { client: metered, screener: screenerFor(catalog) };
+        },
+        c.env.DB,
+        debate.id,
+        result.turn.text,
+      ),
     );
     return c.json({ slotIndex: result.slotIndex, turn: result.turn }, 201);
   })
