@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "turbo run dev",
+    "debate": "node packages/cli/src/main.ts",
     "lint": "oxlint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
