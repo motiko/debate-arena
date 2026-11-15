@@ -1,20 +1,11 @@
 // An API Debater's Turns arrive through the API: `POST /debates/:id/turns/:slot` stores one (its body read as it
 // arrives, shown to Viewers as drafts), and `PUT …/draft` shows the text so far, for clients whose uploads the edge
 // buffers (Cloudflare hands a Worker the body only once it is complete).
-import {
-  nextSlot,
-  parseCustomIdentity,
-  submittedTurn,
-  truncateToWords,
-  type CustomIdentity,
-  type ModelClient,
-  type ModelId,
-  type Turn,
-} from '@debate-arena/engine';
-import { appendTurn, awaitingOf, setCustomIdentity, type DebateRecord } from '../db/debates';
+import { nextSlot, screenMotion, submittedTurn, truncateToWords, type ModelClient, type ModelId, type Turn } from '@debate-arena/engine';
+import { appendTurn, awaitingOf, type DebateRecord } from '../db/debates';
+import { flagDebate } from '../db/moderation';
 import { createDraftSender } from '../live/drafts';
 import type { DebateEvent } from '../live/events';
-import { screenSubmitted } from './screen-submitted';
 import type { StepJob } from './start';
 
 export const MAX_API_TURN_BYTES = 65_536;
@@ -30,18 +21,10 @@ export interface ApiTurnDeps {
 }
 
 export type ApiTurnResult =
-  /** `identity`: the nickname and model this Turn gave its Custom Debater, set now (to be screened). */
-  | { status: 201; slotIndex: number; turn: Turn; identitySet: boolean; identity?: CustomIdentity }
+  | { status: 201; slotIndex: number; turn: Turn }
   | { status: 400 | 409 | 413; error: string };
 
-/** A nickname and model as a request gives them: unchecked. */
-export interface GivenIdentity {
-  name?: unknown;
-  model?: unknown;
-}
-
 const notWaiting = (slot: number) => ({ status: 409 as const, error: `This Debate is not waiting for Turn ${slot}` });
-const late = { status: 409 as const, error: "A Custom Debater's name and model can be set only at start or with its first Turn" };
 const tooLarge = { status: 413 as const, error: `A Turn may be at most ${MAX_API_TURN_BYTES} bytes` };
 
 /**
@@ -79,25 +62,6 @@ export async function readTurnBody(body: ReadableStream<Uint8Array>, maxBytes: n
 }
 
 /**
- * What a Turn's identity does: nothing (none given, or the one already set given again), set it (the Side's first
- * Turn, nothing set at start), or why it is refused.
- */
-function identityFor(debate: DebateRecord, given: GivenIdentity): { set: CustomIdentity | null } | { status: 400 | 409; error: string } {
-  const identity = parseCustomIdentity(given);
-  if (typeof identity === 'string') return { status: 400, error: identity };
-  if (!identity.name && !identity.model) return { set: null };
-  const side = nextSlot(debate.setup.format, debate.turns)!.side;
-  const seat = debate.setup.debaters[side];
-  if (seat.kind !== 'api') return late;
-  if (seat.name || seat.model) {
-    const same =
-      (identity.name === undefined || identity.name === seat.name) && (identity.model === undefined || identity.model === seat.model);
-    return same ? { set: null } : late;
-  }
-  return debate.turns.some(turn => turn.side === side) ? late : { set: identity };
-}
-
-/**
  * Stores the API Debater's Turn for this slot from the body, and moves the Debate on. While the body arrives,
  * Viewers see it as drafts (cut to the word limit); a Turn that is refused or cut off clears its draft. When two
  * submissions race, the first to finish is stored and the other gets 409.
@@ -107,12 +71,8 @@ export async function submitApiTurn(
   debate: DebateRecord,
   slot: number,
   body: ReadableStream<Uint8Array> | null,
-  given: GivenIdentity = {},
 ): Promise<ApiTurnResult> {
   if (!waitsFor(debate, slot)) return notWaiting(slot);
-  // Decided before the body is read: a refused identity stores no Turn.
-  const identity = identityFor(debate, given);
-  if ('error' in identity) return identity;
   const maxWords = maxWordsOf(debate);
   const drafts = createDraftSender(text => deps.notify(debate.id, { type: 'draft', slotIndex: slot, text }));
   let drafted = false;
@@ -148,13 +108,9 @@ export async function submitApiTurn(
     await clearDraft();
     return notWaiting(slot);
   }
-  // Viewers learn the name before the Turn it comes with.
-  const named = identity.set;
-  const identitySet = named !== null && (await setCustomIdentity(deps.db, debate.id, turn.side, named));
-  if (identitySet) await deps.notify(debate.id, { type: 'debater', side: turn.side, debater: { kind: 'api', ...named } });
   await deps.notify(debate.id, { type: 'turn', slotIndex: slot, turn });
   await deps.enqueue({ debateId: debate.id });
-  return { status: 201, slotIndex: slot, turn, identitySet, ...(identitySet && named ? { identity: named } : {}) };
+  return { status: 201, slotIndex: slot, turn };
 }
 
 /** Shows Viewers the API Debater's Turn so far (the whole text so far, cut to the word limit). */
@@ -175,10 +131,22 @@ export async function relayDraft(
   return { status: 204 };
 }
 
-/** Screens a stored Custom Debater's Turn: see screenSubmitted (fails closed, a Flag Unlists). */
-export const screenApiTurn = (
+/**
+ * Screens a stored API Turn, as a Motion is screened: a Flag Unlists the Debate for a Moderator to review; it never
+ * removes anything. It fails closed: a failed screen, or no screener to ask, Flags.
+ */
+export async function screenApiTurn(
   screening: () => Promise<{ client: ModelClient; screener: ModelId }>,
   db: D1Database,
   debateId: string,
   text: string,
-): Promise<void> => screenSubmitted(screening, db, debateId, text, 'turn');
+): Promise<void> {
+  let flagged = true;
+  try {
+    const { client, screener } = await screening();
+    flagged = (await screenMotion(text, screener, client, { what: 'turn' })).flagged;
+  } catch (error) {
+    console.error(`Could not screen an API Turn of Debate ${debateId}`, error);
+  }
+  if (flagged) await flagDebate(db, debateId);
+}

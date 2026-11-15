@@ -18,9 +18,6 @@ function customName(debater: { name?: string | undefined; model?: string | undef
 
 const debaterName = (debater: Debater) => (debater.kind === 'ai' ? debater.model : debater.kind === 'api' ? customName(debater) : 'a Member');
 
-/** "For is now Atlas (Custom)": a Custom Debater named itself with its first Turn. */
-export const renderNamed = (side: Side, debater: Debater) => `${SIDE_LABEL[side]} is now ${debaterName(debater)}\n`;
-
 /** "Waiting for For's Turn via the API until 12:10 UTC". */
 export function renderAwaiting(side: Side, deadline: string): string {
   return `Waiting for ${SIDE_LABEL[side]}'s Turn via the API until ${deadline.slice(11, 16)} UTC\n`;

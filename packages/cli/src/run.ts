@@ -34,7 +34,6 @@ Commands:
       [--dry-run]                                  Only show what it would cost in Quota points
   speak <id> [--slot <n>]                          Send the awaited API Turn from stdin, shown live
                                                    as it is read (e.g. my-agent | debate speak <id>)
-      [--name <name>] [--model <model>]            Name the Custom Debater with its first Turn
   show <id> [--follow] [--json]                    Show a Debate (and follow it while it runs)
   models [--search <words>] [--json]               List the models you can choose
   whoami [--json]                                  Show who your token signs you in as
@@ -77,8 +76,6 @@ const OPTIONS = {
   'for-model': { type: 'string' },
   'against-name': { type: 'string' },
   'against-model': { type: 'string' },
-  name: { type: 'string' },
-  model: { type: 'string' },
   search: { type: 'string' },
   json: { type: 'boolean' },
   help: { type: 'boolean' },
@@ -217,35 +214,6 @@ async function models(ctx: Context, values: Values): Promise<number> {
   return 0;
 }
 
-// The platform's Custom Debater rules, mirrored so `speak` refuses a name before reading the speech (the engine's
-// parseCustomIdentity is the authority; the API checks again).
-const MAX_CUSTOM_NAME_LENGTH = 40;
-const MAX_CUSTOM_MODEL_LENGTH = 60;
-const HIDDEN = /[\p{Cc}\p{Cf}]/u;
-const LATE_IDENTITY = "A Custom Debater's name and model can be set only at start or with its first Turn";
-
-type Identity = { name?: string | undefined; model?: string | undefined };
-
-function identityProblem({ name, model }: Identity): string | null {
-  if (name !== undefined && (name.length > MAX_CUSTOM_NAME_LENGTH || HIDDEN.test(name))) {
-    return `Custom Debater name must be 1–${MAX_CUSTOM_NAME_LENGTH} characters, without control characters`;
-  }
-  if (model !== undefined && (model.length > MAX_CUSTOM_MODEL_LENGTH || HIDDEN.test(model))) {
-    return `Custom Debater model must be 1–${MAX_CUSTOM_MODEL_LENGTH} characters, without control characters`;
-  }
-  return null;
-}
-
-/** Whether this Turn may give this identity: the one already set again, or a first one with the Side's first Turn. */
-function mayName(view: PublicDebate, side: 'for' | 'against', identity: Identity): boolean {
-  const seat = view.debaters[side];
-  if (seat.kind !== 'api') return false;
-  if (seat.name || seat.model) {
-    return (identity.name === undefined || identity.name === seat.name) && (identity.model === undefined || identity.model === seat.model);
-  }
-  return !view.turns.some(turn => turn.side === side);
-}
-
 /** How often `speak` shows the Turn so far, at most. */
 export const DRAFT_EVERY_MS = 300;
 
@@ -258,19 +226,13 @@ async function speak(ctx: Context, positionals: string[], values: Values): Promi
   const [id] = positionals;
   if (!id || positionals.length > 1 || (values.slot !== undefined && !/^\d+$/.test(values.slot))) return usageError(ctx);
   const token = requireToken(ctx);
-  const identity = { name: values.name?.trim() || undefined, model: values.model?.trim() || undefined };
-  const naming = identity.name !== undefined || identity.model !== undefined;
-  // A refused name would come back only after the whole speech was read and sent: check what can be checked first.
-  const invalid = naming ? identityProblem(identity) : null;
-  if (invalid) throw ctx.fail(`${invalid}\n`);
   let slot = values.slot === undefined ? null : Number(values.slot);
-  if (slot === null || naming) {
+  if (slot === null) {
     const response = await viewerClient(ctx).api.debates[':id'].$get({ param: { id } });
     if (!response.ok) throw await failure(ctx, response);
     const view = (await response.json()) as PublicDebate;
-    if (!view.awaiting || (slot !== null && view.awaiting.slotIndex !== slot)) throw ctx.fail('This Debate is not waiting for an API Turn\n');
+    if (!view.awaiting) throw ctx.fail('This Debate is not waiting for an API Turn\n');
     slot = view.awaiting.slotIndex;
-    if (naming && !mayName(view, view.awaiting.side, identity)) throw ctx.fail(`${LATE_IDENTITY}\n`);
   }
 
   let text = '';
@@ -294,7 +256,7 @@ async function speak(ctx: Context, positionals: string[], values: Values): Promi
   // No draft may land after the Turn.
   await inFlight;
 
-  const response = await submitTurn(ctx.base, token, id, slot, text, ctx.deps.fetch, identity);
+  const response = await submitTurn(ctx.base, token, id, slot, text, ctx.deps.fetch);
   if (response.status !== 201) throw await failure(ctx, response);
   const stored = (await response.json()) as { slotIndex: number; turn: { text: string } };
   const words = stored.turn.text.split(/\s+/).filter(Boolean).length;

@@ -255,6 +255,7 @@ export const en = {
   'moderation.category.S11': 'Suicide and self-harm',
   'moderation.category.S12': 'Sexual content',
   'moderation.category.unscreened': 'Could not be screened',
+  'moderation.category.name': 'Nickname or model: {category}',
   'header.moderation': 'Moderation',
 
   'batch.label': 'Slow Debate',

@@ -30,14 +30,6 @@ test('submitTurn posts the text with the token', async () => {
   expect(await seen[0]?.text()).toBe('My speech.');
 });
 
-test('submitTurn sends a Custom Debater identity as query parameters, in any script', async () => {
-  const { seen, fetcher } = recorder(201, { slotIndex: 2 });
-  await submitTurn('https://api.test', 'da_x', 'd1', 2, 'Hi.', fetcher, { name: 'Zoë' });
-  expect(seen[0]?.url).toBe('https://api.test/api/debates/d1/turns/2?name=Zo%C3%AB');
-  await submitTurn('https://api.test', 'da_x', 'd1', 2, 'Hi.', fetcher, {});
-  expect(seen[1]?.url).toBe('https://api.test/api/debates/d1/turns/2');
-});
-
 test('submitTurn drops trailing slashes from the base, quickly even for a base full of slashes', async () => {
   const { seen, fetcher } = recorder(201, { slotIndex: 0 });
   await submitTurn('https://api.test///', 'da_x', 'd1', 0, 'x', fetcher);

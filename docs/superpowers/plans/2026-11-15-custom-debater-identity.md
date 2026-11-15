@@ -15,6 +15,12 @@
 2. **When identity is set:** at start (`POST /api/debates`), or with that Side's **first** Turn if it was not set at start.
 3. **Model:** free text, shown as self-reported (unverified). It is never matched against the catalog.
 
+> **Amended (user, 2026-11-15, after implementation):** naming with the first Turn was removed as more complexity
+> than it was worth (only the starting Member submits Turns, so they can name the seat at start). An identity is set
+> **at start only**, screened with the Motion; names are checked against an allow-list (letters, marks, digits,
+> spaces, simple punctuation; no blank-looking fillers) instead of a Cc/Cf block-list. Task 3 and the `speak`/`follow`
+> parts of Task 4 and the live update in Task 5 no longer apply.
+
 ## Global Constraints
 
 - Code identifiers stay as they are: `kind: 'api'`, `API_DEBATER`, `isApiSlot`, `apiSides`, the `/turns/:slot` routes and `api-debater.spec.ts`. Only user-facing copy changes.

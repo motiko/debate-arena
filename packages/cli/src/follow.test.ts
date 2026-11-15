@@ -29,18 +29,6 @@ function setup(fetchViews: ReturnType<typeof views>, isTTY = false) {
 const settle = () => new Promise(resolve => setTimeout(resolve, 5));
 const count = (text: string, part: string) => text.split(part).length - 1;
 
-test('a Custom Debater naming itself is announced, and later Turn headers use the name', async () => {
-  const custom = debate({ status: 'running', verdict: null, turns: [], debaters: { for: { kind: 'api' }, against: { kind: 'ai', model: 'b/two' } } });
-  const { output } = setup(views(custom));
-  FakeSocket.last.open();
-  await settle();
-  FakeSocket.last.emit({ type: 'debater', side: 'for', debater: { kind: 'api', name: 'Atlas' } });
-  FakeSocket.last.emit({ type: 'turn', slotIndex: 0, turn: turn(0) });
-  await settle();
-  expect(output.out).toContain('For is now Atlas (Custom)\n');
-  expect(output.out).toContain('── Opening · For · Atlas (Custom) ──');
-});
-
 test('a Turn written before the socket opens is printed once', async () => {
   const { output } = setup(views(running(1)));
   const socket = FakeSocket.last;

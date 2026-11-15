@@ -115,7 +115,7 @@ test('a bad Custom Debater name is refused', () => {
   expect(plan({ ...valid, debaters: { for: { kind: 'custom', name: 'x'.repeat(41) }, against: 'fake-b/one' } })).toEqual({
     ok: false,
     status: 400,
-    error: 'Custom Debater name must be 1–40 characters, without control characters',
+    error: 'Custom Debater name must be 1–40 characters: letters, digits, spaces and simple punctuation',
   });
 });
 

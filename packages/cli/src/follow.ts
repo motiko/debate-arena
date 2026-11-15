@@ -2,17 +2,7 @@
 // The socket opens first and its events wait until the Debate is loaded, so nothing written in between is lost;
 // after a reconnect the Debate is loaded again and only Turns not yet printed are printed.
 import { connectLive, createApiClient, liveUrl, type DebateEvent, type LiveOptions, type PublicDebate } from '@debate-arena/api-client';
-import {
-  renderAiAudience,
-  renderAwaiting,
-  renderDebate,
-  renderHeader,
-  renderNamed,
-  renderTurn,
-  renderVerdict,
-  renderVoteLink,
-  turnHeader,
-} from './render.ts';
+import { renderAiAudience, renderAwaiting, renderDebate, renderHeader, renderTurn, renderVerdict, renderVoteLink, turnHeader } from './render.ts';
 import type { CliDeps } from './run.ts';
 import { safeOutput } from './terminal.ts';
 
@@ -137,11 +127,6 @@ export function follow(debateId: string, deps: FollowDeps): Promise<number> {
           if (event.slotIndex < printed) return;
           if (event.slotIndex > printed) return load(false);
           return printTurn(event.turn);
-        case 'debater':
-          // A Custom Debater named itself with its first Turn: later headers use the name.
-          debate = { ...debate, debaters: { ...debate.debaters, [event.side]: event.debater } };
-          out(`\n${renderNamed(event.side, event.debater)}`);
-          return;
         case 'verdict':
           if (!verdictPrinted) out(`\n${renderVerdict(event.verdict)}`);
           verdictPrinted = true;

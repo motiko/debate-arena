@@ -1,4 +1,4 @@
-import { identityText, isSelfJudging, type Stance } from '@debate-arena/engine';
+import { isSelfJudging, type Stance } from '@debate-arena/engine';
 import { Hono } from 'hono';
 import { exportMember } from './account/account';
 import { getAuth } from './auth/auth';
@@ -23,7 +23,6 @@ import { DAILY_QUOTA_POINTS, quotaRemaining } from './db/quota';
 import { hasUnlimitedQuota } from './auth/allowlists';
 import { addCost, awaitingOf, getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
 import { relayDraft, screenApiTurn, submitApiTurn } from './debates/api-turn';
-import { screenSubmitted } from './debates/screen-submitted';
 import { notifyViewers } from './debates/consumer';
 import { meteredClient } from './models/factory';
 import { castAfter, castBefore, getVote, listVotes, type AudienceVote } from './db/votes';
@@ -298,19 +297,22 @@ export const app = new Hono<{ Bindings: Env }>()
       debate,
       slot,
       c.req.raw.body,
-      // A Custom Debater may name itself with its first Turn: ?name=…&model=… (any script, URL-encoded).
-      { name: c.req.query('name'), model: c.req.query('model') },
     );
     if (result.status !== 201) return c.json({ error: result.error }, result.status);
     // Screened after the answer, charged to the Debate's Budget at its frozen prices; a screen that fails Flags.
-    const screening = async () => {
-      const { client, catalog } = await loadModels(c.env);
-      const frozen = Object.fromEntries(Object.entries(debate.models ?? {}).map(([id, m]) => [id, m.price]));
-      const metered = meteredClient(client, { ...priceTable(catalog), ...frozen }, cost => addCost(c.env.DB, debate.id, cost));
-      return { client: metered, screener: screenerFor(catalog) };
-    };
-    c.executionCtx.waitUntil(screenApiTurn(screening, c.env.DB, debate.id, result.turn.text));
-    if (result.identity) c.executionCtx.waitUntil(screenSubmitted(screening, c.env.DB, debate.id, identityText(result.identity), 'name'));
+    c.executionCtx.waitUntil(
+      screenApiTurn(
+        async () => {
+          const { client, catalog } = await loadModels(c.env);
+          const frozen = Object.fromEntries(Object.entries(debate.models ?? {}).map(([id, m]) => [id, m.price]));
+          const metered = meteredClient(client, { ...priceTable(catalog), ...frozen }, cost => addCost(c.env.DB, debate.id, cost));
+          return { client: metered, screener: screenerFor(catalog) };
+        },
+        c.env.DB,
+        debate.id,
+        result.turn.text,
+      ),
+    );
     return c.json({ slotIndex: result.slotIndex, turn: result.turn }, 201);
   })
   .put('/debates/:id/turns/:slot/draft', async c => {

@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest';
 import { identityText, parseCustomIdentity } from './custom-identity';
 
-const BAD_NAME = 'Custom Debater name must be 1–40 characters, without control characters';
-const BAD_MODEL = 'Custom Debater model must be 1–60 characters, without control characters';
+const BAD_NAME = 'Custom Debater name must be 1–40 characters: letters, digits, spaces and simple punctuation';
+const BAD_MODEL = 'Custom Debater model must be 1–60 characters: letters, digits, spaces and simple punctuation';
 
 test('a name and model are trimmed', () => {
   expect(parseCustomIdentity({ name: '  Atlas ', model: 'gpt-6' })).toEqual({ name: 'Atlas', model: 'gpt-6' });
@@ -19,14 +19,26 @@ test('a name over 40 or a model over 60 characters is refused', () => {
   expect(parseCustomIdentity({ model: 'x'.repeat(61) })).toBe(BAD_MODEL);
 });
 
-test('bidi overrides, zero-width and control characters are refused, so a name cannot disguise itself', () => {
-  expect(parseCustomIdentity({ name: 'Atlas‮gnp' })).toBe(BAD_NAME);
-  expect(parseCustomIdentity({ name: '​' })).toBe(BAD_NAME);
-  expect(parseCustomIdentity({ model: 'gpt\n6' })).toBe(BAD_MODEL);
+test('names and model ids people actually use are welcome, in any script', () => {
+  expect(parseCustomIdentity({ name: "O'Brien (bot) #2", model: 'qwen2.5:7b' })).toEqual({ name: "O'Brien (bot) #2", model: 'qwen2.5:7b' });
+  expect(parseCustomIdentity({ name: 'Zoë', model: 'anthropic/claude-x' })).toEqual({ name: 'Zoë', model: 'anthropic/claude-x' });
+  expect(parseCustomIdentity({ name: 'ドラゴン', model: 'llama-3.1-70b' })).toEqual({ name: 'ドラゴン', model: 'llama-3.1-70b' });
 });
 
-test('any script is welcome', () => {
-  expect(parseCustomIdentity({ name: 'Zoë', model: 'ドラゴン' })).toEqual({ name: 'Zoë', model: 'ドラゴン' });
+test.each([
+  ['a bidi override', 'Atlas‮gnp'],
+  ['a zero-width space', '​'],
+  ['a Hangul filler', 'ㅤ'],
+  ['a braille blank', '⠀'],
+  ['a line separator', 'At las'],
+  ['a newline', 'At\nlas'],
+  ['only punctuation', '---'],
+])('a name with %s is refused, so it cannot hide or disguise itself', (_, name) => {
+  expect(parseCustomIdentity({ name })).toBe(BAD_NAME);
+});
+
+test('a model with a control character is refused', () => {
+  expect(parseCustomIdentity({ model: 'gpt\n6' })).toBe(BAD_MODEL);
 });
 
 test('a name that is not a string is refused', () => {

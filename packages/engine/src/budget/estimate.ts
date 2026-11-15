@@ -87,9 +87,9 @@ export function worstCaseBudgetMicroUsd(setup: DebateSetup, aiVoters: ModelId[],
     if (debater.kind === 'api' && screener) total += cost(screener, base + length, SCREEN_OUTPUT_TOKENS);
     transcript += length;
   }
-  // Each Custom seat may give an identity, at start or with its first Turn, and it is screened once.
+  // A Custom Debater's nickname and model, given at start, are screened once with the Motion.
   for (const debater of Object.values(setup.debaters)) {
-    if (debater.kind === 'api' && screener) total += cost(screener, base + IDENTITY_MAX_BYTES, SCREEN_OUTPUT_TOKENS);
+    if (debater.kind === 'api' && (debater.name || debater.model) && screener) total += cost(screener, base + IDENTITY_MAX_BYTES, SCREEN_OUTPUT_TOKENS);
   }
   for (const judge of setup.panel) total += cost(judge, base + transcript, JUDGE_OUTPUT_TOKENS);
   for (const voter of aiVoters) {

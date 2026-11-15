@@ -9,9 +9,8 @@ import {
   getDebate,
   listCompletedDebates,
   saveVerdict,
-  setCustomIdentity,
 } from '../src/db/debates';
-import { newDebate, sampleSetup, turnAt } from './helpers';
+import { newDebate, turnAt } from './helpers';
 
 const verdict = { winner: 'for' as const, reasoning: 'Clearer case.', judges: ['fake-c/one'] };
 
@@ -98,15 +97,6 @@ test('addCost accumulates', async () => {
   await addCost(env.DB, d.id, 100);
   await addCost(env.DB, d.id, 250);
   expect((await getDebate(env.DB, d.id))?.costMicroUsd).toBe(350);
-});
-
-test('setCustomIdentity names an unnamed Custom seat once, and never an AI seat', async () => {
-  const d = newDebate({ setup: { ...sampleSetup, debaters: { ...sampleSetup.debaters, for: { kind: 'api' } } } });
-  await createDebate(env.DB, d);
-  expect(await setCustomIdentity(env.DB, d.id, 'against', { name: 'X' })).toBe(false);
-  expect(await setCustomIdentity(env.DB, d.id, 'for', { model: 'gpt-6' })).toBe(true);
-  expect(await setCustomIdentity(env.DB, d.id, 'for', { name: 'Late' })).toBe(false);
-  expect((await getDebate(env.DB, d.id))?.setup.debaters).toEqual({ ...sampleSetup.debaters, for: { kind: 'api', model: 'gpt-6' } });
 });
 
 test('getDebate returns null for unknown ids', async () => {
