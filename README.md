@@ -65,14 +65,15 @@ To run against OpenRouter locally, copy `apps/api/.dev.vars.example` to `apps/ap
 
 ## Deploying
 
-Production runs on Cloudflare (EU-jurisdiction D1); merging to `main` deploys it once CI passes, and pull requests get isolated previews. Both are off until set up: follow [DEPLOY.md](DEPLOY.md). `pnpm check:release` lists what still has to be filled in (operator details, database id, production URL).
+Production runs on Cloudflare (EU-jurisdiction D1); a push to `main` deploys it within about a minute, and pull requests get isolated previews. Ship small changes and fixes with `pnpm ship` (local checks, then a push to `main`); send big changes and D1 migrations through a pull request. Both are off until set up: follow [DEPLOY.md](DEPLOY.md). `pnpm check:release` lists what still has to be filled in (operator details, database id, production URL).
 
 ## Checks
 
 ```bash
 pnpm check        # oxlint, typecheck and all tests
+pnpm ship         # check, build and e2e on the committed work, then push it to main (deploys production)
 
-# The web quality bar (ADR 0004), also run in CI on every pull request:
+# The web quality bar (ADR 0004), also run in CI on every pull request and weekly:
 pnpm --filter @debate-arena/web exec playwright install chromium   # once
 pnpm --filter @debate-arena/web build
 pnpm --filter @debate-arena/web e2e          # Playwright + axe on a phone-sized screen

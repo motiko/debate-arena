@@ -1,8 +1,8 @@
 # Deploying Debate Arena
 
 Production runs on Cloudflare: the API Worker (`debate-arena-api-production`, with D1 in the EU jurisdiction, Queues
-and a Durable Object) and the web Worker (`debate-arena-web`), on `workers.dev` for now. Merging to `main` deploys
-production once CI has passed; every pull request can get its own isolated preview. Both are off until you switch
+and a Durable Object) and the web Worker (`debate-arena-web`), on `workers.dev` for now. A push to `main` deploys
+production (checked locally first by `pnpm ship`; CI runs alongside without holding it up); every pull request can get its own isolated preview. Both are off until you switch
 them on (steps 6 and 7).
 
 Everything below is done once, by hand. Commands run from the repository root unless a directory is given.
@@ -90,11 +90,15 @@ Optional:
 ## 6. Switch on production deploys
 
 Also restrict the environment: **Settings → Environments → production → Deployment branches and tags → Selected
-branches**, and add `main`. The workflow itself only deploys commits pushed to `main` of this repository that passed
-CI, and only the newest one (an older run that finishes late is skipped).
+branches**, and add `main`. The workflow itself only deploys commits pushed to `main` of this repository, and only
+the newest one (a queued deploy of an older commit is skipped).
 
-Set the repository variable `DEPLOY_PRODUCTION` to `true`. From then on, every merge to `main` that passes CI runs
-`.github/workflows/deploy.yml`: the release check, D1 migrations, the API, then the web. You can also run it by hand
+Set the repository variable `DEPLOY_PRODUCTION` to `true`. From then on, every push to `main` runs
+`.github/workflows/deploy.yml` at once: the release check, D1 migrations, the API, then the web. It does not wait for
+CI: push with `pnpm ship`, which runs lint, typecheck, unit tests and e2e locally and then pushes, and the pre-push hook
+(installed by `pnpm install`) runs the same checks for any other push to `main`. CI's fast checks run on every push as
+a safety net and report a failure; send big changes and D1 migrations through a pull request, where CI also runs
+Lighthouse before they reach `main`. You can also run it by hand
 (**Actions → Deploy production → Run workflow**). The very first deploy of a Worker can fail right after its upload
 with "This Worker does not exist on your account. [code: 10007]" (Wrangler asks before the API lists it); re-run the
 failed job. Previews retry this on their own.

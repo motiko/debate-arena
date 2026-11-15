@@ -1,9 +1,15 @@
 name: CI
 
+# Pushes to main were checked locally before the push (`pnpm ship`) and deploy without waiting for CI: here they get
+# only the fast checks, as a safety net that reports a failure. Pull requests (big changes) and a weekly run also get
+# the web quality bar, whose Lighthouse run is too slow to hold up every small change.
 on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
 
 jobs:
   check:
@@ -20,6 +26,7 @@ jobs:
 
   # The web quality bar (ADR 0004): Playwright + axe and Lighthouse on a mobile device over slow 4G.
   web:
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

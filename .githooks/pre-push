@@ -1,0 +1,4 @@
+#!/bin/sh
+# A push to main deploys production, so it must pass the local checks first (scripts/ship.mjs). Installed by
+# `pnpm install` (the root package's prepare script sets core.hooksPath).
+exec node "$(git rev-parse --show-toplevel)/scripts/ship.mjs" hook
