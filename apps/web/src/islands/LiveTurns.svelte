@@ -7,7 +7,7 @@
   import { onMount } from 'svelte';
   import PhaseFloor from './PhaseFloor.svelte';
   import { t } from '../i18n/t';
-  import { mergeTurns, nextSpeaker, type SlotTurn } from '../lib/debate';
+  import { applyDraft, mergeTurns, nextSpeaker, type Draft, type SlotTurn } from '../lib/debate';
   import { connectLive, liveUrl, type LiveStatus } from '../lib/live';
   import { refreshRegions, type RefreshOptions } from '../lib/refresh';
 
@@ -50,9 +50,13 @@
         : t(`live.${status}`),
   );
 
+  // The next speech as it is being written; gone once its Turn is on the floor.
+  let draft = $state<Draft | null>(null);
+
   function add(incoming: SlotTurn[]) {
     turns = mergeTurns(turns, [...waiting, ...incoming]);
     waiting = [...waiting, ...incoming].filter(s => s.slotIndex >= turns.length);
+    if (draft && draft.slotIndex < turns.length) draft = null;
   }
 
   async function catchUp(live: { close(): void }) {
@@ -72,6 +76,7 @@
   function blocked(live: { close(): void }) {
     turns = [];
     waiting = [];
+    draft = null;
     live.close();
     reload();
   }
@@ -90,7 +95,8 @@
       liveUrl(location, debateId),
       {
         onEvent(event: DebateEvent) {
-          if (event.type === 'turn') add([{ slotIndex: event.slotIndex, turn: event.turn }]);
+          if (event.type === 'draft') draft = applyDraft(draft, event, turns.length);
+          else if (event.type === 'turn') add([{ slotIndex: event.slotIndex, turn: event.turn }]);
           // The Verdict comes first, then the AI Audience; the Debate is complete (and votes open) after both.
           else if (event.type === 'complete') void finish('complete', live);
           else if (event.type === 'failed') void finish('failed', live);
@@ -108,7 +114,7 @@
 </script>
 
 <div role="log" aria-live="polite" aria-relevant="additions" aria-label={t('live.region')} class="stack">
-  <PhaseFloor {format} {turns} {speakers} {next} />
+  <PhaseFloor {format} {turns} {speakers} {next} {draft} />
 </div>
 
 <div class="live-status" class:closing={outcome === 'complete'} role="status">

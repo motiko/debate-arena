@@ -53,6 +53,20 @@ test('no "Read the full speech" for a short speech', () => {
   expect(container.querySelector('details.more')).toBeNull();
 });
 
+test('a draft shows all of its text, no disclosure, no cut note, and a caret', () => {
+  const { container } = render(TurnItem, { phase: 'Opening', speaker: 'Fake A', side: 'for', text: five, truncated: false, draft: true });
+  const article = container.querySelector('article')!;
+  expect(article).toHaveClass('speech-draft');
+  expect(container.querySelector('details')).toBeNull();
+  expect(container.querySelectorAll('article > p')).toHaveLength(5);
+  expect(screen.queryByText(/cut off/i)).toBeNull();
+  const caret = article.querySelector('.caret');
+  expect(caret).not.toBeNull();
+  expect(caret).toHaveAttribute('aria-hidden', 'true');
+  // The caret sits at the end of the last paragraph.
+  expect(container.querySelectorAll('article > p')[4]?.lastElementChild).toBe(caret);
+});
+
 test('notes a Turn cut off at the word limit outside the collapsed part', () => {
   const { container } = render(TurnItem, { phase: 'Closing', speaker: 'Fake B', side: 'against', text: five, truncated: true });
   const note = screen.getByText(/cut off at the word limit/i);

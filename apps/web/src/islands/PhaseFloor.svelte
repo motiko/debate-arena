@@ -5,16 +5,21 @@
   import type { Side, Turn, TurnSlot } from '@debate-arena/engine';
   import TurnItem from './TurnItem.svelte';
   import { t } from '../i18n/t';
-  import { sideLabel } from '../lib/debate';
+  import { sideLabel, type Draft } from '../lib/debate';
 
   interface Props {
     format: { phases: { name: string; order: Side[]; maxWords: number }[] };
     turns: Turn[];
     speakers: Record<Side, string>;
     next?: TurnSlot | null;
+    /** The next speech as it is being written (live only). */
+    draft?: Draft | null;
   }
 
-  let { format, turns, speakers, next = null }: Props = $props();
+  let { format, turns, speakers, next = null, draft = null }: Props = $props();
+
+  // Only the next slot is being written; any other draft is stale.
+  const writing = $derived(next && draft && draft.slotIndex === turns.length ? draft.text : null);
 
   const sections = $derived(
     format.phases
@@ -40,8 +45,15 @@
         </div>
       {/each}
       {#if section.next}
-        <p class="seat seat-{section.next} next">
-          <span class="live-dot" aria-hidden="true"></span>{t('floor.next', { side: sideLabel(section.next) })}
+        <!-- The speech as it is written is for the eye only: the live region announces each Turn once, finished,
+             and a screen reader hears who is speaking from the line below. -->
+        {#if writing !== null}
+          <div class="seat seat-{section.next}" aria-hidden="true">
+            <TurnItem phase={section.phase.name} speaker={speakers[section.next]} side={section.next} text={writing} truncated={false} draft />
+          </div>
+        {/if}
+        <p class="seat seat-{section.next} next" class:visually-hidden={writing !== null}>
+          <span class="live-dot" aria-hidden="true"></span>{t(writing !== null ? 'floor.speaking' : 'floor.next', { side: sideLabel(section.next) })}
         </p>
       {/if}
     </section>

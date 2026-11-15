@@ -103,6 +103,44 @@ test('says so when the Debate fails', async () => {
   expect(await screen.findByText('This Debate could not be completed.')).toBeInTheDocument();
 });
 
+test('shows a draft as it is written, then replaces it with the finished Turn', async () => {
+  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [turn(0)], fetcher: debateFetcher([turn(0)]), WebSocketImpl: impl });
+  FakeSocket.last.open();
+  FakeSocket.last.emit({ type: 'draft', slotIndex: 1, text: 'Madam' });
+  await vi.waitFor(() => expect(document.querySelector('.speech-draft')).toHaveTextContent('Madam'));
+  FakeSocket.last.emit({ type: 'draft', slotIndex: 1, text: 'Madam Chair' });
+  await vi.waitFor(() => expect(document.querySelector('.speech-draft')).toHaveTextContent('Madam Chair'));
+  expect(screen.getByText('Against is speaking')).toBeInTheDocument();
+  FakeSocket.last.emit({ type: 'turn', slotIndex: 1, turn: turn(1) });
+  await vi.waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(2));
+  expect(document.querySelector('.speech-draft')).toBeNull();
+});
+
+test('a draft for a Turn that catch-up already loaded is dropped', async () => {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => (release = resolve));
+  const fetcher = vi.fn(async () => {
+    await gate;
+    return Response.json({ status: 'running', turns: [turn(0), turn(1)] });
+  }) as unknown as typeof fetch;
+  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [turn(0)], fetcher, WebSocketImpl: impl });
+  FakeSocket.last.open();
+  FakeSocket.last.emit({ type: 'draft', slotIndex: 1, text: 'Madam Chair' });
+  await vi.waitFor(() => expect(document.querySelector('.speech-draft')).not.toBeNull());
+  release();
+  await vi.waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(2));
+  expect(document.querySelector('.speech-draft')).toBeNull();
+});
+
+test('a Block clears the draft with the Turns', async () => {
+  render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [turn(0)], fetcher: debateFetcher([turn(0)]), WebSocketImpl: impl, reload: vi.fn() });
+  FakeSocket.last.open();
+  FakeSocket.last.emit({ type: 'draft', slotIndex: 1, text: 'Madam Chair' });
+  await vi.waitFor(() => expect(document.querySelector('.speech-draft')).not.toBeNull());
+  FakeSocket.last.emit({ type: 'blocked' });
+  await vi.waitFor(() => expect(document.querySelector('.speech-draft')).toBeNull());
+});
+
 test('a Block removes the Turns and reloads to the Blocked page', async () => {
   const reload = vi.fn();
   render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [turn(0)], fetcher: debateFetcher([turn(0)]), WebSocketImpl: impl, reload });
