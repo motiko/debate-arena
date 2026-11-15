@@ -60,18 +60,18 @@ test('posts the Debate and goes to its page', async () => {
   expect(JSON.parse(String(calls[0]?.body))).toEqual({ motion: 'Cats beat dogs', debaters: { for: 'fake-a/one', against: 'fake-b/one' }, aiVoters: true });
 });
 
-test('the Debater pickers offer API first and Debater models; the Judge picker offers Judge models after the platform', async () => {
+test('the Debater pickers offer Custom first and Debater models; the Judge picker offers Judge models after the platform', async () => {
   render(StartDebateForm, { models, quotaRemaining: 24, fetcher: respond(201, {}).fetcher, navigate: vi.fn() });
   await fireEvent.keyDown(picker('Debater For'), { key: 'ArrowDown' });
   const debaterOptions = screen.getAllByRole('option').map(o => o.textContent);
-  expect(debaterOptions[0]).toContain('API');
+  expect(debaterOptions[0]).toContain('Custom');
   expect(debaterOptions.some(o => o?.includes('Fake Slow'))).toBe(true);
   await fireEvent.keyDown(picker('Debater For'), { key: 'Escape' });
   await fireEvent.keyDown(picker('Judge'), { key: 'ArrowDown' });
   const judgeOptions = screen.getAllByRole('option').map(o => o.textContent);
   expect(judgeOptions[0]).toContain('Let the platform choose');
   expect(judgeOptions.some(o => o?.includes('Fake Slow'))).toBe(false);
-  expect(judgeOptions.some(o => o?.includes('API'))).toBe(false);
+  expect(judgeOptions.some(o => o?.includes('Custom'))).toBe(false);
 });
 
 test('says how much room is left only near the Motion limit, once per step', async () => {
@@ -184,7 +184,7 @@ test('Slow Debate is offered only when both Debaters are batch-capable', async (
   expect(slowBox()).toBeNull();
   await choose('Debater For', 'Fake C');
   expect(slowBox()).not.toBeNull();
-  await choose('Debater Against', 'API');
+  await choose('Debater Against', 'Custom');
   expect(slowBox()).toBeNull();
 });
 
@@ -217,11 +217,11 @@ test('posts batch: true for a Slow Debate', async () => {
   expect(JSON.parse(String(calls[0]?.body))).toMatchObject({ batch: true, debaters: { for: 'fake-a/one', against: 'fake-b/one' } });
 });
 
-test('an API Debater is posted as "api" and the bench says how to send its Turns', async () => {
+test('a Custom Debater without a name is posted as "api" and the bench says how to send its Turns', async () => {
   const { fetcher, calls } = respond(201, { id: 'd8' });
   render(StartDebateForm, { models, quotaRemaining: 24, fetcher, navigate: vi.fn() });
-  await fill('Cats beat dogs', 'API', 'Fake B');
-  expect(picker('Debater For')).toHaveValue('API — submit this side’s Turns yourself');
+  await fill('Cats beat dogs', 'Custom', 'Fake B');
+  expect(picker('Debater For')).toHaveValue('Custom — submit this side’s Turns yourself');
   expect(picker('Debater For')).toHaveAccessibleDescription(/debate speak <id>/);
   await vi.waitFor(() => expect(startButton()).toBeEnabled());
   await fireEvent.click(startButton());
@@ -229,9 +229,31 @@ test('an API Debater is posted as "api" and the bench says how to send its Turns
   expect(JSON.parse(String(calls[0]?.body)).debaters).toEqual({ for: 'api', against: 'fake-b/one' });
 });
 
-test('API on both benches is not the same model twice', async () => {
+test('a Custom Debater may be given a nickname and a self-reported model', async () => {
+  const { fetcher, calls } = respond(201, { id: 'd8' });
+  render(StartDebateForm, { models, quotaRemaining: 24, fetcher, navigate: vi.fn() });
+  await fill('Cats beat dogs', 'Custom', 'Fake B');
+  const name = screen.getByLabelText('Nickname (optional)');
+  const model = screen.getByLabelText('Model (optional, self-reported)');
+  expect(name).toHaveAttribute('maxlength', '40');
+  expect(model).toHaveAttribute('maxlength', '60');
+  await fireEvent.input(name, { target: { value: 'Atlas' } });
+  await fireEvent.input(model, { target: { value: 'gpt-6' } });
+  await vi.waitFor(() => expect(startButton()).toBeEnabled());
+  await fireEvent.click(startButton());
+  await vi.waitFor(() => expect(calls).toHaveLength(1));
+  expect(JSON.parse(String(calls[0]?.body)).debaters).toEqual({ for: { kind: 'custom', name: 'Atlas', model: 'gpt-6' }, against: 'fake-b/one' });
+});
+
+test('a model bench has no nickname field', async () => {
   render(StartDebateForm, { models, quotaRemaining: 24, fetcher: respond(201, {}).fetcher, navigate: vi.fn() });
-  await fill('Cats beat dogs', 'API', 'API');
+  await fill('Cats beat dogs', 'Fake A', 'Fake B');
+  expect(screen.queryByLabelText('Nickname (optional)')).toBeNull();
+});
+
+test('Custom on both benches is not the same model twice', async () => {
+  render(StartDebateForm, { models, quotaRemaining: 24, fetcher: respond(201, {}).fetcher, navigate: vi.fn() });
+  await fill('Cats beat dogs', 'Custom', 'Custom');
   expect(picker('Debater Against')).not.toHaveAttribute('aria-invalid', 'true');
 });
 

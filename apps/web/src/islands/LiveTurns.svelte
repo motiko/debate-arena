@@ -7,7 +7,7 @@
   import { onMount } from 'svelte';
   import PhaseFloor from './PhaseFloor.svelte';
   import { t } from '../i18n/t';
-  import { applyDraft, mergeTurns, nextSpeaker, type Draft, type SlotTurn } from '../lib/debate';
+  import { applyDraft, debaterLabel, mergeTurns, nextSpeaker, type Draft, type SlotTurn } from '../lib/debate';
   import { connectLive, liveUrl, type LiveStatus } from '@debate-arena/api-client/live';
   import { refreshRegions, type RefreshOptions } from '../lib/refresh';
   import { Typist } from '../lib/typist';
@@ -50,6 +50,10 @@
 
   // svelte-ignore state_referenced_locally
   let turns = $state<Turn[]>(initialTurns);
+  // A Custom Debater may name itself with its first Turn; its Turns here show the name at once. The bench above is
+  // server-rendered and shows it on the next load.
+  // svelte-ignore state_referenced_locally
+  let names = $state<Record<Side, string>>({ ...speakers });
   let waiting: SlotTurn[] = [];
   let status = $state<LiveStatus>('connecting');
   let outcome = $state<'running' | 'complete' | 'failed'>('running');
@@ -173,6 +177,8 @@
           if (event.type === 'draft') onDraft(event);
           else if (event.type === 'awaiting') awaitingSlot = event.slotIndex;
           else if (event.type === 'turn') add([{ slotIndex: event.slotIndex, turn: event.turn }]);
+          // A Custom Debater's label needs no catalog.
+          else if (event.type === 'debater') names[event.side] = debaterLabel(event.debater, []);
           // The Verdict comes first, then the AI Audience; the Debate is complete (and votes open) after both.
           else if (event.type === 'complete') void finish('complete', live);
           else if (event.type === 'failed') void finish('failed', live);
@@ -196,7 +202,7 @@
   <PhaseFloor
     {format}
     turns={floorTurns}
-    {speakers}
+    speakers={names}
     {next}
     draft={written}
     {apiSides}

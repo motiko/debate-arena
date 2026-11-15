@@ -76,10 +76,10 @@ test('with hundreds of models it lists 50, then says how many more', async () =>
   expect(input).toHaveAttribute('placeholder', 'Search 342 models');
 });
 
-test('the API choice comes first when allowed', async () => {
+test('the Custom choice comes first when allowed', async () => {
   const { input, onchange } = setup({ allowApi: true });
   await fireEvent.keyDown(input, { key: 'ArrowDown' });
-  expect(screen.getAllByRole('option')[0]).toHaveTextContent('API — submit this side’s Turns yourself');
+  expect(screen.getAllByRole('option')[0]).toHaveTextContent('Custom — submit this side’s Turns yourself');
   await fireEvent.keyDown(input, { key: 'ArrowDown' });
   await fireEvent.keyDown(input, { key: 'Enter' });
   expect(onchange).toHaveBeenCalledWith('api');

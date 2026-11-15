@@ -3,6 +3,7 @@ import {
   applyDraft,
   closeEmphasis,
   debaterLabel,
+  debaterNote,
   dispatchState,
   feedOutcome,
   groupByPhase,
@@ -223,6 +224,16 @@ describe('chamber helpers', () => {
   test('debaterLabel uses the model label', () => {
     expect(debaterLabel(debaters.for, models)).toBe('Fake A');
   });
+});
+
+test('a Custom Debater is labelled by its nickname, and its model shown only as self-reported', () => {
+  expect(debaterLabel({ kind: 'api' }, [])).toBe('Custom Debater');
+  expect(debaterNote({ kind: 'api' })).toBeNull();
+  expect(debaterLabel({ kind: 'api', name: 'Atlas', model: 'gpt-6' }, [])).toBe('Atlas (Custom)');
+  expect(debaterNote({ kind: 'api', name: 'Atlas', model: 'gpt-6' })).toBe('self-reported model: gpt-6');
+  // A self-reported model is never matched against the catalog, even when it names a real model.
+  expect(debaterLabel({ kind: 'api', model: 'fake-a/one' }, [{ id: 'fake-a/one', label: 'Fake A' }])).toBe('Custom Debater');
+  expect(debaterNote({ kind: 'ai', model: 'fake-a/one' })).toBeNull();
 });
 
 test('applyDraft keeps a draft only for the next slot, and clears on empty text', () => {

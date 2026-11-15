@@ -21,7 +21,7 @@ function debateFetcher(turns: ReturnType<typeof turn>[], status = 'running') {
   return vi.fn(async () => Response.json({ status, turns })) as unknown as typeof fetch;
 }
 
-const apiSpeakers = { for: 'API Debater', against: 'Fake B' };
+const apiSpeakers = { for: 'Custom Debater', against: 'Fake B' };
 
 test('while the Debate waits for an API Turn, the seat says so; a draft turns it into speaking', async () => {
   render(LiveTurns, { debateId: 'd1', format, speakers: apiSpeakers, apiSides: ['for'], initialTurns: [], fetcher: debateFetcher([]), WebSocketImpl: impl, smooth: false });
@@ -45,6 +45,14 @@ test('a stale awaiting event for a slot already written is ignored', async () =>
   await new Promise(r => setTimeout(r, 0));
   expect(screen.queryByText(/preparing a Turn via the API/)).toBeNull();
   expect(screen.getByText('Against speaks next')).toBeInTheDocument();
+});
+
+test('a Custom Debater naming itself mid-Debate is shown by its name on its Turns', async () => {
+  render(LiveTurns, { debateId: 'd1', format, speakers: apiSpeakers, apiSides: ['for'], initialTurns: [], fetcher: debateFetcher([]), WebSocketImpl: impl, smooth: false });
+  FakeSocket.last.open();
+  FakeSocket.last.emit({ type: 'debater', side: 'for', debater: { kind: 'api', name: 'Atlas' } });
+  FakeSocket.last.emit({ type: 'turn', slotIndex: 0, turn: turn(0) });
+  await vi.waitFor(() => expect(screen.getAllByRole('article')[0]).toHaveTextContent('Atlas (Custom)'));
 });
 
 test("the API side's Turns are labelled as submitted via API", () => {
