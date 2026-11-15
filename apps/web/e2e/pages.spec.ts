@@ -17,7 +17,22 @@ test('the order paper names the benches and the outcome', async ({ page, request
   await expect(entry).toContainText('Fake A for, Fake B against');
   // Just finished: Audience voting is open for a week, so the outcome waits (spec: the hybrid rule).
   await expect(entry).toContainText('Voting open');
-  await expect(entry).not.toContainText(/Carried|Defeated/);
+  await expect(entry).not.toContainText(/carried|defeated/i);
+});
+
+test('a first visit sees how a Debate works, in three steps, on the first page only', async ({ page }) => {
+  await page.goto('/');
+  const steps = page.getByRole('region', { name: 'How it works' }).getByRole('listitem');
+  await expect(steps).toHaveCount(3);
+  await expect(steps.first()).toContainText('Motion');
+  await page.goto(`/?before=${encodeURIComponent(new Date().toISOString())}`);
+  await expect(page.getByRole('region', { name: 'How it works' })).toHaveCount(0);
+});
+
+test('the legal links are full-size touch targets', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  for (const link of await page.locator('.legal-nav a').all()) expect((await link.boundingBox())?.height).toBeGreaterThanOrEqual(44);
 });
 
 test('debate page shows Turns, Verdict and AI labels', async ({ page, request }) => {

@@ -2,7 +2,9 @@ import { render, screen } from '@testing-library/svelte';
 import { expect, test } from 'vitest';
 import TurnItem from '../src/islands/TurnItem.svelte';
 
-const five = 'One\n\nTwo\n\nThree\n\nFour\n\nFive';
+// A greeting, a one-line promise, then three paragraphs of argument (40 words each).
+const argument = Array.from({ length: 40 }, () => 'word').join(' ');
+const five = ['Madam Chair, judges.', 'Let me set out why.', argument, argument, argument].join('\n\n');
 
 test('renders Motion and Turn text literally', () => {
   const { container } = render(TurnItem, {
@@ -25,12 +27,20 @@ test('names the speech by phase, speaker and Side', () => {
   expect(screen.getByRole('heading', { level: 3, name: 'Opening: Fake A, For' })).toBeInTheDocument();
 });
 
-test('shows two paragraphs and keeps the rest behind "Read the full speech"', () => {
+test('shows the speech up to its first argument and keeps the rest behind "Read the full speech"', () => {
   const { container } = render(TurnItem, { phase: 'Opening', speaker: 'Fake A', side: 'for', text: five, truncated: false });
-  expect(container.querySelectorAll('article > p')).toHaveLength(2);
+  // Greeting, promise and two paragraphs of argument: about 60 words in view.
+  expect(container.querySelectorAll('article > p')).toHaveLength(4);
   const more = container.querySelector('details.more');
   expect(more?.querySelector('summary .when-closed')?.textContent).toBe('Read the full speech');
-  expect(more?.querySelectorAll('p')).toHaveLength(3);
+  expect(more?.querySelectorAll('p')).toHaveLength(1);
+});
+
+test('renders *emphasis* and **strong** text, never the asterisks', () => {
+  const { container } = render(TurnItem, { phase: 'Rebuttal', speaker: 'Fake A', side: 'for', text: 'Nuclear is the *only* route, **firmly**.', truncated: false });
+  expect(container.querySelector('article em')?.textContent).toBe('only');
+  expect(container.querySelector('article strong')?.textContent).toBe('firmly');
+  expect(container.querySelector('article > p')?.textContent).toBe('Nuclear is the only route, firmly.');
 });
 
 test('the summary stays in place once open, offering to show less', () => {

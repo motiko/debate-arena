@@ -6,6 +6,17 @@ test('counts words, ignoring punctuation', () => {
   expect(countWords('   ')).toBe(0);
 });
 
+test('counts a hyphenated compound as one word, as the Debaters count it', () => {
+  expect(countWords('Low-carbon power reaches net-zero by 2050.')).toBe(6);
+  expect(countWords('A well-known, long-term, low-cost plan')).toBe(5);
+  // A dash between spaced words is punctuation, not a joint.
+  expect(countWords('Nuclear - and only nuclear')).toBe(4);
+});
+
+test('cuts a hyphenated compound whole, never in the middle', () => {
+  expect(truncateToWords('We need low-carbon power now', 3)).toEqual({ text: 'We need low-carbon', truncated: true });
+});
+
 test('counts words in languages without spaces', () => {
   expect(countWords('我喜欢猫')).toBeGreaterThan(1);
 });

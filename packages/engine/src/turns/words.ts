@@ -1,8 +1,21 @@
 // Word-aware counting, so languages written without spaces (e.g. Chinese) are counted correctly.
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'word' });
 
-function wordSegments(text: string) {
-  return [...segmenter.segment(text)].filter(s => s.isWordLike);
+/** A hyphen joining two words with no space: "low-carbon" is one word to a reader, and to the Debaters. */
+const JOINT = /^[-‐‑]$/u;
+
+/** The words of a text, each as its start index and its text. A hyphenated compound is one word. */
+function wordSegments(text: string): { index: number; segment: string }[] {
+  const segments = [...segmenter.segment(text)];
+  const words: { index: number; segment: string }[] = [];
+  segments.forEach((s, i) => {
+    if (!s.isWordLike) return;
+    const joined = i >= 2 && JOINT.test(segments[i - 1]!.segment) && segments[i - 2]!.isWordLike && words.length > 0;
+    if (!joined) return void words.push({ index: s.index, segment: s.segment });
+    const previous = words.at(-1)!;
+    previous.segment = text.slice(previous.index, s.index + s.segment.length);
+  });
+  return words;
 }
 
 export function countWords(text: string): number {

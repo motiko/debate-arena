@@ -1,9 +1,10 @@
 <script lang="ts">
   // One speech. Rendered on the server by Astro pages (no JavaScript) and inside the live island, so both
-  // show the same markup and labels. Text is plain: Svelte escapes it; never {@html}.
+  // show the same markup and labels. Text is plain: Svelte escapes it; never {@html}. Only the *em* and
+  // **strong** models write are turned into elements, run by run.
   import type { Side } from '@debate-arena/engine';
   import { t } from '../i18n/t';
-  import { paragraphs, sideLabel } from '../lib/debate';
+  import { inlineEmphasis, paragraphs, previewLength, sideLabel } from '../lib/debate';
 
   interface Props {
     phase: string;
@@ -15,12 +16,21 @@
 
   let { phase, speaker, side, text, truncated }: Props = $props();
 
-  // The first two paragraphs show; the rest wait behind a disclosure that works without JavaScript.
-  // A speech cut off at the word limit ends in an ellipsis, so the cut shows in the text itself.
+  // The opening paragraphs show, up to about PREVIEW_WORDS so a greeting is not all there is; the rest wait
+  // behind a disclosure that works without JavaScript. A speech cut off at the word limit ends in an ellipsis,
+  // so the cut shows in the text itself.
   const all = $derived(truncated ? paragraphs(text).map((p, i, list) => (i === list.length - 1 ? `${p}…` : p)) : paragraphs(text));
-  const shown = $derived(all.slice(0, 2));
-  const rest = $derived(all.slice(2));
+  const shown = $derived(all.slice(0, previewLength(all)));
+  const rest = $derived(all.slice(previewLength(all)));
 </script>
+
+{#snippet paragraph(text: string)}
+  <p>
+    {#each inlineEmphasis(text) as run, i (i)}{#if run.style === 'strong'}<strong>{run.text}</strong>{:else if run.style === 'em'}<em
+          >{run.text}</em
+        >{:else}{run.text}{/if}{/each}
+  </p>
+{/snippet}
 
 <article class="speech speech-{side}">
   <header class="speech-head">
@@ -28,14 +38,14 @@
     <span class="ai">{t('label.ai')}</span>
     <span class="rule" aria-hidden="true"></span>
   </header>
-  {#each shown as paragraph, i (i)}
-    <p>{paragraph}</p>
+  {#each shown as text, i (i)}
+    {@render paragraph(text)}
   {/each}
   {#if rest.length > 0}
     <details class="more">
       <summary><span class="when-closed">{t('floor.more')}</span><span class="when-open">{t('floor.less')}</span></summary>
-      {#each rest as paragraph, i (i)}
-        <p>{paragraph}</p>
+      {#each rest as text, i (i)}
+        {@render paragraph(text)}
       {/each}
     </details>
   {/if}

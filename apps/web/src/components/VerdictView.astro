@@ -3,16 +3,18 @@ import type { PublicDebate } from '@debate-arena/api-client';
 import AiLabel from './AiLabel.astro';
 import SelfJudgingBadge from './SelfJudgingBadge.astro';
 import { t } from '../i18n/t';
-import { debaterLabel, modelLabel, paragraphs, sideLabel, type ModelInfo } from '../lib/debate';
+import { debaterLabel, modelLabel, otherLanguage, paragraphs, sideLabel, type ModelInfo } from '../lib/debate';
 
 interface Props {
   verdict: NonNullable<PublicDebate['verdict']>;
   debaters: PublicDebate['debaters'];
+  motion: string;
   selfJudging: boolean;
   models: ModelInfo[];
 }
 
-const { verdict, debaters, selfJudging, models } = Astro.props;
+const { verdict, debaters, motion, selfJudging, models } = Astro.props;
+const lang = otherLanguage(verdict.reasoning, motion);
 const winner = t('verdict.side', { side: sideLabel(verdict.winner), model: debaterLabel(debaters[verdict.winner], models) });
 ---
 
@@ -22,7 +24,9 @@ const winner = t('verdict.side', { side: sideLabel(verdict.winner), model: debat
     {/* data-focus: where focus lands when the Verdict is brought in after the after-vote (lib/refresh). */}
     <h2 id="verdict-title" data-focus tabindex="-1">{t('verdict.title')} <AiLabel /> {selfJudging && <SelfJudgingBadge />}</h2>
     <p class={`verdict-winner side-${verdict.winner}`}>{winner}</p>
-    <div class="verdict-reasoning">
+    {/* A Judge that kept answering in another language: say so, and mark the text so it is read in that language. */}
+    {lang && <p class="note language-note">{t('verdict.otherLanguage')}</p>}
+    <div class="verdict-reasoning" lang={lang}>
       {paragraphs(verdict.reasoning).map(p => <p>{p}</p>)}
     </div>
     <p class="muted">{t('verdict.judges', { judges: verdict.judges.map(j => modelLabel(j, models)).join(', ') })}</p>
@@ -77,6 +81,12 @@ const winner = t('verdict.side', { side: sideLabel(verdict.winner), model: debat
     font-family: var(--font-serif);
     font-size: 1.125rem;
     line-height: 1.7;
+    text-align: left;
+  }
+  .language-note {
+    margin: 1rem auto 0;
+    max-width: 36rem;
+    font-size: 0.95rem;
     text-align: left;
   }
   .verdict-reasoning p + p {

@@ -4,6 +4,7 @@ export type * from './domain';
 export * from './errors';
 export { CLASSIC_FORMAT } from './formats/classic';
 export { countWords, truncateToWords } from './turns/words';
+export { dominantScript, type Script } from './turns/script';
 export type { ModelClient, ModelMessage, ModelRequest, ModelResponse } from './models/client';
 export { FakeModelClient, type FakeReply } from './models/fake';
 export {
