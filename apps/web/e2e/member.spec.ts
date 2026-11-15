@@ -49,7 +49,7 @@ test('before-vote, then after-vote once complete', async ({ page, request }) => 
 test('the starter of a live Debate votes before, follows it, and is asked again in place at the end', async ({ page }) => {
   const member = uniqueMember('live');
   await page.setExtraHTTPHeaders({ 'x-dev-member': member });
-  const { id } = await startDebate(page.request, { slow: true, member });
+  const { id } = await startDebate(page.request, { paced: true, member });
   await page.goto(`/debates/${id}`);
   await hydrated(page);
   // The before-vote does not hide that the Debate is running.

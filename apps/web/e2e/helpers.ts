@@ -3,13 +3,13 @@ import { expect, type APIRequestContext, type Locator, type Page } from '@playwr
 
 export const uniqueMember = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-/** Starts a Debate as a dev Member. Slow Debates use the fake-slow Debater, so they stay live for ~10 s. */
+/** Starts a Debate as a dev Member. A paced one seats the fake-slow Debater, which keeps it live for ~10 s, streaming. */
 export async function startDebate(
   request: APIRequestContext,
-  options: { motion?: string; slow?: boolean; member?: string; aiVoters?: boolean } = {},
+  options: { motion?: string; paced?: boolean; member?: string; aiVoters?: boolean } = {},
 ): Promise<{ id: string; motion: string }> {
   const motion = options.motion ?? `E2E Motion ${Date.now()} ${Math.random().toString(36).slice(2, 6)}`;
-  const model = options.slow ? 'fake-slow/one' : null;
+  const model = options.paced ? 'fake-slow/one' : null;
   const response = await request.post('/api/debates', {
     headers: { 'content-type': 'application/json', 'x-dev-member': options.member ?? uniqueMember('starter') },
     data: { motion, debaters: { for: model ?? 'fake-a/one', against: model ?? 'fake-b/one' }, aiVoters: options.aiVoters ?? false },

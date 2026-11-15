@@ -51,6 +51,29 @@ test('stop() drops a pending draft and waits for one in flight', async () => {
   expect(sent).toEqual(['start a', 'end a']);
 });
 
+test('a slow send never builds a backlog: one in flight, then only the latest text', async () => {
+  const started: string[] = [];
+  const releases: (() => void)[] = [];
+  const drafts = createDraftSender(async text => {
+    started.push(text);
+    await new Promise<void>(resolve => releases.push(resolve));
+  });
+  drafts.push('a');
+  await vi.advanceTimersByTimeAsync(0);
+  for (const text of ['ab', 'abc', 'abcd', 'abcde']) {
+    drafts.push(text);
+    await vi.advanceTimersByTimeAsync(DRAFT_INTERVAL_MS);
+  }
+  // The first send is still running: nothing else has started, however long it takes.
+  expect(started).toEqual(['a']);
+  releases.shift()!();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(started).toEqual(['a', 'abcde']);
+  releases.shift()!();
+  await expect(drafts.stop()).resolves.toBeUndefined();
+  expect(started).toEqual(['a', 'abcde']);
+});
+
 test('a failing send is swallowed', async () => {
   const drafts = createDraftSender(async () => {
     throw new Error('room down');
