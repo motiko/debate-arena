@@ -57,6 +57,17 @@ test('extraOutputTokens is charged on every call of that model', () => {
   expect(reasoning - plain).toBe(2 * 2048);
 });
 
+test('an invalid reasoning allowance is an error, never a smaller Budget', () => {
+  for (const bad of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    const prices = { ...unitPrices, 'c/judge': { ...unit, extraOutputTokens: bad } };
+    expect(() => worstCaseBudgetMicroUsd(setup, [], prices)).toThrow(UnknownModelPriceError);
+  }
+});
+
+test('quotaPointsFor refuses a Budget that is not a finite number', () => {
+  for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, -1]) expect(() => quotaPointsFor(bad)).toThrow(RangeError);
+});
+
 test('quotaPointsFor: one point per 1.25 cents, rounded up, at least 1', () => {
   expect(quotaPointsFor(0)).toBe(1);
   expect(quotaPointsFor(12_500)).toBe(1);

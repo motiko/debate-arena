@@ -22,6 +22,7 @@ export const QUOTA_POINT_MICRO_USD = 12_500;
 
 /** The Quota points a Debate costs: one per QUOTA_POINT_MICRO_USD of its worst-case Budget, rounded up, at least 1. */
 export function quotaPointsFor(budgetMicroUsd: number): number {
+  if (!Number.isFinite(budgetMicroUsd) || budgetMicroUsd < 0) throw new RangeError(`Not a Budget: ${budgetMicroUsd}`);
   return Math.max(1, Math.ceil(budgetMicroUsd / QUOTA_POINT_MICRO_USD));
 }
 
@@ -39,7 +40,12 @@ const isValidPrice = (n: unknown) => typeof n === 'number' && Number.isFinite(n)
 
 function priceOf(prices: PriceTable, model: ModelId): ModelPrice {
   const price = Object.hasOwn(prices, model) ? prices[model] : undefined;
-  if (!price || !isValidPrice(price.inputPerMTokUsd) || !isValidPrice(price.outputPerMTokUsd))
+  if (
+    !price ||
+    !isValidPrice(price.inputPerMTokUsd) ||
+    !isValidPrice(price.outputPerMTokUsd) ||
+    (price.extraOutputTokens !== undefined && !isValidPrice(price.extraOutputTokens))
+  )
     throw new UnknownModelPriceError(`No valid price for ${model}`);
   return price;
 }
