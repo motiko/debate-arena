@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { DebateCompleteError, EmptyTurnError, HumanTurnNotSupportedError } from '../errors';
 import { FakeModelClient } from '../models/fake';
 import { setup, sixTurns } from '../testing/fixtures';
@@ -83,4 +83,20 @@ test('a finished Debate has no next Turn', async () => {
 test('human Debaters are not generated', async () => {
   const humanSetup = { ...setup, debaters: { ...setup.debaters, for: { kind: 'human', memberId: 'm1' } as const } };
   await expect(generateTurn(humanSetup, [], new FakeModelClient())).rejects.toBeInstanceOf(HumanTurnNotSupportedError);
+});
+
+test('reports drafts as the Turn is written, cut to the Phase word limit', async () => {
+  const drafts: string[] = [];
+  const long = Array.from({ length: 320 }, (_, i) => `w${i}`).join(' ') + '.';
+  await generateTurn(setup, [], new FakeModelClient(() => long), { onDraft: d => drafts.push(d) });
+  expect(drafts.length).toBeGreaterThan(1);
+  expect(countWords(drafts.at(-1)!)).toBe(300); // Opening maxWords
+  expect(drafts.every(d => countWords(d) <= 300)).toBe(true);
+});
+
+test('without onDraft, asks the client without a stream', async () => {
+  const client = new FakeModelClient();
+  const spy = vi.spyOn(client, 'complete');
+  await generateTurn(setup, [], client);
+  expect(spy.mock.calls[0]?.[1]).toBeUndefined();
 });
