@@ -3,13 +3,14 @@ import {
   JUDGE_OUTPUT_TOKENS,
   SCREEN_OUTPUT_TOKENS,
   STANCE_OUTPUT_TOKENS,
+  type CompleteOptions,
   type ModelClient,
   type ModelRequest,
   type PriceTable,
 } from '@debate-arena/engine';
 import { FAKE_CATALOG, PRODUCTION_CATALOG, type Catalog } from './catalog';
 import { FakeBatchApi, OpenRouterBatchApi, type BatchApi } from './batch';
-import { OpenRouterModelClient } from './openrouter';
+import { OpenRouterError, OpenRouterModelClient } from './openrouter';
 
 export interface Models { client: ModelClient; catalog: Catalog }
 
@@ -35,15 +36,35 @@ export function devFakeReply(request: ModelRequest): string {
 /** How long the `fake-slow/` Debater takes per reply, so a local Debate can be watched while live. */
 export const SLOW_FAKE_DELAY_MS = 1500;
 
+/** The `fake-slow/` Debater's speech: long enough to watch it stream on a local live Debate. */
+const SLOW_FAKE_SPEECH =
+  'Madam Chair, this is a fake speech for local development. It is long enough to watch it being written, word by word, ' +
+  'the way a real model streams its Turn. First, a point. Second, a rebuttal. Finally, a closing line that ends the speech.';
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * The local fake models. The `fake-slow/` Debater takes SLOW_FAKE_DELAY_MS per reply: all at once, or, when the
+ * reply is streamed, spread over its words, so a local live Debate shows a speech growing.
+ */
 class DevFakeModelClient extends FakeModelClient {
-  override async complete(request: ModelRequest) {
-    if (request.model.startsWith('fake-slow/')) await new Promise(resolve => setTimeout(resolve, SLOW_FAKE_DELAY_MS));
-    return super.complete(request);
+  constructor() {
+    super(request => (request.model.startsWith('fake-slow/') ? SLOW_FAKE_SPEECH : devFakeReply(request)));
+  }
+
+  override async complete(request: ModelRequest, options?: CompleteOptions) {
+    if (request.model.startsWith('fake-slow/') && !options?.onText) await sleep(SLOW_FAKE_DELAY_MS);
+    return super.complete(request, options);
+  }
+
+  protected override async beforeWord(text: string, prefix: string, onText: (textSoFar: string) => void) {
+    if (text === SLOW_FAKE_SPEECH) await sleep(SLOW_FAKE_DELAY_MS / text.split(/\s+/).length);
+    onText(prefix);
   }
 }
 
 export function createModels(env: ModelEnv): Models {
-  if (env.MODEL_PROVIDER === 'fake') return { client: new DevFakeModelClient(devFakeReply), catalog: FAKE_CATALOG };
+  if (env.MODEL_PROVIDER === 'fake') return { client: new DevFakeModelClient(), catalog: FAKE_CATALOG };
   if (!env.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY is required when MODEL_PROVIDER is openrouter');
   const catalog = PRODUCTION_CATALOG;
   const client = new OpenRouterModelClient(env.OPENROUTER_API_KEY, {
@@ -80,13 +101,22 @@ export function meteredClient(
   guard: () => Promise<void> = async () => {},
 ): ModelClient {
   return {
-    async complete(request) {
+    async complete(request, options) {
       await guard();
-      const response = await client.complete(request);
       const price = Object.hasOwn(prices, request.model) ? prices[request.model] : undefined;
-      if (price) {
-        await onCost(Math.ceil(response.inputTokens * price.inputPerMTokUsd + response.outputTokens * price.outputPerMTokUsd));
+      const charge = async (tokens: { inputTokens: number; outputTokens: number }) => {
+        if (price) await onCost(Math.ceil(tokens.inputTokens * price.inputPerMTokUsd + tokens.outputTokens * price.outputPerMTokUsd));
+      };
+      let response;
+      try {
+        response = await client.complete(request, options);
+      } catch (error) {
+        // A stream cut partway was already billed by the provider: it counts against the Budget, so a failure
+        // is never free (and a Debate that spent money is not refunded).
+        if (error instanceof OpenRouterError && error.charge) await charge(error.charge);
+        throw error;
       }
+      await charge(response);
       return response;
     },
   };

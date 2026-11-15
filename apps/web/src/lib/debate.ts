@@ -29,6 +29,21 @@ export function paragraphs(text: string): string[] {
     .filter(p => p.length > 0);
 }
 
+/** The Turn being written in a slot, as far as it has got. */
+export interface Draft {
+  slotIndex: number;
+  text: string;
+}
+
+/**
+ * The draft to show after a draft event, with `finished` Turns on the floor. Only the next slot is being written:
+ * a draft for a finished slot arrived late and must not come back under its speech; empty text clears the draft.
+ */
+export function applyDraft(_current: Draft | null, event: Draft, finished: number): Draft | null {
+  if (event.text === '' || event.slotIndex !== finished) return null;
+  return { slotIndex: event.slotIndex, text: event.text };
+}
+
 /** A run of a paragraph's text, plain or with the emphasis the model marked with asterisks. */
 export interface TextRun {
   text: string;

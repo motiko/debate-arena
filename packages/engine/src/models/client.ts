@@ -10,5 +10,10 @@ export interface ModelResponse {
   finishReason?: 'stop' | 'length';
 }
 
+export interface CompleteOptions {
+  /** Called with the whole reply so far as it is written. Clients that cannot stream (a Batch API) never call it. */
+  onText?: (textSoFar: string) => void;
+}
+
 /** The engine's only way to reach a model. Hosting layers provide real implementations (e.g. OpenRouter). */
-export interface ModelClient { complete(request: ModelRequest): Promise<ModelResponse> }
+export interface ModelClient { complete(request: ModelRequest, options?: CompleteOptions): Promise<ModelResponse> }

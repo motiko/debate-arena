@@ -2,6 +2,8 @@ import type { AiAudienceResult, Turn, Verdict } from '@debate-arena/engine';
 
 /** Events pushed live to Viewers of a Debate. Viewers load current state over HTTP, then apply these. */
 export type DebateEvent =
+  /** The Turn in this slot as written so far (the whole text, never past its word limit); empty text clears it. */
+  | { type: 'draft'; slotIndex: number; text: string }
   | { type: 'turn'; slotIndex: number; turn: Turn }
   | { type: 'verdict'; verdict: Verdict }
   | { type: 'complete'; aiAudience: AiAudienceResult | null }

@@ -5,7 +5,7 @@ export * from './errors';
 export { CLASSIC_FORMAT } from './formats/classic';
 export { countWords, truncateToWords } from './turns/words';
 export { dominantScript, type Script } from './turns/script';
-export type { ModelClient, ModelMessage, ModelRequest, ModelResponse } from './models/client';
+export type { CompleteOptions, ModelClient, ModelMessage, ModelRequest, ModelResponse } from './models/client';
 export { FakeModelClient, type FakeReply } from './models/fake';
 export {
   MAX_ATTEMPTS,
@@ -17,7 +17,7 @@ export {
   wordsToTokens,
 } from './debate/schedule';
 export { buildTurnMessages, UNTRUSTED_NOTICE } from './debate/prompts';
-export { generateTurn } from './debate/generate-turn';
+export { generateTurn, type GenerateTurnOptions } from './debate/generate-turn';
 export { isSelfJudging, modelFamily, suggestPanel, validatePanel } from './judging/panel';
 export { buildJudgeMessages, judgeDebate, parseVerdict } from './judging/judge';
 export { computeOxfordResult, type OxfordResult, type VoterStances } from './voting/oxford';

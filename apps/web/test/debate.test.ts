@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
+  applyDraft,
   debaterLabel,
   dispatchState,
   feedOutcome,
@@ -221,6 +222,15 @@ describe('chamber helpers', () => {
   test('debaterLabel uses the model label', () => {
     expect(debaterLabel(debaters.for, models)).toBe('Fake A');
   });
+});
+
+test('applyDraft keeps a draft only for the next slot, and clears on empty text', () => {
+  expect(applyDraft(null, { slotIndex: 2, text: 'Hi' }, 2)).toEqual({ slotIndex: 2, text: 'Hi' });
+  expect(applyDraft({ slotIndex: 2, text: 'Hi' }, { slotIndex: 2, text: 'Hi there' }, 2)).toEqual({ slotIndex: 2, text: 'Hi there' });
+  // A draft for a finished slot arrived late: it must not come back under the finished speech.
+  expect(applyDraft({ slotIndex: 2, text: 'Hi' }, { slotIndex: 1, text: 'late' }, 2)).toBeNull();
+  expect(applyDraft({ slotIndex: 2, text: 'Hi' }, { slotIndex: 2, text: '' }, 2)).toBeNull();
+  expect(applyDraft(null, { slotIndex: 3, text: 'gap' }, 2)).toBeNull();
 });
 
 describe('inlineEmphasis', () => {

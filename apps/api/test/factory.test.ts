@@ -10,7 +10,7 @@ import {
 import { expect, test, vi } from 'vitest';
 import { FAKE_CATALOG, hasRole, PRODUCTION_CATALOG, screenerFor } from '../src/models/catalog';
 import { BudgetExhaustedError, createModels, devFakeReply, meteredClient, SLOW_FAKE_DELAY_MS } from '../src/models/factory';
-import { OpenRouterModelClient } from '../src/models/openrouter';
+import { OpenRouterError, OpenRouterModelClient } from '../src/models/openrouter';
 
 test('fake provider uses the fake catalog', () => {
   const models = createModels({ MODEL_PROVIDER: 'fake' });
@@ -42,6 +42,65 @@ test('metering reports cost from tokens and prices', async () => {
   });
   await client.complete({ model: 'a/x', messages: [{ role: 'user', content: 'a b c' }], maxOutputTokens: 5 });
   expect(costs).toEqual([16]); // 3 input tokens × 2 + 2 output tokens × 5
+});
+
+test('the metered client passes drafts through and still charges the reply', async () => {
+  const costs: number[] = [];
+  const seen: string[] = [];
+  const client = meteredClient(new FakeModelClient(() => 'one two three'), { 'a/x': { inputPerMTokUsd: 1, outputPerMTokUsd: 1 } }, async c => {
+    costs.push(c);
+  });
+  const reply = await client.complete({ model: 'a/x', messages: [{ role: 'user', content: 'a' }], maxOutputTokens: 5 }, { onText: t => seen.push(t) });
+  expect(seen).toEqual(['one', 'one two', 'one two three']);
+  expect(seen.at(-1)).toBe(reply.text);
+  expect(costs).toHaveLength(1);
+});
+
+test('the local slow fake streams a reply worth watching over SLOW_FAKE_DELAY_MS', async () => {
+  vi.useFakeTimers();
+  try {
+    const { client } = createModels({ MODEL_PROVIDER: 'fake' });
+    const seen: string[] = [];
+    const reply = client.complete({ model: 'fake-slow/one', messages: [{ role: 'user', content: 'x' }], maxOutputTokens: 100 }, { onText: t => seen.push(t) });
+    await vi.advanceTimersByTimeAsync(SLOW_FAKE_DELAY_MS / 2);
+    const halfway = seen.length;
+    expect(halfway).toBeGreaterThan(3);
+    await vi.advanceTimersByTimeAsync(SLOW_FAKE_DELAY_MS / 2);
+    const { text } = await reply;
+    expect(seen.length).toBeGreaterThan(halfway);
+    expect(seen.at(-1)).toBe(text);
+    expect(text.split(/\s+/).length).toBeGreaterThanOrEqual(30);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('a failed call that carries a charge is metered, then still fails', async () => {
+  const costs: number[] = [];
+  const failing = {
+    complete: async () => {
+      throw new OpenRouterError('stream cut', null, { inputTokens: 10, outputTokens: 20 });
+    },
+  };
+  const client = meteredClient(failing, { 'a/x': { inputPerMTokUsd: 1, outputPerMTokUsd: 2 } }, async c => {
+    costs.push(c);
+  });
+  await expect(client.complete({ model: 'a/x', messages: [], maxOutputTokens: 20 })).rejects.toThrow('stream cut');
+  expect(costs).toEqual([50]); // 10 × 1 + 20 × 2
+});
+
+test('a failed call without a charge records nothing', async () => {
+  const costs: number[] = [];
+  const failing = {
+    complete: async () => {
+      throw new OpenRouterError('rate limited', 429);
+    },
+  };
+  const client = meteredClient(failing, { 'a/x': { inputPerMTokUsd: 1, outputPerMTokUsd: 2 } }, async c => {
+    costs.push(c);
+  });
+  await expect(client.complete({ model: 'a/x', messages: [], maxOutputTokens: 20 })).rejects.toThrow('rate limited');
+  expect(costs).toEqual([]);
 });
 
 test('metering checks the Budget guard before every call', async () => {
@@ -77,7 +136,7 @@ test('fake-slow Debater replies after the slow delay', async () => {
     await vi.advanceTimersByTimeAsync(SLOW_FAKE_DELAY_MS - 1);
     expect(done).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
-    expect((await reply).text).toContain('fake-slow/one');
+    expect((await reply).text).toContain('fake speech for local development');
   } finally {
     vi.useRealTimers();
   }

@@ -12,44 +12,47 @@
     side: Side;
     text: string;
     truncated: boolean;
+    /** The speech as it is being written: all of it shows, growing, with a caret at its end. */
+    draft?: boolean;
   }
 
-  let { phase, speaker, side, text, truncated }: Props = $props();
+  let { phase, speaker, side, text, truncated, draft = false }: Props = $props();
 
   // The opening paragraphs show, up to about PREVIEW_WORDS so a greeting is not all there is; the rest wait
   // behind a disclosure that works without JavaScript. A speech cut off at the word limit ends in an ellipsis,
-  // so the cut shows in the text itself.
+  // so the cut shows in the text itself. A draft is short-lived and read as it grows, so it is never folded.
   const all = $derived(truncated ? paragraphs(text).map((p, i, list) => (i === list.length - 1 ? `${p}…` : p)) : paragraphs(text));
-  const shown = $derived(all.slice(0, previewLength(all)));
-  const rest = $derived(all.slice(previewLength(all)));
+  const preview = $derived(draft ? all.length : previewLength(all));
+  const shown = $derived(all.slice(0, preview));
+  const rest = $derived(all.slice(preview));
 </script>
 
-{#snippet paragraph(text: string)}
+{#snippet paragraph(text: string, caret: boolean)}
   <p>
     {#each inlineEmphasis(text) as run, i (i)}{#if run.style === 'strong'}<strong>{run.text}</strong>{:else if run.style === 'em'}<em
           >{run.text}</em
-        >{:else}{run.text}{/if}{/each}
+        >{:else}{run.text}{/if}{/each}{#if caret}<span class="caret" aria-hidden="true"></span>{/if}
   </p>
 {/snippet}
 
-<article class="speech speech-{side}">
+<article class="speech speech-{side}" class:speech-draft={draft}>
   <header class="speech-head">
     <h3><span class="visually-hidden">{phase}:</span> {t('floor.speaker', { model: speaker, side: sideLabel(side) })}</h3>
     <span class="ai">{t('label.ai')}</span>
     <span class="rule" aria-hidden="true"></span>
   </header>
   {#each shown as text, i (i)}
-    {@render paragraph(text)}
+    {@render paragraph(text, draft && i === shown.length - 1)}
   {/each}
   {#if rest.length > 0}
     <details class="more">
       <summary><span class="when-closed">{t('floor.more')}</span><span class="when-open">{t('floor.less')}</span></summary>
       {#each rest as text, i (i)}
-        {@render paragraph(text)}
+        {@render paragraph(text, false)}
       {/each}
     </details>
   {/if}
-  {#if truncated}
+  {#if truncated && !draft}
     <p class="cut">{t('turn.truncated')}</p>
   {/if}
 </article>
@@ -138,5 +141,30 @@
     font-size: 0.875rem;
     font-style: italic;
     color: var(--muted);
+  }
+  /* The pen on the page: a thin bar in the Side's colour where the speech is being written. */
+  .caret {
+    display: inline-block;
+    width: 2px;
+    height: 1.05em;
+    margin-left: 0.15em;
+    vertical-align: -0.15em;
+    background: currentColor;
+  }
+  .speech-for .caret {
+    background: var(--for);
+  }
+  .speech-against .caret {
+    background: var(--against);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .caret {
+      animation: caret-blink 1s steps(2, jump-none) infinite;
+    }
+  }
+  @keyframes caret-blink {
+    to {
+      opacity: 0;
+    }
   }
 </style>

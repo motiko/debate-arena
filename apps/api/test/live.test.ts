@@ -54,13 +54,17 @@ test('live route: 426 without an upgrade, 404 for an unknown Debate', async () =
   expect(unknown.status).toBe(404);
 });
 
-test('the consumer broadcasts each Turn to the room', async () => {
+test('the consumer broadcasts the Turn as it is written, then the Turn, to the room', async () => {
   const d = newDebate();
   await createDebate(env.DB, d);
   const viewer = await openViewer(d.id);
   const batch = createMessageBatch<StepJob>('debate-steps', [{ id: 'm1', timestamp: new Date(), attempts: 1, body: { debateId: d.id } }]);
   await worker.queue(batch, env, createExecutionContext());
-  expect(await viewer.next()).toMatchObject({ type: 'turn', slotIndex: 0, turn: { side: 'for' } });
+  const first = (await viewer.next()) as { type: string };
+  expect(first).toMatchObject({ type: 'draft', slotIndex: 0 });
+  let event = first;
+  while (event.type === 'draft') event = (await viewer.next()) as { type: string };
+  expect(event).toMatchObject({ type: 'turn', slotIndex: 0, turn: { side: 'for' } });
   viewer.ws.close();
 });
 

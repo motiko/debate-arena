@@ -56,7 +56,7 @@ test('a Blocked Debate shows the statement of reasons with HTTP 410 and no Motio
 });
 
 test('a Viewer watching a live Debate is taken off it when it is Blocked', async ({ page, request }) => {
-  const { id, motion } = await startDebate(request, { slow: true });
+  const { id, motion } = await startDebate(request, { paced: true });
   await page.goto(`/debates/${id}`);
   await expect(page.getByRole('log')).toBeVisible();
   await hydrated(page);

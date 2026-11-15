@@ -73,3 +73,91 @@ test("keeps the provider's own error behind OpenRouter's generic one", async () 
     'OpenRouter 400: Provider returned error (Mistral: reasoning_effort none is not supported for this model)',
   );
 });
+
+/** An SSE reply: each chunk as a `data:` event, then [DONE]. Comments are passed through as they are. */
+function streamStub(events: (object | string)[]) {
+  const sent: Sent[] = [];
+  const text = events.map(e => (typeof e === 'string' ? e : `data: ${JSON.stringify(e)}\n\n`)).join('') + 'data: [DONE]\n\n';
+  const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    sent.push({ url: String(input), headers: new Headers(init?.headers), body: String(init?.body) });
+    return new Response(text, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+  }) as typeof fetch;
+  return { sent, fetcher };
+}
+const delta = (d: object, finish: string | null = null) => ({ choices: [{ index: 0, delta: d, finish_reason: finish }] });
+
+test('streams: reports cumulative text, returns the whole reply with usage and finish reason', async () => {
+  const { sent, fetcher } = streamStub([
+    ': OPENROUTER PROCESSING\n\n',
+    delta({ role: 'assistant', content: '' }),
+    delta({ content: 'Hello' }),
+    delta({ reasoning: 'thinking about it' }),
+    delta({ content: ' world' }),
+    delta({ content: '' }, 'length'),
+    { ...delta({ content: '' }, 'length'), usage: { prompt_tokens: 12, completion_tokens: 2 } },
+  ]);
+  const seen: string[] = [];
+  const reply = await new OpenRouterModelClient('k', { fetcher }).complete(req, { onText: t => seen.push(t) });
+  expect(seen).toEqual(['Hello', 'Hello world']);
+  expect(reply).toEqual({ text: 'Hello world', inputTokens: 12, outputTokens: 2, finishReason: 'length' });
+  expect(JSON.parse(sent[0]!.body)).toMatchObject({ model: 'a/x', max_tokens: 10, stream: true });
+});
+
+test('a mid-stream error chunk throws OpenRouterError with its message', async () => {
+  const { fetcher } = streamStub([
+    delta({ content: 'Half a' }),
+    { error: { code: 502, message: 'Provider disconnected unexpectedly' }, ...delta({ content: '' }, 'error') },
+  ]);
+  const failure = new OpenRouterModelClient('k', { fetcher }).complete(req, { onText: () => {} });
+  await expect(failure).rejects.toBeInstanceOf(OpenRouterError);
+  await expect(failure).rejects.toThrow('Provider disconnected unexpectedly');
+});
+
+test('an error as the first and only chunk is a failure, not an empty reply', async () => {
+  const { fetcher } = streamStub([{ error: { code: 502, message: 'No provider' }, ...delta({ content: '' }, 'error') }]);
+  await expect(new OpenRouterModelClient('k', { fetcher }).complete(req, { onText: () => {} })).rejects.toBeInstanceOf(OpenRouterError);
+});
+
+test('a stream that ends without a finish reason is a failure, not a finished reply', async () => {
+  // The body closes after some text, with no finish chunk: a cut connection, not the end of the speech.
+  const { fetcher } = streamStub([delta({ content: 'And therefore the' })]);
+  await expect(new OpenRouterModelClient('k', { fetcher }).complete(req, { onText: () => {} })).rejects.toBeInstanceOf(OpenRouterError);
+});
+
+test('a stream that fails partway carries its worst-case cost, since the provider billed what it sent', async () => {
+  const cut = streamStub([delta({ content: 'And therefore the' })]);
+  const cutError = await new OpenRouterModelClient('k', { fetcher: cut.fetcher }).complete(req, { onText: () => {} }).catch(e => e);
+  expect(cutError).toBeInstanceOf(OpenRouterError);
+  expect(cutError.charge).toEqual({ inputTokens: expect.any(Number), outputTokens: req.maxOutputTokens });
+  expect(cutError.charge.inputTokens).toBeGreaterThan(0);
+
+  const failed = streamStub([delta({ content: 'Half a' }), { error: { code: 502, message: 'Provider disconnected' }, ...delta({ content: '' }, 'error') }]);
+  const failedError = await new OpenRouterModelClient('k', { fetcher: failed.fetcher }).complete(req, { onText: () => {} }).catch(e => e);
+  expect(failedError.charge).toMatchObject({ outputTokens: req.maxOutputTokens });
+});
+
+test('an error before the stream starts carries no charge', async () => {
+  const { fetcher } = stub(429, { error: { message: 'Rate limited' } });
+  const error = await new OpenRouterModelClient('k', { fetcher }).complete(req, { onText: () => {} }).catch(e => e);
+  expect(error.charge).toBeUndefined();
+});
+
+test('a stream without usage is charged the worst case', async () => {
+  const { fetcher } = streamStub([delta({ content: 'Hi' }, 'stop')]);
+  const reply = await new OpenRouterModelClient('k', { fetcher }).complete(req, { onText: () => {} });
+  expect(reply.outputTokens).toBe(req.maxOutputTokens);
+  expect(reply.inputTokens).toBeGreaterThan(0);
+  expect(reply.finishReason).toBe('stop');
+});
+
+test('a non-2xx reply to a stream request throws as today', async () => {
+  const { fetcher } = stub(429, { error: { message: 'Rate limited' } });
+  const failure = new OpenRouterModelClient('k', { fetcher }).complete(req, { onText: () => {} });
+  await expect(failure).rejects.toMatchObject({ name: 'OpenRouterError', status: 429 });
+});
+
+test('without onText, sends no stream key', async () => {
+  const { sent, fetcher } = stub(200, ok);
+  await new OpenRouterModelClient('k', { fetcher }).complete(req);
+  expect(JSON.parse(sent[0]!.body)).not.toHaveProperty('stream');
+});
