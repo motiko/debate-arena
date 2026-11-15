@@ -13,8 +13,11 @@ export interface CliDeps {
   out: (text: string) => void;
   err: (text: string) => void;
   isTTY: boolean;
-  /** What `debate speak` reads its Turn from. */
-  stdin: ReadableStream<Uint8Array>;
+  /**
+   * What `debate speak` reads its Turn from, opened only when called: an opened stdin keeps the process alive until
+   * it ends, so any other command would hang after its output under a parent whose stdin never ends (a background shell).
+   */
+  stdin: () => ReadableStream<Uint8Array>;
 }
 
 export const DEFAULT_BASE = 'https://debate-arena-web.motiko.workers.dev';
@@ -215,7 +218,7 @@ async function speak(ctx: Context, positionals: string[], values: Values): Promi
   let text = '';
   let sentAt = Number.NEGATIVE_INFINITY;
   let inFlight: Promise<unknown> | null = null;
-  const reader = ctx.deps.stdin.getReader();
+  const reader = ctx.deps.stdin().getReader();
   const decoder = new TextDecoder();
   for (;;) {
     const { done, value } = await reader.read();

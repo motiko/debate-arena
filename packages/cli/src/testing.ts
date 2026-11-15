@@ -33,7 +33,7 @@ export function testDeps(overrides: Partial<CliDeps> = {}) {
       output.err += text;
     },
     isTTY: false,
-    stdin: new ReadableStream<Uint8Array>({ start: controller => controller.close() }),
+    stdin: () => new ReadableStream<Uint8Array>({ start: controller => controller.close() }),
     ...overrides,
   };
   return { deps, output };

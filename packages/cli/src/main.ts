@@ -16,6 +16,6 @@ const code = await run(process.argv.slice(2), {
   out: text => process.stdout.write(text),
   err: text => process.stderr.write(text),
   isTTY: process.stdout.isTTY === true,
-  stdin: Readable.toWeb(process.stdin) as ReadableStream<Uint8Array>,
+  stdin: () => Readable.toWeb(process.stdin) as ReadableStream<Uint8Array>,
 });
 process.exitCode = code;

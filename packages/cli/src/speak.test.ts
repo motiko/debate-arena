@@ -31,7 +31,7 @@ function platform(view = debate({ status: 'running', verdict: null, awaiting }))
 
 test('speak sends the awaited Turn from stdin, showing drafts while it reads', async () => {
   const { fetch, requests } = platform();
-  const { deps, output } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch, stdin: stdinOf(['One ', 'two ', 'three.'], 350) });
+  const { deps, output } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch, stdin: () => stdinOf(['One ', 'two ', 'three.'], 350) });
   expect(await run(['speak', 'd1'], deps)).toBe(0);
   const post = requests.find(r => r.method === 'POST')!;
   expect(post.url).toBe(`${BASE}/api/debates/d1/turns/2`);
@@ -47,7 +47,7 @@ test('speak sends the awaited Turn from stdin, showing drafts while it reads', a
 
 test('speak --slot skips reading the Debate', async () => {
   const { fetch, requests } = platform();
-  const { deps } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch, stdin: stdinOf(['Hi.']) });
+  const { deps } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch, stdin: () => stdinOf(['Hi.']) });
   expect(await run(['speak', 'd1', '--slot', '4'], deps)).toBe(0);
   expect(requests.some(r => r.method === 'GET')).toBe(false);
   expect(requests.find(r => r.method === 'POST')?.url).toBe(`${BASE}/api/debates/d1/turns/4`);
@@ -55,7 +55,7 @@ test('speak --slot skips reading the Debate', async () => {
 
 test('speak to a Debate that is not waiting fails without sending', async () => {
   const { fetch, requests } = platform(debate({ status: 'running', verdict: null, awaiting: null }));
-  const { deps, output } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch, stdin: stdinOf(['Hi.']) });
+  const { deps, output } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch, stdin: () => stdinOf(['Hi.']) });
   expect(await run(['speak', 'd1'], deps)).toBe(1);
   expect(output.err).toBe('This Debate is not waiting for an API Turn\n');
   expect(requests.some(r => r.method === 'POST')).toBe(false);
@@ -65,15 +65,23 @@ test("speak shows the API's refusal and returns 1", async () => {
   const { fetch } = recordingFetch(request =>
     request.method === 'POST' ? Response.json({ error: 'This Debate is not waiting for Turn 4' }, { status: 409 }) : new Response(null, { status: 204 }),
   );
-  const { deps, output } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch, stdin: stdinOf(['Hi.']) });
+  const { deps, output } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch, stdin: () => stdinOf(['Hi.']) });
   expect(await run(['speak', 'd1', '--slot', '4'], deps)).toBe(1);
   expect(output.err).toBe('This Debate is not waiting for Turn 4\n');
 });
 
 test('speak without a token explains where to get one', async () => {
-  const { deps, output } = testDeps({ stdin: stdinOf(['Hi.']) });
+  const { deps, output } = testDeps({ stdin: () => stdinOf(['Hi.']) });
   expect(await run(['speak', 'd1'], deps)).toBe(1);
   expect(output.err).toContain('Set DEBATE_ARENA_TOKEN');
+});
+
+test('only speak opens stdin: an opened stdin that never ends would keep show from exiting', async () => {
+  const { fetch } = recordingFetch(() => Response.json(debate()));
+  const stdin = vi.fn(() => stdinOf([]));
+  const { deps } = testDeps({ fetch, stdin });
+  expect(await run(['show', 'd1', '--json'], deps)).toBe(0);
+  expect(stdin).not.toHaveBeenCalled();
 });
 
 test('start --for api seats an API Debater', async () => {
