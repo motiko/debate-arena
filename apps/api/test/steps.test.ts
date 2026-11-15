@@ -98,6 +98,45 @@ test('a flagged Motion Unlists the Debate but it still completes', async () => {
   });
 });
 
+/** A Debate whose For bench is a Custom Debater with this identity. */
+const customDebate = (identity: { name?: string; model?: string }) =>
+  newDebate({ setup: { ...sampleSetup, debaters: { ...sampleSetup.debaters, for: { kind: 'api', ...identity } } } });
+
+test('the first step screens a Custom Debater identity and Flags an unsafe one', async () => {
+  const { deps, client } = makeDeps();
+  const d = customDebate({ name: 'Atlas [flag-test]', model: 'gpt-6' });
+  await createDebate(env.DB, d);
+  expect(await runStep(deps, { debateId: d.id })).toBe('screen');
+  const identityScreen = client.calls.find(c => c.messages.some(m => m.content.includes('Name and model given by a debater')));
+  expect(identityScreen?.messages.at(-1)?.content).toContain(JSON.stringify('Name: Atlas [flag-test]\nModel: gpt-6'));
+  // The Motion itself was safe; the identity Flagged and Unlisted the Debate.
+  expect(await getDebate(env.DB, d.id)).toMatchObject({ visibility: 'unlisted', flagged: true, screen: { flagged: false } });
+});
+
+test('an identity screen that errors Flags', async () => {
+  const { deps } = makeDeps();
+  const inner = deps.client;
+  deps.client = {
+    complete: async request => {
+      if (request.messages.some(m => m.content.includes('Name and model given by a debater'))) throw new Error('screener down');
+      return inner.complete(request);
+    },
+  };
+  const d = customDebate({ name: 'Atlas' });
+  await createDebate(env.DB, d);
+  await runStep(deps, { debateId: d.id });
+  expect(await getDebate(env.DB, d.id)).toMatchObject({ visibility: 'unlisted', flagged: true, screen: { flagged: false } });
+});
+
+test('a Custom seat without identity makes no identity screen call', async () => {
+  const { deps, client } = makeDeps();
+  const d = customDebate({});
+  await createDebate(env.DB, d);
+  await runStep(deps, { debateId: d.id });
+  expect(client.calls).toHaveLength(1);
+  expect(await getDebate(env.DB, d.id)).toMatchObject({ visibility: 'listed', flagged: false });
+});
+
 test('a screening error never fails the Debate', async () => {
   const { deps, jobs } = makeDeps();
   const inner = deps.client;

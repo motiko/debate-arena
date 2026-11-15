@@ -94,9 +94,37 @@ test('both benches may be API Debaters', async () => {
   expect(r).toMatchObject({ ok: true });
 });
 
-test('a Slow Debate cannot have an API Debater', async () => {
+test('a Slow Debate cannot have a Custom Debater', async () => {
   const r = await startDebate(deps(), uniqueId('m'), { ...valid, debaters: { for: 'api', against: 'fake-b/one' }, batch: true });
-  expect(r).toEqual({ ok: false, status: 400, error: 'A Slow Debate cannot have an API Debater' });
+  expect(r).toEqual({ ok: false, status: 400, error: 'A Slow Debate cannot have a Custom Debater' });
+});
+
+test('a Custom Debater may be named at start', async () => {
+  const r = plan({ ...valid, debaters: { for: { kind: 'custom', name: ' Atlas ', model: 'gpt-6' }, against: 'fake-b/one' } });
+  if (!r.ok) throw new Error(r.error);
+  expect(r.setup.debaters.for).toEqual({ kind: 'api', name: 'Atlas', model: 'gpt-6' });
+});
+
+test('"custom" seats a Custom Debater', () => {
+  const r = plan({ ...valid, debaters: { for: 'custom', against: { kind: 'api' } } });
+  if (!r.ok) throw new Error(r.error);
+  expect(r.setup.debaters).toEqual({ for: { kind: 'api' }, against: { kind: 'api' } });
+});
+
+test('a bad Custom Debater name is refused', () => {
+  expect(plan({ ...valid, debaters: { for: { kind: 'custom', name: 'x'.repeat(41) }, against: 'fake-b/one' } })).toEqual({
+    ok: false,
+    status: 400,
+    error: 'Custom Debater name must be 1–40 characters, without control characters',
+  });
+});
+
+test('an object seat must be a Custom one', () => {
+  expect(plan({ ...valid, debaters: { for: { kind: 'ai', model: 'fake-a/one' }, against: 'fake-b/one' } })).toMatchObject({
+    ok: false,
+    status: 400,
+    error: expect.stringContaining('debaters must name a model (or "custom")'),
+  });
 });
 
 test("a Slow Debate refuses a Judge that is not batch-capable, or a mandatory reasoner", async () => {

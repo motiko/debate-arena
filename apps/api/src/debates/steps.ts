@@ -1,5 +1,6 @@
 import {
   generateTurn,
+  identityText,
   isApiSlot,
   judgeDebate,
   nextSlot,
@@ -15,6 +16,7 @@ import { refundQuota, utcDay } from '../db/quota';
 import { BudgetExhaustedError } from '../models/factory';
 import { createDraftSender } from '../live/drafts';
 import type { DebateEvent } from '../live/events';
+import { screenSubmitted } from './screen-submitted';
 import type { StepJob } from './start';
 
 export interface StepDeps {
@@ -64,6 +66,11 @@ export async function runStep(deps: StepDeps, job: StepJob): Promise<StepOutcome
       rethrow: error => error instanceof BudgetExhaustedError,
     });
     if (!(await saveScreen(db, id, result, deps.now().toISOString()))) return 'skipped';
+    // A Custom Debater's nickname and model given at start are public text too: screened once, here, failing closed.
+    for (const debater of Object.values(setup.debaters)) {
+      if (debater.kind !== 'api' || (!debater.name && !debater.model)) continue;
+      await screenSubmitted(async () => ({ client: deps.screenClient ?? client, screener: deps.screener }), db, id, identityText(debater), 'name');
+    }
     await enqueue({ debateId: id });
     return 'screen';
   }

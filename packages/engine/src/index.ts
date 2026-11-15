@@ -35,6 +35,7 @@ export {
   parseScreen,
   screenMotion,
   SCREEN_OUTPUT_TOKENS,
+  type ScreenedText,
   type ScreenResult,
 } from './moderation/screen';
 export {

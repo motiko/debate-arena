@@ -1,11 +1,11 @@
 // An API Debater's Turns arrive through the API: `POST /debates/:id/turns/:slot` stores one (its body read as it
 // arrives, shown to Viewers as drafts), and `PUT …/draft` shows the text so far, for clients whose uploads the edge
 // buffers (Cloudflare hands a Worker the body only once it is complete).
-import { nextSlot, screenMotion, submittedTurn, truncateToWords, type ModelClient, type ModelId, type Turn } from '@debate-arena/engine';
+import { nextSlot, submittedTurn, truncateToWords, type ModelClient, type ModelId, type Turn } from '@debate-arena/engine';
 import { appendTurn, awaitingOf, type DebateRecord } from '../db/debates';
-import { flagDebate } from '../db/moderation';
 import { createDraftSender } from '../live/drafts';
 import type { DebateEvent } from '../live/events';
+import { screenSubmitted } from './screen-submitted';
 import type { StepJob } from './start';
 
 export const MAX_API_TURN_BYTES = 65_536;
@@ -131,22 +131,10 @@ export async function relayDraft(
   return { status: 204 };
 }
 
-/**
- * Screens a stored API Turn, as a Motion is screened: a Flag Unlists the Debate for a Moderator to review; it never
- * removes anything. It fails closed: a failed screen, or no screener to ask, Flags.
- */
-export async function screenApiTurn(
+/** Screens a stored Custom Debater's Turn: see screenSubmitted (fails closed, a Flag Unlists). */
+export const screenApiTurn = (
   screening: () => Promise<{ client: ModelClient; screener: ModelId }>,
   db: D1Database,
   debateId: string,
   text: string,
-): Promise<void> {
-  let flagged = true;
-  try {
-    const { client, screener } = await screening();
-    flagged = (await screenMotion(text, screener, client, { what: 'turn' })).flagged;
-  } catch (error) {
-    console.error(`Could not screen an API Turn of Debate ${debateId}`, error);
-  }
-  if (flagged) await flagDebate(db, debateId);
-}
+): Promise<void> => screenSubmitted(screening, db, debateId, text, 'turn');
