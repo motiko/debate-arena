@@ -25,7 +25,7 @@ export function pollDelaySeconds(waits: number, provider: string): number {
  * Live updates are best-effort: Viewers can always reload state over HTTP. A failed broadcast must not
  * spend a retry, because the retried message would move on to the next step and this event would be lost anyway.
  */
-async function notifyViewers(env: Env, debateId: string, event: DebateEvent): Promise<void> {
+export async function notifyViewers(env: Env, debateId: string, event: DebateEvent): Promise<void> {
   try {
     await env.DEBATE_ROOM.getByName(debateId).broadcast(event);
   } catch (error) {

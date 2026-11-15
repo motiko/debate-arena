@@ -3,7 +3,7 @@ import { ApiTurnError, DebateCompleteError, EmptyTurnError, HumanTurnNotSupporte
 import { FakeModelClient } from '../models/fake';
 import { setup, sixTurns } from '../testing/fixtures';
 import { countWords } from '../turns/words';
-import { generateTurn, isApiSlot } from './generate-turn';
+import { generateTurn, isApiSlot, submittedTurn } from './generate-turn';
 import { buildTurnMessages } from './prompts';
 
 test('prompt names the Motion, Side, Phase, word limit and language rule', () => {
@@ -89,6 +89,24 @@ test("isApiSlot tells an API Debater's slots", () => {
   const apiSetup = { ...setup, debaters: { ...setup.debaters, against: { kind: 'api' } as const } };
   expect(isApiSlot(apiSetup, { phaseIndex: 0, side: 'against' })).toBe(true);
   expect(isApiSlot(apiSetup, { phaseIndex: 0, side: 'for' })).toBe(false);
+});
+
+test('submittedTurn stores a text in the next slot, trimmed', () => {
+  expect(submittedTurn(setup, [], '  A short speech.  ')).toEqual({ phaseIndex: 0, side: 'for', text: 'A short speech.', truncated: false });
+  expect(submittedTurn(setup, sixTurns.slice(0, 3), 'Next.')).toMatchObject({ phaseIndex: 1, side: 'against' });
+});
+
+test('submittedTurn cuts a long text at the word limit, back to its last full sentence', () => {
+  const long = `${'One sentence here. '.repeat(100)}`; // 300 words of Opening limit, 300 here
+  const turn = submittedTurn(setup, [], `${long} And then some more words without end`);
+  expect(turn.truncated).toBe(true);
+  expect(turn.text.endsWith('here.')).toBe(true);
+  expect(countWords(turn.text)).toBeLessThanOrEqual(300);
+});
+
+test('submittedTurn refuses an empty text and a finished Debate', () => {
+  expect(() => submittedTurn(setup, [], '  \n ')).toThrow(EmptyTurnError);
+  expect(() => submittedTurn(setup, sixTurns, 'Too late.')).toThrow(DebateCompleteError);
 });
 
 test('human Debaters are not generated', async () => {

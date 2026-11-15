@@ -17,8 +17,12 @@ export interface ScreenResult { flagged: boolean; categories: string[] }
 
 const UNSCREENED: ScreenResult = { flagged: true, categories: ['unscreened'] };
 
-export function buildScreenMessages(motion: string): ModelMessage[] {
-  return [{ role: 'user', content: `${UNTRUSTED_NOTICE}\nMotion proposed for a public debate: ${JSON.stringify(motion)}` }];
+/** What is screened: a Motion, or an API Debater's Turn (a speech nobody on the platform generated). */
+export type ScreenedText = 'motion' | 'turn';
+
+export function buildScreenMessages(text: string, what: ScreenedText = 'motion'): ModelMessage[] {
+  const label = what === 'turn' ? 'Speech submitted to a public debate' : 'Motion proposed for a public debate';
+  return [{ role: 'user', content: `${UNTRUSTED_NOTICE}\n${label}: ${JSON.stringify(text)}` }];
 }
 
 /**
@@ -42,10 +46,10 @@ export async function screenMotion(
   motion: string,
   model: ModelId,
   client: ModelClient,
-  options: { rethrow?: (error: unknown) => boolean } = {},
+  options: { rethrow?: (error: unknown) => boolean; what?: ScreenedText } = {},
 ): Promise<ScreenResult> {
   try {
-    const response = await client.complete({ model, messages: buildScreenMessages(motion), maxOutputTokens: SCREEN_OUTPUT_TOKENS });
+    const response = await client.complete({ model, messages: buildScreenMessages(motion, options.what), maxOutputTokens: SCREEN_OUTPUT_TOKENS });
     return parseScreen(response.text);
   } catch (error) {
     if (options.rethrow?.(error)) throw error;

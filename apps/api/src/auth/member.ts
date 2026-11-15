@@ -18,12 +18,18 @@ function bearerKey(request: Request): string | null {
  * (local development) and nothing else signed in does the `x-dev-member` header stand in, so `pnpm dev` works
  * without a GitHub OAuth App.
  */
-export function memberResolver(env: AuthEnv & { DEV_AUTH: string }, options: { tokens?: boolean } = {}): MemberResolver {
+export function memberResolver(
+  env: AuthEnv & { DEV_AUTH: string },
+  options: { tokens?: boolean; tokensOnly?: boolean } = {},
+): MemberResolver {
   return async request => {
     const auth = getAuth(env);
-    const session = await auth.api.getSession({ headers: request.headers });
-    if (session) return session.user.id;
-    const key = options.tokens ? bearerKey(request) : null;
+    // tokensOnly: the session cookie does not count, for routes that take bodies a cross-site form could send.
+    if (!options.tokensOnly) {
+      const session = await auth.api.getSession({ headers: request.headers });
+      if (session) return session.user.id;
+    }
+    const key = options.tokens || options.tokensOnly ? bearerKey(request) : null;
     if (key) {
       const { valid, key: token } = await auth.api.verifyApiKey({ body: { key } });
       if (valid && token) return token.referenceId;

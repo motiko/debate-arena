@@ -21,12 +21,15 @@ import { noticeDecision, noticeReportReceived, type NoticeDeps } from './notices
 import { keyedHash, parseReport, rateLimitNetwork, REPORT_UNLIST_THRESHOLD, REPORTS_PER_IP_PER_HOUR } from './moderation/reports';
 import { DAILY_QUOTA_POINTS, quotaRemaining } from './db/quota';
 import { hasUnlimitedQuota } from './auth/allowlists';
-import { awaitingOf, getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
+import { addCost, awaitingOf, getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
+import { relayDraft, screenApiTurn, submitApiTurn } from './debates/api-turn';
+import { notifyViewers } from './debates/consumer';
+import { meteredClient } from './models/factory';
 import { castAfter, castBefore, getVote, listVotes, type AudienceVote } from './db/votes';
 import { audienceResult, checkVote, votingClosesAt, type VotePhase } from './votes/rules';
 import { voterKey } from './votes/voter-key';
 import { planDebate, startDebate } from './debates/start';
-import { isBatchCapable } from './models/catalog';
+import { isBatchCapable, priceTable, screenerFor } from './models/catalog';
 import { loadModels } from './models/live-catalog';
 
 const FEED_PAGE_SIZE = 20;
@@ -153,6 +156,30 @@ async function requireModerator(env: Env, request: Request): Promise<{ memberId:
   return { memberId };
 }
 
+const TEXT_ONLY = 'Send the Turn as text with Content-Type: text/plain';
+const isText = (contentType: string | undefined) => contentType?.split(';')[0]?.trim().toLowerCase() === 'text/plain';
+
+/**
+ * The Debate and slot an API Turn (or its draft) is for, checked: text body, an API token of the Member who started
+ * the Debate (never a session cookie: a cross-site form can send text/plain), an existing Debate that is not Blocked.
+ */
+async function apiTurnTarget(
+  env: Env,
+  request: Request,
+  id: string,
+  slotParam: string,
+): Promise<{ debate: DebateRecord; slot: number } | { status: 400 | 401 | 403 | 404 | 410 | 415; error: string }> {
+  if (!isText(request.headers.get('content-type') ?? undefined)) return { status: 415, error: TEXT_ONLY };
+  const memberId = await memberResolver(env, { tokensOnly: true })(request);
+  if (!memberId) return { status: 401, error: 'Send your API token as Authorization: Bearer <token>' };
+  if (!/^\d{1,3}$/.test(slotParam)) return { status: 400, error: 'The slot must be a Turn number' };
+  const debate = await getDebate(env.DB, id);
+  if (!debate) return { status: 404, error: 'Debate not found' };
+  if (debate.visibility === 'blocked') return { status: 410, error: BLOCKED };
+  if (debate.memberId !== memberId) return { status: 403, error: 'Only the Member who started this Debate submits its API Turns' };
+  return { debate, slot: Number(slotParam) };
+}
+
 export const app = new Hono<{ Bindings: Env }>()
   .basePath('/api')
   .get('/health', c => c.json({ ok: true }))
@@ -260,6 +287,39 @@ export const app = new Hono<{ Bindings: Env }>()
       panel: plan.setup.panel,
       selfJudging: plan.selfJudging,
     });
+  })
+  .post('/debates/:id/turns/:slot', async c => {
+    const found = await apiTurnTarget(c.env, c.req.raw, c.req.param('id'), c.req.param('slot'));
+    if ('error' in found) return c.json({ error: found.error }, found.status);
+    const { debate, slot } = found;
+    const result = await submitApiTurn(
+      { db: c.env.DB, notify: (id, event) => notifyViewers(c.env, id, event), enqueue: async job => void (await c.env.STEP_QUEUE.send(job)) },
+      debate,
+      slot,
+      c.req.raw.body,
+    );
+    if (result.status !== 201) return c.json({ error: result.error }, result.status);
+    // Screened after the answer, charged to the Debate's Budget at its frozen prices; best-effort, as Motions are.
+    c.executionCtx.waitUntil(
+      (async () => {
+        try {
+          const { client, catalog } = await loadModels(c.env);
+          const frozen = Object.fromEntries(Object.entries(debate.models ?? {}).map(([id, m]) => [id, m.price]));
+          const metered = meteredClient(client, { ...priceTable(catalog), ...frozen }, cost => addCost(c.env.DB, debate.id, cost));
+          await screenApiTurn({ db: c.env.DB, client: metered, screener: screenerFor(catalog) }, debate.id, result.turn.text);
+        } catch (error) {
+          console.error(`Could not screen API Turn ${slot} of Debate ${debate.id}`, error);
+        }
+      })(),
+    );
+    return c.json({ slotIndex: result.slotIndex, turn: result.turn }, 201);
+  })
+  .put('/debates/:id/turns/:slot/draft', async c => {
+    const found = await apiTurnTarget(c.env, c.req.raw, c.req.param('id'), c.req.param('slot'));
+    if ('error' in found) return c.json({ error: found.error }, found.status);
+    const result = await relayDraft({ notify: (id, event) => notifyViewers(c.env, id, event) }, found.debate, found.slot, c.req.raw.body);
+    if (result.status !== 204) return c.json({ error: result.error }, result.status);
+    return c.body(null, 204);
   })
   .get('/debates', async c => {
     const before = c.req.query('before');

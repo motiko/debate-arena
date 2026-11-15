@@ -15,6 +15,18 @@ export function isApiSlot(setup: DebateSetup, slot: TurnSlot): boolean {
   return setup.debaters[slot.side].kind === 'api';
 }
 
+/**
+ * The next Turn from a submitted text (an API Debater's), under the same rules as an AI Turn: trimmed, cut at the
+ * Phase's word limit and then back to its last full sentence.
+ */
+export function submittedTurn(setup: DebateSetup, priorTurns: Turn[], text: string): Turn {
+  const slot = nextSlot(setup.format, priorTurns);
+  if (!slot) throw new DebateCompleteError('All Turns of this Debate exist');
+  if (!text.trim()) throw new EmptyTurnError('The Turn is empty');
+  const cut = truncateToWords(text.trim(), setup.format.phases[slot.phaseIndex]!.maxWords);
+  return { ...slot, text: cut.truncated ? trimToLastSentence(cut.text) : cut.text, truncated: cut.truncated };
+}
+
 /** Generates the next AI Turn, cut at the Phase's word limit (back to the last full sentence when cut). */
 export async function generateTurn(setup: DebateSetup, priorTurns: Turn[], client: ModelClient, options: GenerateTurnOptions = {}): Promise<Turn> {
   const slot = nextSlot(setup.format, priorTurns);
