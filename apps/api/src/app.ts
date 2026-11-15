@@ -165,15 +165,18 @@ export const app = new Hono<{ Bindings: Env }>()
         isModerator: await isModerator(c.env, id),
       });
     }
-    // Local development only (DEV_AUTH "true"): a dev Member from `x-dev-member`, named by their id.
-    const devMember = await memberResolver(c.env)(c.req.raw);
-    if (!devMember) return c.json({ error: 'Not signed in' }, 401);
+    // An API token (the CLI), or locally (DEV_AUTH "true") a dev Member from `x-dev-member`, named by their id.
+    const memberId = await memberResolver(c.env, { tokens: true })(c.req.raw);
+    if (!memberId) return c.json({ error: 'Not signed in' }, 401);
+    const user = await c.env.DB.prepare('SELECT name, image FROM "user" WHERE id = ?')
+      .bind(memberId)
+      .first<{ name: string; image: string | null }>();
     return c.json({
-      id: devMember,
-      name: devMember,
-      image: null,
-      quotaRemaining: await quotaRemaining(c.env.DB, devMember, new Date()),
-      isModerator: await isModerator(c.env, devMember),
+      id: memberId,
+      name: user?.name ?? memberId,
+      image: user?.image ?? null,
+      quotaRemaining: await quotaRemaining(c.env.DB, memberId, new Date()),
+      isModerator: await isModerator(c.env, memberId),
     });
   })
   .get('/me/export', async c => {
@@ -189,7 +192,7 @@ export const app = new Hono<{ Bindings: Env }>()
   })
   .post('/debates', async c => {
     if (!isJson(c.req.header('content-type'))) return c.json({ error: NOT_JSON }, 415);
-    const memberId = await memberResolver(c.env)(c.req.raw);
+    const memberId = await memberResolver(c.env, { tokens: true })(c.req.raw);
     if (!memberId) return c.json({ error: 'Sign in to start a Debate' }, 401);
     let input: unknown;
     try {

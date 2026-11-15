@@ -75,6 +75,8 @@ export function authOptions(env: AuthEnv) {
       },
     },
     plugins: [apiKey(API_TOKEN_OPTIONS)],
+    // Its update endpoint accepts `expiresIn: null`, which would make a token never expire; nothing needs it.
+    disabledPaths: ['/api-key/update'],
   } satisfies BetterAuthOptions;
 }
 
