@@ -16,7 +16,6 @@ import { refundQuota, utcDay } from '../db/quota';
 import { BudgetExhaustedError } from '../models/factory';
 import { createDraftSender } from '../live/drafts';
 import type { DebateEvent } from '../live/events';
-import { screenSubmitted } from './screen-submitted';
 import type { StepJob } from './start';
 
 export interface StepDeps {
@@ -60,17 +59,22 @@ export async function runStep(deps: StepDeps, job: StepJob): Promise<StepOutcome
     return 'missed';
   }
 
-  // First, screen the Motion. A Flag Unlists the Debate but it runs on; Viewers are not told.
+  // First, screen the Motion, and any Custom Debater's nickname and model given at start (public text too). A Flag
+  // Unlists the Debate but it runs on; Viewers are not told. Both are saved in one write, so a retried step can never
+  // find the Motion screened and the identity not; an identity's categories are marked "name:" for the Moderator.
   if (debate.screenedAt === null) {
-    const result = await screenMotion(setup.motion.text, deps.screener, deps.screenClient ?? client, {
-      rethrow: error => error instanceof BudgetExhaustedError,
-    });
-    if (!(await saveScreen(db, id, result, deps.now().toISOString()))) return 'skipped';
-    // A Custom Debater's nickname and model given at start are public text too: screened once, here, failing closed.
+    const screen = (text: string, what: 'motion' | 'name') =>
+      screenMotion(text, deps.screener, deps.screenClient ?? client, { what, rethrow: error => error instanceof BudgetExhaustedError });
+    let result = await screen(setup.motion.text, 'motion');
     for (const debater of Object.values(setup.debaters)) {
       if (debater.kind !== 'api' || (!debater.name && !debater.model)) continue;
-      await screenSubmitted(async () => ({ client: deps.screenClient ?? client, screener: deps.screener }), db, id, identityText(debater), 'name');
+      const named = await screen(identityText(debater), 'name');
+      result = {
+        flagged: result.flagged || named.flagged,
+        categories: [...result.categories, ...named.categories.map(category => `name:${category}`)],
+      };
     }
+    if (!(await saveScreen(db, id, result, deps.now().toISOString()))) return 'skipped';
     await enqueue({ debateId: id });
     return 'screen';
   }

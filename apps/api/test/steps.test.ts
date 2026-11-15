@@ -109,8 +109,8 @@ test('the first step screens a Custom Debater identity and Flags an unsafe one',
   expect(await runStep(deps, { debateId: d.id })).toBe('screen');
   const identityScreen = client.calls.find(c => c.messages.some(m => m.content.includes('Name and model given by a debater')));
   expect(identityScreen?.messages.at(-1)?.content).toContain(JSON.stringify('Name: Atlas [flag-test]\nModel: gpt-6'));
-  // The Motion itself was safe; the identity Flagged and Unlisted the Debate.
-  expect(await getDebate(env.DB, d.id)).toMatchObject({ visibility: 'unlisted', flagged: true, screen: { flagged: false } });
+  // The Motion itself was safe; the identity Flagged and Unlisted the Debate, in the same write as the Motion screen.
+  expect(await getDebate(env.DB, d.id)).toMatchObject({ visibility: 'unlisted', flagged: true, screen: { flagged: true, categories: ['name:S10'] } });
 });
 
 test('an identity screen that errors Flags', async () => {
@@ -125,7 +125,7 @@ test('an identity screen that errors Flags', async () => {
   const d = customDebate({ name: 'Atlas' });
   await createDebate(env.DB, d);
   await runStep(deps, { debateId: d.id });
-  expect(await getDebate(env.DB, d.id)).toMatchObject({ visibility: 'unlisted', flagged: true, screen: { flagged: false } });
+  expect(await getDebate(env.DB, d.id)).toMatchObject({ visibility: 'unlisted', flagged: true, screen: { flagged: true, categories: ['name:unscreened'] } });
 });
 
 test('a Custom seat without identity makes no identity screen call', async () => {
