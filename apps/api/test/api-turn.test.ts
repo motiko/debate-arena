@@ -1,6 +1,9 @@
 import { FakeModelClient } from '@debate-arena/engine';
+import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
 import { env, exports } from 'cloudflare:workers';
 import { expect, test } from 'vitest';
+import { app } from '../src/app';
+import { screenSubmitted } from '../src/debates/screen-submitted';
 import { appendTurn, failDebate, getDebate, setTurnDeadline, type DebateRecord } from '../src/db/debates';
 import { MAX_API_TURN_BYTES, readTurnBody, relayDraft, screenApiTurn, submitApiTurn, TurnTooLargeError, type ApiTurnDeps } from '../src/debates/api-turn';
 import type { StepJob } from '../src/debates/start';
@@ -275,6 +278,39 @@ test('POST …/turns/0?name=… stores a name in any script', async () => {
   const res = await post(`/debates/${d.id}/turns/0?name=%E3%83%89%E3%83%A9%E3%82%B4%E3%83%B3&model=gpt-6`, 'Hi.', { 'x-dev-member': 'm-namer' });
   expect(res.status).toBe(201);
   expect((await getDebate(env.DB, d.id))?.setup.debaters.for).toEqual({ kind: 'api', name: 'ドラゴン', model: 'gpt-6' });
+});
+
+/** Posts a first Turn through the app and waits for the screens it runs after answering. */
+async function postAndScreen(memberId: string, query: string): Promise<DebateRecord> {
+  const d = await apiDebate(memberId);
+  const ctx = createExecutionContext();
+  const res = await app.fetch(
+    new Request(`${base}/debates/${d.id}/turns/0${query}`, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain; charset=utf-8', 'x-dev-member': memberId },
+      body: 'A clean speech.',
+    }),
+    env,
+    ctx,
+  );
+  expect(res.status).toBe(201);
+  await waitOnExecutionContext(ctx);
+  return (await getDebate(env.DB, d.id))!;
+}
+
+test('a name given with the first Turn is screened, and an unsafe one Unlists the Debate', async () => {
+  expect(await postAndScreen('m-flag-name', '?name=Atlas%20%5Bflag-test%5D')).toMatchObject({ flagged: true, visibility: 'unlisted' });
+});
+
+test('a clean name and Turn leave the Debate listed', async () => {
+  expect(await postAndScreen('m-clean-name', '?name=Atlas')).toMatchObject({ flagged: false, visibility: 'listed' });
+});
+
+test('a name screen that errors Flags', async () => {
+  const d = await apiDebate();
+  const failing = async () => ({ client: new FakeModelClient(() => { throw new Error('screener down'); }), screener: 'fake-guard/one' });
+  await screenSubmitted(failing, env.DB, d.id, 'Name: Atlas', 'name');
+  expect(await getDebate(env.DB, d.id)).toMatchObject({ flagged: true, visibility: 'unlisted' });
 });
 
 test('a session cookie alone cannot submit a Turn', async () => {
