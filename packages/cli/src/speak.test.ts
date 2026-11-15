@@ -128,9 +128,55 @@ test('following a Debate says when it waits for an API Turn', async () => {
   expect(output.out).toContain('For: Custom Debater');
 });
 
+/** A running Debate waiting for its Custom For bench's first Turn; `forSeat` and `turns` vary it. */
+const firstTurnView = (forSeat: object = { kind: 'api' }, turns: object[] = []) =>
+  debate({
+    status: 'running',
+    verdict: null,
+    turns: turns as never,
+    awaiting: { slotIndex: turns.length, side: 'for', deadline: '2026-11-15T12:10:00.000Z' },
+    debaters: { for: forSeat as never, against: { kind: 'ai', model: 'b/two' } },
+  });
+
 test('speak --name and --model name the Custom Debater with its Turn', async () => {
-  const { fetch, requests } = platform();
+  const { fetch, requests } = platform(firstTurnView());
   const { deps } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch, stdin: () => stdinOf(['Hi.']) });
-  expect(await run(['speak', 'd1', '--slot', '4', '--name', 'Atlas', '--model', 'gpt 6'], deps)).toBe(0);
-  expect(requests.find(r => r.method === 'POST')?.url).toBe(`${BASE}/api/debates/d1/turns/4?name=Atlas&model=gpt+6`);
+  expect(await run(['speak', 'd1', '--slot', '0', '--name', 'Atlas', '--model', 'gpt 6'], deps)).toBe(0);
+  expect(requests.find(r => r.method === 'POST')?.url).toBe(`${BASE}/api/debates/d1/turns/0?name=Atlas&model=gpt+6`);
+});
+
+/** Runs speak with these flags, with stdin that records whether it was opened. */
+async function speakRefused(view: ReturnType<typeof debate>, flags: string[]) {
+  const { fetch, requests } = platform(view);
+  const stdin = vi.fn(() => stdinOf(['A whole speech.']));
+  const { deps, output } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch, stdin });
+  const code = await run(['speak', 'd1', ...flags], deps);
+  return { code, err: output.err, stdinOpened: stdin.mock.calls.length > 0, sent: requests.filter(r => r.method !== 'GET').length };
+}
+
+const LATE = "A Custom Debater's name and model can be set only at start or with its first Turn\n";
+
+test('a bad --name is refused before the speech is read', async () => {
+  expect(await speakRefused(firstTurnView(), ['--name', 'x'.repeat(41)])).toEqual({
+    code: 1,
+    err: 'Custom Debater name must be 1–40 characters, without control characters\n',
+    stdinOpened: false,
+    sent: 0,
+  });
+  expect((await speakRefused(firstTurnView(), ['--model', 'gpt‮6'])).stdinOpened).toBe(false);
+});
+
+test('a --name for a bench already named differently is refused before the speech is read', async () => {
+  expect(await speakRefused(firstTurnView({ kind: 'api', name: 'Boreas' }), ['--name', 'Atlas'])).toEqual({ code: 1, err: LATE, stdinOpened: false, sent: 0 });
+});
+
+test('a --name after the bench has spoken is refused before the speech is read', async () => {
+  const spoken = [{ phaseIndex: 0, side: 'for', text: 'First.', truncated: false }, { phaseIndex: 0, side: 'against', text: 'Reply.', truncated: false }];
+  expect(await speakRefused(firstTurnView({ kind: 'api' }, spoken), ['--name', 'Atlas'])).toEqual({ code: 1, err: LATE, stdinOpened: false, sent: 0 });
+});
+
+test('the same --name sent again on a later Turn goes through', async () => {
+  const spoken = [{ phaseIndex: 0, side: 'for', text: 'First.', truncated: false }, { phaseIndex: 0, side: 'against', text: 'Reply.', truncated: false }];
+  const { code, stdinOpened } = await speakRefused(firstTurnView({ kind: 'api', name: 'Atlas' }, spoken), ['--name', 'Atlas']);
+  expect({ code, stdinOpened }).toEqual({ code: 0, stdinOpened: true });
 });
