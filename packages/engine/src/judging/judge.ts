@@ -36,18 +36,31 @@ export function parseVerdict(text: string): { winner: Side; reasoning: string } 
   return { winner, reasoning };
 }
 
+/**
+ * The follow-up to a Verdict in the wrong language. Asking the same question again tends to get the same answer
+ * (a Judge answered an English Motion in Chinese twice), so the Judge sees its reply and is asked to rewrite it.
+ */
+export function rewriteRequest(setup: DebateSetup): string {
+  return [
+    `Your reasoning is not in the language of the Motion. The Motion is: ${motionData(setup.motion)}`,
+    `Rewrite the reasoning in the ${SAME_LANGUAGE}. Keep your winner. Reply with the same JSON only.`,
+  ].join('\n\n');
+}
+
 async function askJudge(setup: DebateSetup, turns: Turn[], judge: ModelId, client: ModelClient) {
-  const messages = buildJudgeMessages(setup, turns);
+  const question = buildJudgeMessages(setup, turns);
+  let messages = question;
   const motionScript = dominantScript(setup.motion.text);
   let wrongLanguage: { winner: Side; reasoning: string } | null = null;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const response = await client.complete({ model: judge, messages, maxOutputTokens: JUDGE_OUTPUT_TOKENS });
     const verdict = parseVerdict(response.text);
     if (!verdict) continue;
-    // Reasoning in another script than the Motion is in another language: ask again.
+    // Reasoning in another script than the Motion is in another language: ask for it rewritten.
     const script = dominantScript(verdict.reasoning);
     if (motionScript === null || script === null || script === motionScript) return verdict;
     wrongLanguage = verdict;
+    messages = [...question, { role: 'assistant', content: response.text }, { role: 'user', content: rewriteRequest(setup) }];
   }
   // A Verdict in the wrong language beats failing a finished Debate.
   if (wrongLanguage) return wrongLanguage;

@@ -1,6 +1,6 @@
 // Pure view helpers for Debates, shared by pages and islands.
 import type { DebateSummary } from '@debate-arena/api-client';
-import { isSelfJudging, type Debater, type OxfordResult, type Phase, type Side, type Turn } from '@debate-arena/engine';
+import { countWords, dominantScript, isSelfJudging, type Debater, type OxfordResult, type Phase, type Script, type Side, type Turn } from '@debate-arena/engine';
 import { t } from '../i18n/t';
 
 /** Matches the API's feed page size. */
@@ -27,6 +27,64 @@ export function paragraphs(text: string): string[] {
     .split(/\n[ \t]*\n/)
     .map(p => p.trim())
     .filter(p => p.length > 0);
+}
+
+/** A run of a paragraph's text, plain or with the emphasis the model marked with asterisks. */
+export interface TextRun {
+  text: string;
+  style?: 'em' | 'strong';
+}
+
+// **strong** or *em*, hugging non-space text on both sides, so "5 * 3" and a lone "*" stay as they are.
+const EMPHASIS = /\*\*(?=\S)(.+?)(?<=\S)\*\*|\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*/g;
+
+/** Splits a paragraph into runs, so the Markdown emphasis models write shows as emphasis, never as asterisks. */
+export function inlineEmphasis(text: string): TextRun[] {
+  const runs: TextRun[] = [];
+  let at = 0;
+  for (const match of text.matchAll(EMPHASIS)) {
+    if (match.index > at) runs.push({ text: text.slice(at, match.index) });
+    runs.push(match[1] !== undefined ? { text: match[1], style: 'strong' } : { text: match[2]!, style: 'em' });
+    at = match.index + match[0].length;
+  }
+  if (at < text.length) runs.push({ text: text.slice(at) });
+  return runs;
+}
+
+/** About how much of a speech its preview shows: enough to reach the argument past a greeting. */
+export const PREVIEW_WORDS = 60;
+/** A rest shorter than this is shown too: a disclosure for a sentence or two only costs a click. */
+const SHORT_TAIL_WORDS = 25;
+
+/** How many of a speech's paragraphs show before "Read the full speech". */
+export function previewLength(paragraphs: string[]): number {
+  let words = 0;
+  let shown = 0;
+  while (shown < paragraphs.length && words < PREVIEW_WORDS) words += countWords(paragraphs[shown++]!);
+  const rest = paragraphs.slice(shown).reduce((sum, p) => sum + countWords(p), 0);
+  return rest < SHORT_TAIL_WORDS ? paragraphs.length : shown;
+}
+
+// The most likely language of each script, for a `lang` attribute. Han without kana is read as Chinese.
+const SCRIPT_LANG: Partial<Record<Script, string>> = {
+  hangul: 'ko',
+  cyrillic: 'ru',
+  greek: 'el',
+  arabic: 'ar',
+  hebrew: 'he',
+  devanagari: 'hi',
+  thai: 'th',
+};
+
+/**
+ * The language of a text written in another script than the Motion (a Judge that answered in the wrong
+ * language), for its `lang` attribute; undefined when it shares the Motion's script or has no letters.
+ */
+export function otherLanguage(text: string, motion: string): string | undefined {
+  const script = dominantScript(text);
+  if (script === null || script === dominantScript(motion)) return undefined;
+  if (script === 'cjk') return /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(text) ? 'ja' : 'zh';
+  return SCRIPT_LANG[script];
 }
 
 type FormatPhases = { phases: Pick<Phase, 'name'>[] };

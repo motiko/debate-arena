@@ -39,6 +39,19 @@ test('asks again when the reasoning is in another script than the Motion', async
   expect(client.calls).toHaveLength(2);
 });
 
+test('asks for a rewrite, quoting the wrong-language reply, rather than the same question again', async () => {
+  const wrong = '{"winner":"against","reasoning":"反方在整场辩论中更准确地把握了辩题"}';
+  const replies = [wrong, '{"winner":"against","reasoning":"Against held the burden."}'];
+  const client = new FakeModelClient(() => replies.shift() ?? '');
+  await judgeDebate(setup, sixTurns, client);
+  const retry = client.calls[1]!.messages;
+  expect(retry.slice(0, 2)).toEqual(buildJudgeMessages(setup, sixTurns));
+  expect(retry[2]).toEqual({ role: 'assistant', content: wrong });
+  expect(retry[3]?.role).toBe('user');
+  expect(retry[3]?.content).toContain('Remote work beats office work');
+  expect(retry[3]?.content).toContain('not in the language of the Motion');
+});
+
 test('accepts reasoning in the Motion\'s own script', async () => {
   const motion = { text: '远程办公优于办公室办公' };
   const client = new FakeModelClient(() => '{"winner":"for","reasoning":"正方论证更有力。"}');

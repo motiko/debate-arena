@@ -11,7 +11,10 @@ import {
   swingBars,
   modelLabel,
   nextFeedCursor,
+  inlineEmphasis,
+  otherLanguage,
   paragraphs,
+  previewLength,
   selfJudgingWarning,
   sideLabel,
   swingText,
@@ -217,5 +220,51 @@ describe('chamber helpers', () => {
 
   test('debaterLabel uses the model label', () => {
     expect(debaterLabel(debaters.for, models)).toBe('Fake A');
+  });
+});
+
+describe('inlineEmphasis', () => {
+  test('turns *word* into emphasis and **word** into strong text', () => {
+    expect(inlineEmphasis('the *only* route')).toEqual([{ text: 'the ' }, { text: 'only', style: 'em' }, { text: ' route' }]);
+    expect(inlineEmphasis('**Firm** power, *always*.')).toEqual([
+      { text: 'Firm', style: 'strong' },
+      { text: ' power, ' },
+      { text: 'always', style: 'em' },
+      { text: '.' },
+    ]);
+  });
+  test('leaves lone and spaced asterisks as they are', () => {
+    expect(inlineEmphasis('5 * 3 * 2 is thirty')).toEqual([{ text: '5 * 3 * 2 is thirty' }]);
+    expect(inlineEmphasis('a footnote*')).toEqual([{ text: 'a footnote*' }]);
+    expect(inlineEmphasis('')).toEqual([]);
+  });
+});
+
+describe('previewLength', () => {
+  const words = (n: number) => Array.from({ length: n }, () => 'word').join(' ');
+  test('shows paragraphs until about 60 words are in view, not just the greeting', () => {
+    const speech = ['Madam Chair, honourable opponents, judges.', 'This House believes it. Let me set out why.', words(80), words(80), words(80)];
+    expect(previewLength(speech)).toBe(3);
+  });
+  test('a long first paragraph is preview enough', () => {
+    expect(previewLength([words(100), words(80)])).toBe(1);
+  });
+  test('shows everything when the rest would be a short tail or the speech is short', () => {
+    expect(previewLength([words(70), words(15)])).toBe(2);
+    expect(previewLength([words(10), words(10)])).toBe(2);
+  });
+});
+
+describe('otherLanguage', () => {
+  const motion = 'This house believes nuclear power is essential';
+  test('names the language of a Verdict in another script than the Motion', () => {
+    expect(otherLanguage('反方在整场辩论中更准确地把握了辩题', motion)).toBe('zh');
+    expect(otherLanguage('反対側の議論はより説得力があった', motion)).toBe('ja');
+    expect(otherLanguage('반대 측이 더 설득력 있었다', motion)).toBe('ko');
+  });
+  test("is undefined in the Motion's own script, or when there are no letters", () => {
+    expect(otherLanguage('Against held the burden.', motion)).toBeUndefined();
+    expect(otherLanguage('正方论证更有力。', '远程办公优于办公室办公')).toBeUndefined();
+    expect(otherLanguage('…', motion)).toBeUndefined();
   });
 });

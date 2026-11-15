@@ -67,7 +67,7 @@ const Wrapper = hidden ? 'details' : 'div';
                   <span class="when-open">{t('dispatch.hide')}</span>
                 </summary>
               )}
-              <VerdictView verdict={debate.verdict} debaters={debate.debaters} selfJudging={debate.selfJudging} models={models} />
+              <VerdictView verdict={debate.verdict} debaters={debate.debaters} motion={debate.motion} selfJudging={debate.selfJudging} models={models} />
               {!isBatch && debate.status !== 'failed' && <AudienceResultView result={debate.audienceResult} myVote={debate.myVote} />}
               {debate.aiAudience && (
                 <section class="ai-audience stack" aria-labelledby="ai-audience-title">
