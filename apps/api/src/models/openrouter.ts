@@ -3,10 +3,18 @@ import { sseData } from './sse';
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 
+/** Tokens a failed call must still be charged for. */
+export interface Charge {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export class OpenRouterError extends Error {
   constructor(
     message: string,
     readonly status: number | null,
+    /** Set when the provider already produced (and billed) output before the call failed: a stream cut partway. */
+    readonly charge?: Charge,
   ) {
     super(message);
     this.name = 'OpenRouterError';
@@ -117,8 +125,10 @@ async function readStream(response: Response, request: ModelRequest, onText: (te
       continue;
     }
     const choice = chunk.choices?.[0];
+    if (chunk.usage) usage = chunk.usage;
     if (chunk.error || choice?.finish_reason === 'error') {
-      throw new OpenRouterError(`OpenRouter: ${describeError(chunk.error, `stream failed for ${request.model}`)}`, chunk.error?.code ?? null);
+      // The stream had started, so the provider may have billed output already: the failure is charged too.
+      throw new OpenRouterError(`OpenRouter: ${describeError(chunk.error, `stream failed for ${request.model}`)}`, chunk.error?.code ?? null, charged(usage, request));
     }
     const piece = choice?.delta?.content;
     if (piece) {
@@ -127,12 +137,19 @@ async function readStream(response: Response, request: ModelRequest, onText: (te
     }
     // The finish reason repeats on the closing accounting chunk, which also carries the usage.
     if (choice?.finish_reason) finishReason = choice.finish_reason;
-    if (chunk.usage) usage = chunk.usage;
   }
   // A body that just stops, with no finish reason, was cut off: keeping its text would store half a speech as
-  // a finished Turn. Failing lets the step try again.
-  if (finishReason === null) throw new OpenRouterError(`OpenRouter's stream for ${request.model} ended before the reply did`, null);
+  // a finished Turn. Failing lets the step try again; what was already produced is charged.
+  if (finishReason === null) {
+    throw new OpenRouterError(`OpenRouter's stream for ${request.model} ended before the reply did`, null, charged(usage, request));
+  }
   return toResponse(text, finishReason, usage, request);
+}
+
+/** What a call costs in tokens: as reported, or the worst case (see toResponse). */
+function charged(usage: CompletionBody['usage'], request: ModelRequest): Charge {
+  const { inputTokens, outputTokens } = toResponse('', null, usage, request);
+  return { inputTokens, outputTokens };
 }
 
 /** A chat completion body as a ModelResponse; shared by live calls and Batch API results. */

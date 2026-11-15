@@ -10,7 +10,7 @@ import {
 import { expect, test, vi } from 'vitest';
 import { FAKE_CATALOG, hasRole, PRODUCTION_CATALOG, screenerFor } from '../src/models/catalog';
 import { BudgetExhaustedError, createModels, devFakeReply, meteredClient, SLOW_FAKE_DELAY_MS } from '../src/models/factory';
-import { OpenRouterModelClient } from '../src/models/openrouter';
+import { OpenRouterError, OpenRouterModelClient } from '../src/models/openrouter';
 
 test('fake provider uses the fake catalog', () => {
   const models = createModels({ MODEL_PROVIDER: 'fake' });
@@ -73,6 +73,34 @@ test('the local slow fake streams a reply worth watching over SLOW_FAKE_DELAY_MS
   } finally {
     vi.useRealTimers();
   }
+});
+
+test('a failed call that carries a charge is metered, then still fails', async () => {
+  const costs: number[] = [];
+  const failing = {
+    complete: async () => {
+      throw new OpenRouterError('stream cut', null, { inputTokens: 10, outputTokens: 20 });
+    },
+  };
+  const client = meteredClient(failing, { 'a/x': { inputPerMTokUsd: 1, outputPerMTokUsd: 2 } }, async c => {
+    costs.push(c);
+  });
+  await expect(client.complete({ model: 'a/x', messages: [], maxOutputTokens: 20 })).rejects.toThrow('stream cut');
+  expect(costs).toEqual([50]); // 10 × 1 + 20 × 2
+});
+
+test('a failed call without a charge records nothing', async () => {
+  const costs: number[] = [];
+  const failing = {
+    complete: async () => {
+      throw new OpenRouterError('rate limited', 429);
+    },
+  };
+  const client = meteredClient(failing, { 'a/x': { inputPerMTokUsd: 1, outputPerMTokUsd: 2 } }, async c => {
+    costs.push(c);
+  });
+  await expect(client.complete({ model: 'a/x', messages: [], maxOutputTokens: 20 })).rejects.toThrow('rate limited');
+  expect(costs).toEqual([]);
 });
 
 test('metering checks the Budget guard before every call', async () => {

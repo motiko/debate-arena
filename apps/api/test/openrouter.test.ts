@@ -124,6 +124,24 @@ test('a stream that ends without a finish reason is a failure, not a finished re
   await expect(new OpenRouterModelClient('k', { fetcher }).complete(req, { onText: () => {} })).rejects.toBeInstanceOf(OpenRouterError);
 });
 
+test('a stream that fails partway carries its worst-case cost, since the provider billed what it sent', async () => {
+  const cut = streamStub([delta({ content: 'And therefore the' })]);
+  const cutError = await new OpenRouterModelClient('k', { fetcher: cut.fetcher }).complete(req, { onText: () => {} }).catch(e => e);
+  expect(cutError).toBeInstanceOf(OpenRouterError);
+  expect(cutError.charge).toEqual({ inputTokens: expect.any(Number), outputTokens: req.maxOutputTokens });
+  expect(cutError.charge.inputTokens).toBeGreaterThan(0);
+
+  const failed = streamStub([delta({ content: 'Half a' }), { error: { code: 502, message: 'Provider disconnected' }, ...delta({ content: '' }, 'error') }]);
+  const failedError = await new OpenRouterModelClient('k', { fetcher: failed.fetcher }).complete(req, { onText: () => {} }).catch(e => e);
+  expect(failedError.charge).toMatchObject({ outputTokens: req.maxOutputTokens });
+});
+
+test('an error before the stream starts carries no charge', async () => {
+  const { fetcher } = stub(429, { error: { message: 'Rate limited' } });
+  const error = await new OpenRouterModelClient('k', { fetcher }).complete(req, { onText: () => {} }).catch(e => e);
+  expect(error.charge).toBeUndefined();
+});
+
 test('a stream without usage is charged the worst case', async () => {
   const { fetcher } = streamStub([delta({ content: 'Hi' }, 'stop')]);
   const reply = await new OpenRouterModelClient('k', { fetcher }).complete(req, { onText: () => {} });

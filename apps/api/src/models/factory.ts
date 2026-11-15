@@ -10,7 +10,7 @@ import {
 } from '@debate-arena/engine';
 import { FAKE_CATALOG, PRODUCTION_CATALOG, type Catalog } from './catalog';
 import { FakeBatchApi, OpenRouterBatchApi, type BatchApi } from './batch';
-import { OpenRouterModelClient } from './openrouter';
+import { OpenRouterError, OpenRouterModelClient } from './openrouter';
 
 export interface Models { client: ModelClient; catalog: Catalog }
 
@@ -103,11 +103,20 @@ export function meteredClient(
   return {
     async complete(request, options) {
       await guard();
-      const response = await client.complete(request, options);
       const price = Object.hasOwn(prices, request.model) ? prices[request.model] : undefined;
-      if (price) {
-        await onCost(Math.ceil(response.inputTokens * price.inputPerMTokUsd + response.outputTokens * price.outputPerMTokUsd));
+      const charge = async (tokens: { inputTokens: number; outputTokens: number }) => {
+        if (price) await onCost(Math.ceil(tokens.inputTokens * price.inputPerMTokUsd + tokens.outputTokens * price.outputPerMTokUsd));
+      };
+      let response;
+      try {
+        response = await client.complete(request, options);
+      } catch (error) {
+        // A stream cut partway was already billed by the provider: it counts against the Budget, so a failure
+        // is never free (and a Debate that spent money is not refunded).
+        if (error instanceof OpenRouterError && error.charge) await charge(error.charge);
+        throw error;
       }
+      await charge(response);
       return response;
     },
   };
