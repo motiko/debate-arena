@@ -1,5 +1,8 @@
-import type { AiAudienceResult, DebateSetup, ModelId, ScreenResult, Turn, Verdict } from '@debate-arena/engine';
-import type { DebateKind } from '../models/catalog';
+import type { AiAudienceResult, DebateSetup, ModelId, ModelPrice, ScreenResult, Turn, Verdict } from '@debate-arena/engine';
+import type { DebateKind, ReasoningSupport } from '../models/catalog';
+
+/** The price (as the Debate pays it) and reasoning setting of every model a Debate calls, frozen at its start. */
+export type ModelSnapshot = Record<ModelId, { price: ModelPrice; reasoning: ReasoningSupport; leastEffort?: string }>;
 import type { Visibility } from './moderation';
 
 export type DebateStatus = 'running' | 'complete' | 'failed';
@@ -28,12 +31,16 @@ export interface DebateRecord {
   reviewedAt: string | null;
   /** 'batch': a Batch Debate, generated through batch processing and published only when complete. */
   kind: DebateKind;
+  /** Null for Debates started before prices were frozen: they use the catalog. */
+  models: ModelSnapshot | null;
+  /** While waiting for an API Debater's Turn: "<slot index>@<ISO deadline>". */
+  turnDeadline: string | null;
 }
 
 export type NewDebate = Pick<
   DebateRecord,
   'id' | 'memberId' | 'setup' | 'aiVoters' | 'selfJudging' | 'quotaPoints' | 'budgetReservedMicroUsd' | 'createdAt'
-> & { kind?: DebateKind };
+> & { kind?: DebateKind; models?: ModelSnapshot };
 
 interface DebateRow {
   id: string;
@@ -56,6 +63,8 @@ interface DebateRow {
   screened_at: string | null;
   reviewed_at: string | null;
   kind: DebateKind;
+  models_json: string | null;
+  turn_deadline: string | null;
 }
 
 interface TurnRow { phase_index: number; side: Turn['side']; text: string; truncated: number }
@@ -83,6 +92,8 @@ function toRecord(row: DebateRow, turns: Turn[]): DebateRecord {
     screenedAt: row.screened_at,
     reviewedAt: row.reviewed_at,
     kind: row.kind,
+    models: row.models_json ? (JSON.parse(row.models_json) as ModelSnapshot) : null,
+    turnDeadline: row.turn_deadline,
   };
 }
 
@@ -92,8 +103,8 @@ export async function createDebate(db: D1Database, debate: NewDebate): Promise<v
   await db
     .prepare(
       `INSERT INTO debates (id, member_id, status, setup_json, ai_voters_json, self_judging, quota_points,
-         budget_reserved_micro_usd, created_at, kind)
-       VALUES (?, ?, 'running', ?, ?, ?, ?, ?, ?, ?)`,
+         budget_reserved_micro_usd, created_at, kind, models_json)
+       VALUES (?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       debate.id,
@@ -105,6 +116,7 @@ export async function createDebate(db: D1Database, debate: NewDebate): Promise<v
       debate.budgetReservedMicroUsd,
       debate.createdAt,
       debate.kind ?? 'live',
+      debate.models ? JSON.stringify(debate.models) : null,
     )
     .run();
 }

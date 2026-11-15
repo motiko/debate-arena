@@ -2,9 +2,10 @@ import { MAX_ATTEMPTS } from '@debate-arena/engine';
 import { addCost, getBudget } from '../db/debates';
 import type { DebateEvent } from '../live/events';
 import { BatchCallFailedError, BatchPendingError, type BatchApi } from '../models/batch';
-import { catalogFor, priceTable, reasoningOf, screenerFor, type DebateKind } from '../models/catalog';
+import type { ModelSnapshot } from '../db/debates';
+import { catalogFor, priceTable, reasoningOf, screenerFor, type DebateKind, type ReasoningMode } from '../models/catalog';
 import { deferredClient } from '../models/deferred';
-import { BudgetExhaustedError, createBatchApi, meteredClient } from '../models/factory';
+import { BudgetExhaustedError, createBatchApi, createModels, meteredClient } from '../models/factory';
 import { loadModels } from '../models/live-catalog';
 import type { StepJob } from './start';
 import { failStep, runStep, type StepDeps } from './steps';
@@ -65,15 +66,26 @@ export async function consumer(
         throw new BudgetExhaustedError(`Spent ${budget.spentMicroUsd} of ${budget.reservedMicroUsd} micro-USD`);
       }
     };
-    const kind = (await env.DB.prepare('SELECT kind FROM debates WHERE id = ?').bind(debateId).first<{ kind: DebateKind }>())?.kind;
-    const live = meteredClient(models.client, prices, cost => addCost(env.DB, debateId, cost), budgetGuard);
-    const batchDebate = kind === 'batch';
+    const row = await env.DB.prepare('SELECT kind, models_json FROM debates WHERE id = ?')
+      .bind(debateId)
+      .first<{ kind: DebateKind; models_json: string | null }>();
+    // The prices and reasoning settings frozen when the Debate started win over today's catalog (older Debates have none).
+    const snapshot = row?.models_json ? (JSON.parse(row.models_json) as ModelSnapshot) : {};
+    const frozenPrices = Object.fromEntries(Object.entries(snapshot).map(([id, m]) => [id, m.price]));
+    const catalogReasoning = reasoningOf(models.catalog);
+    const reasoning = (id: string): ReasoningMode => {
+      const frozen = Object.hasOwn(snapshot, id) ? snapshot[id] : undefined;
+      return frozen ? { support: frozen.reasoning, ...(frozen.leastEffort ? { leastEffort: frozen.leastEffort } : {}) } : catalogReasoning(id);
+    };
+    const { client } = createModels(modelEnv, models.catalog, reasoning);
+    const live = meteredClient(client, { ...prices, ...frozenPrices }, cost => addCost(env.DB, debateId, cost), budgetGuard);
+    const batchDebate = row?.kind === 'batch';
     const deferred = batchDebate
       ? deferredClient({
           db: env.DB,
           debateId,
-          api: overrides.batchApi ?? createBatchApi(modelEnv, reasoningOf(models.catalog)),
-          prices: batchPrices,
+          api: overrides.batchApi ?? createBatchApi(modelEnv, reasoning),
+          prices: { ...batchPrices, ...frozenPrices },
           onCost: cost => addCost(env.DB, debateId, cost),
           guard: budgetGuard,
         })

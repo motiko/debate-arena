@@ -25,7 +25,7 @@ import { getDebate, listCompletedDebates, type DebateRecord } from './db/debates
 import { castAfter, castBefore, getVote, listVotes, type AudienceVote } from './db/votes';
 import { audienceResult, checkVote, votingClosesAt, type VotePhase } from './votes/rules';
 import { voterKey } from './votes/voter-key';
-import { startDebate } from './debates/start';
+import { planDebate, startDebate } from './debates/start';
 import { isBatchCapable } from './models/catalog';
 import { loadModels } from './models/live-catalog';
 
@@ -236,6 +236,28 @@ export const app = new Hono<{ Bindings: Env }>()
     );
     if (!result.ok) return c.json({ error: result.error }, result.status);
     return c.json({ id: result.id, panel: result.panel, selfJudging: result.selfJudging }, 201);
+  })
+  .post('/debates/quote', async c => {
+    if (!isJson(c.req.header('content-type'))) return c.json({ error: NOT_JSON }, 415);
+    const memberId = await memberResolver(c.env, { tokens: true })(c.req.raw);
+    if (!memberId) return c.json({ error: 'Sign in to start a Debate' }, 401);
+    let input: unknown;
+    try {
+      input = await c.req.json();
+    } catch {
+      return c.json({ error: 'Request body must be JSON' }, 400);
+    }
+    const { catalog } = await loadModels(c.env);
+    const plan = planDebate({ catalog, unlimitedQuota: await hasUnlimitedQuota(c.env, memberId) }, input);
+    if (!plan.ok) return c.json({ error: plan.error }, plan.status);
+    return c.json({
+      budgetMicroUsd: plan.budgetMicroUsd,
+      quotaPoints: plan.quotaPoints,
+      quotaRemaining: await memberQuotaRemaining(c.env, memberId),
+      slowAvailable: plan.slowAvailable,
+      panel: plan.setup.panel,
+      selfJudging: plan.selfJudging,
+    });
   })
   .get('/debates', async c => {
     const before = c.req.query('before');

@@ -53,7 +53,8 @@ test('export includes sessions, linked accounts and Quota usage, without secrets
   expect(data.sessions?.[0]).not.toHaveProperty('token');
   expect(data.accounts).toEqual([expect.objectContaining({ provider: 'github', accountId: `gh-${userId}` })]);
   expect(JSON.stringify(data.accounts)).not.toMatch(/accessToken|gho_/);
-  expect(data.quota).toEqual([expect.objectContaining({ points: 2 })]);
+  // A fake Debate reserves 47 816 micro-USD: 4 Quota points.
+  expect(data.quota).toEqual([expect.objectContaining({ points: 4 })]);
 });
 
 test('the export lists API tokens without secrets', async () => {
