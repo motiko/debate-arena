@@ -26,7 +26,6 @@ export function follow(debateId: string, deps: FollowDeps): Promise<number> {
     /** The slot whose draft is on screen (TTY only), and how much of it. */
     let draftSlot: number | null = null;
     let shown = '';
-    let opened = false;
     let done = false;
     // Events and reloads run one at a time, in order.
     let queue: Promise<void> = Promise.resolve();
@@ -130,6 +129,9 @@ export function follow(debateId: string, deps: FollowDeps): Promise<number> {
           verdictPrinted = true;
           return;
         case 'complete':
+          // A Turn or the Verdict may have been missed (broadcasts are best-effort): load first, so the end prints them.
+          await load(false);
+          if (done) return;
           if (event.aiAudience) out(`\n${renderAiAudience(event.aiAudience)}`);
           out(`\n${renderVoteLink(deps.base, debateId)}`);
           return finish(0);
@@ -148,9 +150,8 @@ export function follow(debateId: string, deps: FollowDeps): Promise<number> {
         onEvent: event => enqueue(() => apply(event)),
         onStatus: status => {
           if (status === 'open') {
-            // A reconnect may have missed events: load again.
-            if (opened) enqueue(() => load(false));
-            opened = true;
+            // Turns written before this socket opened (first connect or reconnect) never reach it: load again.
+            enqueue(() => load(false));
           } else if (status === 'closed' && !done) {
             err(`Lost the live connection. Resume with: debate show ${debateId} --follow\n`);
             finish(1);

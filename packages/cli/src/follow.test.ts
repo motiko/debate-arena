@@ -42,7 +42,8 @@ test('a Turn written before the socket opens is printed once', async () => {
 });
 
 test('after a reconnect, missed Turns are fetched', async () => {
-  const fetchViews = views(running(2), running(3));
+  // Loaded at the start, again when the socket first opens, and again after the reconnect.
+  const fetchViews = views(running(2), running(2), running(3));
   const { output } = setup(fetchViews);
   FakeSocket.last.open();
   await settle();
@@ -50,9 +51,30 @@ test('after a reconnect, missed Turns are fetched', async () => {
   await settle();
   FakeSocket.last.open();
   await settle();
-  expect(fetchViews.requests).toHaveLength(2);
+  expect(fetchViews.requests).toHaveLength(3);
   expect(count(output.out, 'Turn 2 text.')).toBe(1);
   expect(count(output.out, 'Turn 0 text.')).toBe(1);
+});
+
+test('a Turn written after loading but before the first open is fetched when the socket opens', async () => {
+  const { output } = setup(views(running(1), running(2)));
+  await settle();
+  FakeSocket.last.open();
+  await settle();
+  expect(count(output.out, 'Turn 1 text.')).toBe(1);
+});
+
+test('complete prints a missed last Turn and Verdict before the vote link', async () => {
+  const done = debate({ status: 'complete', turns: [turn(0), turn(1)], verdict });
+  const { output, result } = setup(views(running(1), running(1), done));
+  await settle();
+  FakeSocket.last.open();
+  await settle();
+  FakeSocket.last.emit({ type: 'complete', aiAudience: null });
+  expect(await result).toBe(0);
+  expect(count(output.out, 'Turn 1 text.')).toBe(1);
+  expect(count(output.out, 'Verdict: For wins')).toBe(1);
+  expect(output.out.indexOf('Turn 1 text.')).toBeLessThan(output.out.indexOf('Read and vote:'));
 });
 
 test('a Turn beyond the next one fetches the gap', async () => {

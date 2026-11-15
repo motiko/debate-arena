@@ -2,6 +2,12 @@
 // Entry point: Node 24 runs this TypeScript directly (type stripping), so there is no build step.
 import { run } from './run.ts';
 
+// A reader that stops early (`debate start … | head`) closes the pipe: stop quietly, as Unix tools do.
+process.stdout.on('error', error => {
+  if ((error as NodeJS.ErrnoException).code === 'EPIPE') process.exit(0);
+  throw error;
+});
+
 const code = await run(process.argv.slice(2), {
   env: process.env,
   fetch: globalThis.fetch,
