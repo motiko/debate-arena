@@ -1,6 +1,7 @@
 ---
 import PageHead from '../components/PageHead.astro';
 import AccountActions from '../islands/AccountActions.svelte';
+import ApiTokens from '../islands/ApiTokens.svelte';
 import SignInButton from '../islands/SignInButton.svelte';
 import Base from '../layouts/Base.astro';
 import { t, tn } from '../i18n/t';
@@ -32,6 +33,7 @@ const { me } = Astro.locals;
             </a>
           </p>
         </section>
+        <ApiTokens client:visible />
         <AccountActions client:visible />
       </>
     ) : (
