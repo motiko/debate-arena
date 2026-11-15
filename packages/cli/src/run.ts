@@ -1,7 +1,7 @@
 // The Debate Arena CLI: a Venue that is a client of the platform API (ADR 0002). It starts Debates as the Member
 // whose API token is in DEBATE_ARENA_TOKEN, and reads Debates as a signed-out Viewer. It never prints the token.
 import { parseArgs } from 'node:util';
-import { createApiClient, type PublicDebate } from '@debate-arena/api-client';
+import { createApiClient, matchesSearch, sendDraft, submitTurn, type PublicDebate } from '@debate-arena/api-client';
 import { follow } from './follow.ts';
 import { debateUrl, renderDebate } from './render.ts';
 import { safeOutput } from './terminal.ts';
@@ -13,6 +13,8 @@ export interface CliDeps {
   out: (text: string) => void;
   err: (text: string) => void;
   isTTY: boolean;
+  /** What `debate speak` reads its Turn from. */
+  stdin: ReadableStream<Uint8Array>;
 }
 
 export const DEFAULT_BASE = 'https://debate-arena-web.motiko.workers.dev';
@@ -20,10 +22,15 @@ export const DEFAULT_BASE = 'https://debate-arena-web.motiko.workers.dev';
 export const USAGE = `Usage: debate <command> [options]
 
 Commands:
-  start <motion> --for <model> --against <model>   Start a Debate and follow it live
+  start <motion> --for <model|api> --against <model|api>
       [--panel <model,model>] [--ai-voters] [--batch] [--detach] [--json]
+                                                   Start a Debate and follow it live; "api" seats an
+                                                   API Debater whose Turns you send with speak
+      [--dry-run]                                  Only show what it would cost in Quota points
+  speak <id> [--slot <n>]                          Send the awaited API Turn from stdin, shown live
+                                                   as it is read (e.g. my-agent | debate speak <id>)
   show <id> [--follow] [--json]                    Show a Debate (and follow it while it runs)
-  models [--json]                                  List the models you can choose
+  models [--search <words>] [--json]               List the models you can choose
   whoami [--json]                                  Show who your token signs you in as
   help                                             Show this help
 
@@ -58,6 +65,9 @@ const OPTIONS = {
   batch: { type: 'boolean' },
   detach: { type: 'boolean' },
   follow: { type: 'boolean' },
+  'dry-run': { type: 'boolean' },
+  slot: { type: 'string' },
+  search: { type: 'string' },
   json: { type: 'boolean' },
   help: { type: 'boolean' },
 } as const;
@@ -110,6 +120,22 @@ async function start(ctx: Context, positionals: string[], values: Values): Promi
     aiVoters: values['ai-voters'] ?? false,
     batch: values.batch ?? false,
   };
+  if (values['dry-run']) {
+    const quote = await ctx.deps.fetch(client.api.debates.quote.$url(), {
+      method: 'POST',
+      headers: { authorization: `Bearer ${requireToken(ctx)}`, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!quote.ok) throw await failure(ctx, quote);
+    const priced = (await quote.json()) as { budgetMicroUsd: number; quotaPoints: number; quotaRemaining: number };
+    const points = priced.quotaPoints === 1 ? '1 Quota point' : `${priced.quotaPoints} Quota points`;
+    ctx.print(
+      values.json
+        ? `${JSON.stringify(priced)}\n`
+        : `${points} (${priced.quotaRemaining} left today) · worst case $${(priced.budgetMicroUsd / 1e6).toFixed(2)}\n`,
+    );
+    return 0;
+  }
   const response = await ctx.deps.fetch(client.api.debates.$url(), {
     method: 'POST',
     headers: { authorization: `Bearer ${requireToken(ctx)}`, 'content-type': 'application/json' },
@@ -150,7 +176,8 @@ async function show(ctx: Context, positionals: string[], values: Values): Promis
 async function models(ctx: Context, values: Values): Promise<number> {
   const response = await viewerClient(ctx).api.models.$get();
   if (!response.ok) throw await failure(ctx, response);
-  const { models: list } = (await response.json()) as { models: { id: string; label: string; roles: string[]; batch: boolean }[] };
+  const { models: all } = (await response.json()) as { models: { id: string; label: string; roles: string[]; batch: boolean }[] };
+  const list = values.search ? all.filter(m => matchesSearch(m, values.search!, m.id.split('/')[0] ?? '')) : all;
   if (values.json) {
     ctx.print(`${JSON.stringify(list)}\n`);
     return 0;
@@ -161,6 +188,56 @@ async function models(ctx: Context, values: Values): Promise<number> {
     const row = [m.id.padEnd(idWidth), m.label.padEnd(labelWidth), m.roles.join(', ').padEnd(rolesWidth), m.batch ? 'batch' : ''];
     ctx.print(`${row.join('  ').trimEnd()}\n`);
   }
+  return 0;
+}
+
+/** How often `speak` shows the Turn so far, at most. */
+export const DRAFT_EVERY_MS = 300;
+
+/**
+ * Sends the Debate's awaited API Turn from stdin. The platform's edge hands a request body on only once it is
+ * complete, so while reading the CLI shows Viewers the text so far as drafts (at most every DRAFT_EVERY_MS, one at a
+ * time), then sends the whole Turn.
+ */
+async function speak(ctx: Context, positionals: string[], values: Values): Promise<number> {
+  const [id] = positionals;
+  if (!id || positionals.length > 1 || (values.slot !== undefined && !/^\d+$/.test(values.slot))) return usageError(ctx);
+  const token = requireToken(ctx);
+  let slot = values.slot === undefined ? null : Number(values.slot);
+  if (slot === null) {
+    const response = await viewerClient(ctx).api.debates[':id'].$get({ param: { id } });
+    if (!response.ok) throw await failure(ctx, response);
+    const view = (await response.json()) as PublicDebate;
+    if (!view.awaiting) throw ctx.fail('This Debate is not waiting for an API Turn\n');
+    slot = view.awaiting.slotIndex;
+  }
+
+  let text = '';
+  let sentAt = Number.NEGATIVE_INFINITY;
+  let inFlight: Promise<unknown> | null = null;
+  const reader = ctx.deps.stdin.getReader();
+  const decoder = new TextDecoder();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+    if (!inFlight && Date.now() - sentAt >= DRAFT_EVERY_MS && text.trim()) {
+      sentAt = Date.now();
+      // Best-effort: a lost draft only means Viewers wait for the next one, or for the Turn.
+      inFlight = sendDraft(ctx.base, token, id, slot, text, ctx.deps.fetch)
+        .catch(() => {})
+        .finally(() => (inFlight = null));
+    }
+  }
+  text += decoder.decode();
+  // No draft may land after the Turn.
+  await inFlight;
+
+  const response = await submitTurn(ctx.base, token, id, slot, text, ctx.deps.fetch);
+  if (response.status !== 201) throw await failure(ctx, response);
+  const stored = (await response.json()) as { slotIndex: number; turn: { text: string } };
+  const words = stored.turn.text.split(/\s+/).filter(Boolean).length;
+  ctx.print(`Turn ${stored.slotIndex} stored (${words} ${words === 1 ? 'word' : 'words'})\n`);
   return 0;
 }
 
@@ -211,6 +288,8 @@ export async function run(argv: string[], deps: CliDeps): Promise<number> {
         return await start(ctx, positionals, values);
       case 'show':
         return await show(ctx, positionals, values);
+      case 'speak':
+        return await speak(ctx, positionals, values);
       case 'models':
         return await models(ctx, values);
       case 'whoami':

@@ -2,7 +2,7 @@
 // The socket opens first and its events wait until the Debate is loaded, so nothing written in between is lost;
 // after a reconnect the Debate is loaded again and only Turns not yet printed are printed.
 import { connectLive, createApiClient, liveUrl, type DebateEvent, type LiveOptions, type PublicDebate } from '@debate-arena/api-client';
-import { renderAiAudience, renderDebate, renderHeader, renderTurn, renderVerdict, renderVoteLink, turnHeader } from './render.ts';
+import { renderAiAudience, renderAwaiting, renderDebate, renderHeader, renderTurn, renderVerdict, renderVoteLink, turnHeader } from './render.ts';
 import type { CliDeps } from './run.ts';
 import { safeOutput } from './terminal.ts';
 
@@ -120,6 +120,9 @@ export function follow(debateId: string, deps: FollowDeps): Promise<number> {
       switch (event.type) {
         case 'draft':
           return draft(event.slotIndex, event.text);
+        case 'awaiting':
+          if (event.slotIndex === printed) out(`\n${renderAwaiting(slotOf(debate, event.slotIndex).side, event.deadline)}`);
+          return;
         case 'turn':
           if (event.slotIndex < printed) return;
           if (event.slotIndex > printed) return load(false);

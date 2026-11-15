@@ -33,6 +33,7 @@ export function testDeps(overrides: Partial<CliDeps> = {}) {
       output.err += text;
     },
     isTTY: false,
+    stdin: new ReadableStream<Uint8Array>({ start: controller => controller.close() }),
     ...overrides,
   };
   return { deps, output };
@@ -63,6 +64,7 @@ export function debate(overrides: Partial<PublicDebate> = {}): PublicDebate {
     ],
     verdict: { winner: 'for', reasoning: 'Better evidence.', judges: ['c/three'] },
     aiAudience: null,
+    awaiting: null,
     createdAt: '2026-11-15T10:00:00.000Z',
     completedAt: '2026-11-15T10:05:00.000Z',
     turnsHidden: false,

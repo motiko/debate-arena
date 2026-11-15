@@ -9,7 +9,12 @@ type AiAudience = NonNullable<PublicDebate['aiAudience']>;
 const SIDE_LABEL: Record<Side, string> = { for: 'For', against: 'Against' };
 const STATUS_LABEL: Record<PublicDebate['status'], string> = { running: 'Running', complete: 'Complete', failed: 'Failed' };
 
-const debaterName = (debater: Debater) => (debater.kind === 'ai' ? debater.model : 'a Member');
+const debaterName = (debater: Debater) => (debater.kind === 'ai' ? debater.model : debater.kind === 'api' ? 'API Debater' : 'a Member');
+
+/** "Waiting for For's Turn via the API until 12:10 UTC". */
+export function renderAwaiting(side: Side, deadline: string): string {
+  return `Waiting for ${SIDE_LABEL[side]}'s Turn via the API until ${deadline.slice(11, 16)} UTC\n`;
+}
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 
 export const debateUrl = (base: string, id: string) => `${base}/debates/${encodeURIComponent(id)}`;
