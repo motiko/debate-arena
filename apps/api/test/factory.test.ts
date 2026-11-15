@@ -44,6 +44,37 @@ test('metering reports cost from tokens and prices', async () => {
   expect(costs).toEqual([16]); // 3 input tokens × 2 + 2 output tokens × 5
 });
 
+test('the metered client passes drafts through and still charges the reply', async () => {
+  const costs: number[] = [];
+  const seen: string[] = [];
+  const client = meteredClient(new FakeModelClient(() => 'one two three'), { 'a/x': { inputPerMTokUsd: 1, outputPerMTokUsd: 1 } }, async c => {
+    costs.push(c);
+  });
+  const reply = await client.complete({ model: 'a/x', messages: [{ role: 'user', content: 'a' }], maxOutputTokens: 5 }, { onText: t => seen.push(t) });
+  expect(seen).toEqual(['one', 'one two', 'one two three']);
+  expect(seen.at(-1)).toBe(reply.text);
+  expect(costs).toHaveLength(1);
+});
+
+test('the local slow fake streams a reply worth watching over SLOW_FAKE_DELAY_MS', async () => {
+  vi.useFakeTimers();
+  try {
+    const { client } = createModels({ MODEL_PROVIDER: 'fake' });
+    const seen: string[] = [];
+    const reply = client.complete({ model: 'fake-slow/one', messages: [{ role: 'user', content: 'x' }], maxOutputTokens: 100 }, { onText: t => seen.push(t) });
+    await vi.advanceTimersByTimeAsync(SLOW_FAKE_DELAY_MS / 2);
+    const halfway = seen.length;
+    expect(halfway).toBeGreaterThan(3);
+    await vi.advanceTimersByTimeAsync(SLOW_FAKE_DELAY_MS / 2);
+    const { text } = await reply;
+    expect(seen.length).toBeGreaterThan(halfway);
+    expect(seen.at(-1)).toBe(text);
+    expect(text.split(/\s+/).length).toBeGreaterThanOrEqual(30);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 test('metering checks the Budget guard before every call', async () => {
   const client = new FakeModelClient();
   let allowed = true;
@@ -77,7 +108,7 @@ test('fake-slow Debater replies after the slow delay', async () => {
     await vi.advanceTimersByTimeAsync(SLOW_FAKE_DELAY_MS - 1);
     expect(done).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
-    expect((await reply).text).toContain('fake-slow/one');
+    expect((await reply).text).toContain('fake speech for local development');
   } finally {
     vi.useRealTimers();
   }
