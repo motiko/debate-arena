@@ -28,7 +28,7 @@ jobs:
         env:
           REPOSITORY: ${{ github.repository }}
           HEAD_SHA: ${{ github.sha }}
-          # The repository is private: reading main needs the job's token (contents: read).
+          # The job's token (contents: read) keeps the call off the unauthenticated API rate limit.
           GH_TOKEN: ${{ github.token }}
         run: |
           tip=$(gh api "repos/$REPOSITORY/commits/main" --jq .sha)
