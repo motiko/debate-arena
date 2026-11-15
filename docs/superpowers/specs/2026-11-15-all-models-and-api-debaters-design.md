@@ -18,7 +18,12 @@ Two changes to how a Member seats a Debate:
   down {count} more models".
 - The Debater pickers list **API** first, before any model (see §2). The Judge picker lists "Let the platform
   choose (recommended)" first, as today.
-- A Slow Debate still lists only batch-capable models.
+- **"Make it a Slow Debate" appears only when both Debaters are batch-capable** (§1, Slow Debates) and neither bench is
+  API. Changing a Debater to one that is not batch-capable hides the choice again and unticks it, announced in the
+  form's status line ("Slow Debate is not available for {model}"). While it is ticked, the Judge picker lists only
+  batch-capable models (and "Let the platform choose").
+- Under the start button, the form shows what this line-up costs: "{points} Quota points · you have {left} left
+  today", updated as choices change (from `POST /api/debates/quote`, §3).
 - The CLI's `debate models` lists the same models; `debate models --search <words>` filters the same way.
 
 ### Which models are listed
@@ -28,16 +33,25 @@ The API Worker reads `GET https://openrouter.ai/api/v1/models?output_modalities=
 
 - text is among `architecture.input_modalities` and `architecture.output_modalities` is exactly `["text"]`;
 - `pricing.prompt` and `pricing.completion` parse as numbers ≥ 0 (routers such as `openrouter/auto` report −1);
-- its id has no `:` variant suffix and does not start with `openrouter/` (`:free` variants are rate-limited to the
-  point of failing Debates; `:batch` variants are not models of their own, see below);
+- it does not start with `openrouter/`, and its id has no variant suffix other than `:free` (`:batch` variants are not
+  models of their own, see below; other variants such as `:nitro` or `:thinking` are left out);
 - `supported_parameters` includes `max_tokens`;
 - `context_length` ≥ 16 000 (a Classic Debate's Judge prompt is about 5 000 tokens).
 
-Expensive models are listed too; whether a chosen line-up fits the Budget cap is checked on start.
+Expensive models are listed too; they cost more Quota (§3).
 
-On 2026-11-15 that is 342 models. Prices are USD per token in the response; the catalog stores USD per million
-tokens, as today. A `<id>:batch` entry in the response becomes the base model's `batchPrice`, so every model
-OpenRouter serves through its Batch API can take part in a Slow Debate.
+**Free models.** A `:free` variant (14 on 2026-11-15, e.g. `google/gemma-4-31b-it:free`) is listed as its own entry,
+labelled "{name} (free)", at price 0. OpenRouter rate-limits free variants per account, so they share one platform-wide
+allowance: a free Debater that is refused fails its Debate, which costs nothing and so refunds the Quota (the
+existing rule). OpenRouter serves free variants only when the account allows providers that may keep prompts; the
+platform's account must allow that (a deploy step), which is acceptable because every Turn is public anyway.
+
+On 2026-11-15 that is 356 models (342 + 14 free). Prices are USD per token in the response; the catalog stores USD per million
+tokens, as today. A `<id>:batch` entry in the response becomes the base model's `batchPrice`.
+
+**Slow Debates.** A model is **batch-capable** when it has a `batchPrice` and its reasoning is not `'mandatory'`
+(51 models on 2026-11-15; no free model). A Slow Debate needs both Debaters and its Judge batch-capable; the API
+refuses others with 400 "Model {id} cannot take part in a Slow Debate", as today.
 
 **Reasoning.** `reasoning.mandatory: false` (or no `reasoning` field with `reasoning` in `supported_parameters`)
 → `'optional'`, switched off as today. No `reasoning` support → `'unsupported'`. `reasoning.mandatory: true` →
@@ -63,14 +77,6 @@ none, the curated catalog alone. A request never waits more than 3 s for the lis
 will call (Debaters, Judge, AI Voters, screener). Its steps charge and call by that snapshot, so a model that
 leaves OpenRouter's list or changes price mid-Debate can neither go unmetered nor change the reserved Budget.
 Debates started before this change fall back to the catalog, as today.
-
-### Budget cap
-
-Some models make one Debate cost dollars (on 2026-11-15, a Classic Debate on `openai/gpt-5.5-pro` reserves about
-$2.19). Starting a Debate whose worst-case Budget exceeds `MAX_DEBATE_BUDGET_MICRO_USD = 1_000_000` ($1) is
-refused with 400: "This line-up could cost up to ${cost}; a Debate may reserve at most $1.00. Choose cheaper
-models." Members with unlimited Quota (`UNLIMITED_QUOTA_GITHUB_IDS`) are exempt. The form shows each option's
-price so a Member can see why.
 
 ## 2. API Debaters
 
@@ -138,6 +144,54 @@ price so a Member can see why.
   read**, so `my-agent | debate speak <id>` shows the speech live. It reads the Debate first to learn the awaited
   slot; it fails with the API's message on 409. `--slot <n>` overrides the slot.
 - `debate show <id>` and following print "Waiting for {side}'s Turn via the API until {time}" on `awaiting`.
+
+## 3. Quota follows cost
+
+Today every Debate costs 2 of a Member's 6 daily Quota points and a Slow Debate 1, whatever its models cost. With
+every model on offer that no longer fits: on 2026-11-15 a Debate's worst-case Budget ranges from about $0.002 (two
+free Debaters) to over $2.
+
+**A Debate costs Quota in proportion to its worst-case Budget**, the amount already reserved before it starts:
+
+- `QUOTA_POINT_MICRO_USD = 12_500`: one point per 1.25 cents of worst-case Budget, rounded up, at least 1.
+- `DAILY_QUOTA_POINTS = 24` (was 6). A Member can spend at most $0.30 of worst-case Budget a day, about what three of
+  today's dearest curated Debates reserve.
+- A Debate that would cost more than 24 points (worst case over $0.30) cannot be started by a Member with limited
+  Quota: 400 "This line-up needs {points} Quota points; a day has 24. Choose cheaper models or leave out AI Voters."
+- `BATCH_DEBATE_QUOTA_POINTS` and the fixed `DEBATE_QUOTA_POINTS` go away. A Slow Debate is cheaper because its
+  Budget is reckoned at batch prices.
+- Members with unlimited Quota spend no points. A safety ceiling `MAX_DEBATE_BUDGET_MICRO_USD = 5_000_000` ($5)
+  still applies to everyone, so a mistake cannot cost more than that.
+
+**What counts.** Everything the Debate pays for counts, by the same rule, because it is all in the worst-case
+Budget:
+
+- **Debaters**: their Turns, at their price; free and API Debaters cost nothing.
+- **The Judge**: one verdict call over the whole transcript. A platform-chosen Judge is a cheap curated model, so it
+  adds about a point. A Member-chosen expensive Judge costs what it costs.
+- **AI Voters**: ten curated models, two short calls each. They reserve about $0.038, roughly 3 points. That is
+  more than a cheap Debate's Turns, so a Member who adds them sees the price go up before starting.
+- **Screening**: the Motion, and each API Turn: a fraction of a point.
+
+Examples at 2026-11-15 prices (worst case, live):
+
+| Line-up | Budget | Points |
+| --- | --- | --- |
+| Two free Debaters, platform Judge | $0.002 | 1 |
+| Claude Haiku 5.5 vs Qwen 3.8 Flash, platform Judge | $0.020 | 2 |
+| GPT-6.1 Terra vs DeepSeek V4.1 Flash, platform Judge | $0.042 | 4 |
+| the same, with AI Voters | $0.080 | 7 |
+| GPT-6.1 Terra vs DeepSeek, as a Slow Debate | ≈$0.019 | 2 |
+
+**The rule in one place.** `quotaPointsFor(budgetMicroUsd: number): number` lives in the engine's Budget module, so
+the API and the web compute the same number. The API is the authority.
+
+**Quoting before starting.** `POST /api/debates/quote` takes the same body as `POST /api/debates` and answers 200
+`{ budgetMicroUsd, quotaPoints, quotaRemaining, slowAvailable, panel, selfJudging }`, or the same 400 errors, without
+charging or creating anything. `slowAvailable` is true when both Debaters are batch-capable. It is open to the same
+callers as starting a Debate (session or API token), and the CLI prints it on `debate start --dry-run`.
+
+**Refunds** are unchanged: a failed Debate that charged no model cost gets its points back.
 
 ## Out of scope
 
