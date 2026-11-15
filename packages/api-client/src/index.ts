@@ -33,8 +33,15 @@ export function matchesSearch(model: { id: string; label: string }, query: strin
     .every(word => haystack.includes(word));
 }
 
+/** The base without trailing slashes, in linear time (a `/\/+$/` regex is quadratic on a base full of slashes). */
+function trimSlashes(baseUrl: string): string {
+  let end = baseUrl.length;
+  while (end > 0 && baseUrl[end - 1] === '/') end -= 1;
+  return baseUrl.slice(0, end);
+}
+
 const turnUrl = (baseUrl: string, debateId: string, slot: number) =>
-  `${baseUrl.replace(/\/+$/, '')}/api/debates/${encodeURIComponent(debateId)}/turns/${slot}`;
+  `${trimSlashes(baseUrl)}/api/debates/${encodeURIComponent(debateId)}/turns/${slot}`;
 
 const textHeaders = (token: string) => ({ authorization: `Bearer ${token}`, 'content-type': 'text/plain; charset=utf-8' });
 

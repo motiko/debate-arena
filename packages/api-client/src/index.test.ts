@@ -30,6 +30,16 @@ test('submitTurn posts the text with the token', async () => {
   expect(await seen[0]?.text()).toBe('My speech.');
 });
 
+test('submitTurn drops trailing slashes from the base, quickly even for a base full of slashes', async () => {
+  const { seen, fetcher } = recorder(201, { slotIndex: 0 });
+  await submitTurn('https://api.test///', 'da_x', 'd1', 0, 'x', fetcher);
+  expect(seen[0]?.url).toBe('https://api.test/api/debates/d1/turns/0');
+  const hostile = `https://api.test/${'/'.repeat(100_000)}x`;
+  const started = performance.now();
+  await sendDraft(hostile, 'da_x', 'd1', 0, 'x', recorder(204).fetcher);
+  expect(performance.now() - started).toBeLessThan(200);
+});
+
 test('submitTurn streams a body', async () => {
   const { seen, fetcher } = recorder(201, { slotIndex: 0 });
   const body = new ReadableStream<Uint8Array>({
