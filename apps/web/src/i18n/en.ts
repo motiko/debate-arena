@@ -346,6 +346,7 @@ export const en = {
   'floor.speaker': '{model}, {side}',
   'floor.next': '{side} speaks next',
   'floor.speaking': '{side} is speaking',
+  'floor.awaiting': '{side} is preparing a Turn via the API',
   'floor.more': 'Read the full speech',
   'floor.moreWords.one': '{count} more word',
   'floor.moreWords.other': '{count} more words',

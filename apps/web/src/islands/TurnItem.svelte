@@ -14,9 +14,11 @@
     truncated: boolean;
     /** The speech as it is being written: all of it shows, growing, with a caret at its end. */
     draft?: boolean;
+    /** An API Debater's Turn: labelled as submitted via API, since the platform did not generate it (ADR 0005). */
+    submitted?: boolean;
   }
 
-  let { phase, speaker, side, text, truncated, draft = false }: Props = $props();
+  let { phase, speaker, side, text, truncated, draft = false, submitted = false }: Props = $props();
 
   // The opening paragraphs show, up to about PREVIEW_WORDS so a greeting is not all there is; the rest wait
   // behind a disclosure that works without JavaScript. A speech cut off at the word limit ends in an ellipsis,
@@ -42,7 +44,7 @@
 <article class="speech speech-{side}" class:speech-draft={draft}>
   <header class="speech-head">
     <h3><span class="visually-hidden">{phase}:</span> {t('floor.speaker', { model: speaker, side: sideLabel(side) })}</h3>
-    <span class="ai">{t('label.ai')}</span>
+    <span class="ai">{t(submitted ? 'label.api' : 'label.ai')}</span>
     <span class="rule" aria-hidden="true"></span>
   </header>
   {#each shown as text, i (i)}

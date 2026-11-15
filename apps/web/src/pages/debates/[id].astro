@@ -21,6 +21,8 @@ const models: ModelInfo[] = modelsRes.ok ? (await modelsRes.json()).models : [];
 const debater = (side: 'for' | 'against') => debaterLabel(debate.debaters[side], models);
 const speakers = { for: debater('for'), against: debater('against') };
 const isBatch = debate.kind === 'batch';
+// API Debaters' Turns are labelled as submitted via API, not as AI-generated (ADR 0005).
+const apiSides = (['for', 'against'] as const).filter(side => debate.debaters[side].kind === 'api');
 ---
 
 <Base title={debate.motion} description={t('debate.description', { motion: debate.motion })} canonicalPath={`/debates/${debate.id}`} wide>
@@ -46,11 +48,19 @@ const isBatch = debate.kind === 'batch';
       debate.turnsHidden ? (
         <p class="note">{t('debate.turnsHidden')}</p>
       ) : debate.status === 'running' && !isBatch ? (
-        <LiveTurns client:load debateId={debate.id} format={debate.format} speakers={speakers} initialTurns={debate.turns} />
+        <LiveTurns
+          client:load
+          debateId={debate.id}
+          format={debate.format}
+          speakers={speakers}
+          initialTurns={debate.turns}
+          apiSides={apiSides}
+          initialAwaiting={debate.awaiting?.slotIndex ?? null}
+        />
       ) : debate.turns.length === 0 ? (
         <p class="muted">{t('debate.noTurns')}</p>
       ) : (
-        <PhaseFloor format={debate.format} turns={debate.turns} speakers={speakers} />
+        <PhaseFloor format={debate.format} turns={debate.turns} speakers={speakers} apiSides={apiSides} />
       )
     }
   </section>

@@ -43,6 +43,5 @@ export async function pickModel(page: Page, label: string, text: string): Promis
 }
 
 export async function expectNoAxeViolations(page: Page): Promise<void> {
-  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
-  expect(results.violations.map(v => ({ id: v.id, help: v.help, nodes: v.nodes.map(n => n.target.join(' ')) }))).toEqual([]);
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();  expect(results.violations.map(v => ({ id: v.id, help: v.help, nodes: v.nodes.map(n => n.target.join(' ')) }))).toEqual([]);
 }

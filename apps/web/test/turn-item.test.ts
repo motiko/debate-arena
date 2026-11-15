@@ -6,6 +6,12 @@ import TurnItem from '../src/islands/TurnItem.svelte';
 const argument = Array.from({ length: 40 }, () => 'word').join(' ');
 const five = ['Madam Chair, judges.', 'Let me set out why.', argument, argument, argument].join('\n\n');
 
+test('an API Turn is labelled as submitted via API, never as AI-generated', () => {
+  render(TurnItem, { phase: 'Opening', speaker: 'API Debater', side: 'for', text: 'A speech.', truncated: false, submitted: true });
+  expect(screen.getByText('Submitted via API')).toBeInTheDocument();
+  expect(screen.queryByText('AI-generated')).toBeNull();
+});
+
 test('renders Motion and Turn text literally', () => {
   const { container } = render(TurnItem, {
     phase: 'Opening',
