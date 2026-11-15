@@ -21,6 +21,15 @@ test('parses plain and fenced JSON', () => {
   expect(parseVerdict('```json\n{"winner":"for","reasoning":"r"}\n```')).toEqual({ winner: 'for', reasoning: 'r' });
 });
 
+test('a reply padded with whitespace is parsed in linear time', () => {
+  // A model's reply is untrusted: a long run of spaces must not make stripping the fence quadratic.
+  const padded = `{${' \t'.repeat(50_000)}x`;
+  const started = performance.now();
+  expect(parseVerdict(padded)).toBeNull();
+  expect(performance.now() - started).toBeLessThan(100);
+  expect(parseVerdict('```\n{"winner":"for","reasoning":"r"}  \n```  ')).toEqual({ winner: 'for', reasoning: 'r' });
+});
+
 test('rejects draws, wrong Sides and prose', () => {
   for (const t of ['{"winner":"draw","reasoning":"r"}', '{"winner":"pro","reasoning":"r"}', 'For wins.', '{"winner":"for"}'])
     expect(parseVerdict(t)).toBeNull();

@@ -23,7 +23,9 @@ export function buildJudgeMessages(setup: DebateSetup, turns: Turn[]): ModelMess
 }
 
 export function parseVerdict(text: string): { winner: Side; reasoning: string } | null {
-  const body = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  // The closing fence is cut without a regex: `\s*```$` backtracks quadratically over a long run of whitespace.
+  let body = text.trim().replace(/^```(?:json)?\s*/i, '');
+  if (body.endsWith('```')) body = body.slice(0, -3).trimEnd();
   let value: unknown;
   try {
     value = JSON.parse(body);
