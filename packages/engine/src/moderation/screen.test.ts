@@ -41,6 +41,12 @@ test('an API Turn is screened as a speech, quoted as untrusted JSON', async () =
   expect(client.calls[0]?.messages[0]?.content).toContain('Speech submitted to a public debate');
 });
 
+test("a Custom Debater's name and model are screened as such, quoted as untrusted JSON", () => {
+  const messages = buildScreenMessages('Name: A', 'name');
+  expect(messages[0]?.content).toContain('Name and model given by a debater in a public debate');
+  expect(messages[0]?.content).toContain(JSON.stringify('Name: A'));
+});
+
 test('screenMotion asks the screener with a small output cap', async () => {
   const client = new FakeModelClient(() => 'unsafe\nS10');
   expect(await screenMotion('A Motion', 'guard/x', client)).toEqual({ flagged: true, categories: ['S10'] });

@@ -17,6 +17,13 @@ export {
   wordsToTokens,
 } from './debate/schedule';
 export { buildTurnMessages, UNTRUSTED_NOTICE } from './debate/prompts';
+export {
+  identityText,
+  MAX_CUSTOM_MODEL_LENGTH,
+  MAX_CUSTOM_NAME_LENGTH,
+  parseCustomIdentity,
+  type CustomIdentity,
+} from './debate/custom-identity';
 export { generateTurn, isApiSlot, submittedTurn, type GenerateTurnOptions } from './debate/generate-turn';
 export { isSelfJudging, modelFamily, suggestPanel, validatePanel } from './judging/panel';
 export { buildJudgeMessages, judgeDebate, parseVerdict } from './judging/judge';

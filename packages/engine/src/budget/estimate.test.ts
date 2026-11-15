@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { wordsToTokens } from '../debate/schedule';
 import { UnknownModelPriceError } from '../errors';
 import { setup } from '../testing/fixtures';
-import { apiTurnMaxBytes, type PriceTable, quotaPointsFor, utf8Length, worstCaseBudgetMicroUsd } from './estimate';
+import { apiTurnMaxBytes, IDENTITY_MAX_BYTES, type PriceTable, quotaPointsFor, utf8Length, worstCaseBudgetMicroUsd } from './estimate';
 
 // Every model at 1 USD per million tokens in and out, so micro-USD equals tokens.
 const unit = { inputPerMTokUsd: 1, outputPerMTokUsd: 1 };
@@ -49,8 +49,12 @@ test('an API Debater costs no model calls, one screen per Turn, and its Turns ar
   // AI Debate with the Motion screen: 46526 + 1290. Drops the For Turns (16374). An API Turn is at most
   // 8 bytes per word (2400, 1600, 1200), and bytes bound tokens. Screens: (629+2400+16) + (629+1600+16) + (629+1200+16)
   // = 7135, twice. Later calls read the larger For Turns: Against 2 reads +1560, Against 4 +2600, Against 6 and the
-  // Judge +3380 each = 10920, twice.
-  expect(worstCaseBudgetMicroUsd(apiFor, [], prices, 'g/guard')).toBe(46526 + 1290 - 16374 + 14270 + 21840);
+  // Judge +3380 each = 10920, twice. The identity screen: (629+416+16), twice = 2122.
+  expect(worstCaseBudgetMicroUsd(apiFor, [], prices, 'g/guard')).toBe(46526 + 1290 - 16374 + 14270 + 21840 + 2122);
+});
+
+test('an identity is read at its byte cap: 4 bytes per character of the longest name and model, plus labels', () => {
+  expect(IDENTITY_MAX_BYTES).toBe(4 * (40 + 60) + 16);
 });
 
 test('apiTurnMaxBytes is 8 bytes per word of the Phase', () => {

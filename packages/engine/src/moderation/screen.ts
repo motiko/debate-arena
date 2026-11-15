@@ -17,11 +17,20 @@ export interface ScreenResult { flagged: boolean; categories: string[] }
 
 const UNSCREENED: ScreenResult = { flagged: true, categories: ['unscreened'] };
 
-/** What is screened: a Motion, or an API Debater's Turn (a speech nobody on the platform generated). */
-export type ScreenedText = 'motion' | 'turn';
+/**
+ * What is screened: a Motion, a Custom Debater's Turn (a speech nobody on the platform generated), or a Custom
+ * Debater's nickname and self-reported model.
+ */
+export type ScreenedText = 'motion' | 'turn' | 'name';
+
+const SCREEN_LABEL: Record<ScreenedText, string> = {
+  motion: 'Motion proposed for a public debate',
+  turn: 'Speech submitted to a public debate',
+  name: 'Name and model given by a debater in a public debate',
+};
 
 export function buildScreenMessages(text: string, what: ScreenedText = 'motion'): ModelMessage[] {
-  const label = what === 'turn' ? 'Speech submitted to a public debate' : 'Motion proposed for a public debate';
+  const label = SCREEN_LABEL[what];
   return [{ role: 'user', content: `${UNTRUSTED_NOTICE}\n${label}: ${JSON.stringify(text)}` }];
 }
 
