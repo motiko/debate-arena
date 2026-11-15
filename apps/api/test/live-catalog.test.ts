@@ -51,6 +51,12 @@ describe('only token prices count: other fees are allowed only when the platform
     expect(kept.map(e => e.id)).toEqual(['acme/cached']);
   });
 
+  test('a search price counts as a fee when the model searches natively (web_search_options), whatever its provider', () => {
+    const native = { ...model('acme/searcher', { web_search: '0.01' }), supported_parameters: ['max_tokens', 'web_search_options'] };
+    const free = { ...model('acme/no-fee', { web_search: '0' }), supported_parameters: ['max_tokens', 'web_search_options'] };
+    expect(ids(native, free).map(e => e.id)).toEqual(['acme/no-fee']);
+  });
+
   test('a dearer reasoning price becomes the output price', () => {
     const [e] = ids(model('acme/thinks', { internal_reasoning: '0.000005' }));
     expect(e?.price).toEqual({ inputPerMTokUsd: 1, outputPerMTokUsd: 5 });

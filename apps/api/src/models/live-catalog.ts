@@ -45,13 +45,15 @@ const toMillion = (perToken: number) => Number((perToken * 1e6).toPrecision(12))
  * dearer reasoning price, and any time-of-day price. Null when a price is missing or odd, or when the model has a fee
  * the meter cannot see (see NEVER_INCURRED) or a long-context price a Debate's prompt could reach.
  */
-function perMillion(pricing: OpenRouterModel['pricing']): ModelPrice | null {
+function perMillion(pricing: OpenRouterModel['pricing'], searchesNatively = false): ModelPrice | null {
   if (!pricing) return null;
   let input = priceNumber(pricing.prompt);
   let output = priceNumber(pricing.completion);
   if (input === null || output === null) return null;
   for (const [key, value] of Object.entries(pricing)) {
-    if (key === 'prompt' || key === 'completion' || NEVER_INCURRED.has(key)) continue;
+    if (key === 'prompt' || key === 'completion') continue;
+    // A model with built-in search may search on any call: then its search price is a fee like any other.
+    if (NEVER_INCURRED.has(key) && !(key === 'web_search' && searchesNatively)) continue;
     if (key === 'internal_reasoning') {
       const reasoning = priceNumber(value);
       if (reasoning === null) return null;
@@ -90,6 +92,9 @@ function reasoningOf(m: OpenRouterModel): { reasoning: ReasoningSupport; leastEf
   return { reasoning: strings(m.supported_parameters).includes('reasoning') ? 'optional' : 'unsupported' };
 }
 
+/** Built-in web search (Perplexity, Sakana…): such a model may search, and pay per search, on any call. */
+const searchesNatively = (m: OpenRouterModel) => strings(m.supported_parameters).includes('web_search_options');
+
 /** "Anthropic: Claude Haiku 5.5" → "Claude Haiku 5.5": the picker shows the provider on its own. */
 const labelOf = (name: string) => name.replace(/^[^:]+:\s*/, '');
 
@@ -107,7 +112,7 @@ export function parseOpenRouterModels(body: unknown, curated: Catalog): Catalog 
   const batchPrices = new Map<string, ModelPrice>();
   for (const m of models) {
     if (typeof m.id === 'string' && m.id.endsWith(':batch')) {
-      const price = perMillion(m.pricing);
+      const price = perMillion(m.pricing, searchesNatively(m));
       if (price) batchPrices.set(m.id.slice(0, -':batch'.length), price);
     }
   }
@@ -123,10 +128,8 @@ export function parseOpenRouterModels(body: unknown, curated: Catalog): Catalog 
     if (output.length !== 1 || output[0] !== 'text') continue;
     if (!strings(m.supported_parameters).includes('max_tokens')) continue;
     if (typeof m.context_length !== 'number' || m.context_length < MIN_CONTEXT_TOKENS) continue;
-    const price = perMillion(m.pricing);
+    const price = perMillion(m.pricing, searchesNatively(m));
     if (!price) continue;
-    // Searches the web on every call, paying per search, though its listed search price looks like the plugin's.
-    if (base.startsWith('perplexity/')) continue;
 
     const label = labelOf(m.name);
     const batchPrice = variant === undefined ? batchPrices.get(base) : undefined;

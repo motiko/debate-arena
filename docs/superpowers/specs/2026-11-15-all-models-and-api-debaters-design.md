@@ -39,8 +39,9 @@ The API Worker reads `GET https://openrouter.ai/api/v1/models?output_modalities=
   image and audio prices are tolerated, since a Debate never incurs them; a dearer `internal_reasoning` price becomes
   the output price; time-of-day `overrides` count at their highest price; a long-context override is tolerated
   only from 32 000 prompt tokens (a Debate's prompts stay near 11 000). Any other non-zero key, or an override with
-  an unknown condition, drops the model, as the meter and the Budget would not see that fee. `perplexity/*` is left
-  out too: it searches the web, paying per search, on every call;
+  an unknown condition, drops the model, as the meter and the Budget would not see that fee. A model with built-in
+  search (`web_search_options` among its parameters, e.g. Perplexity's) may search, paying per search, on any call:
+  for it a non-zero `web_search` price is such a fee, and drops it;
 - `supported_parameters` includes `max_tokens`;
 - `context_length` ≥ 16 000 (a Classic Debate's Judge prompt is about 5 000 tokens).
 
