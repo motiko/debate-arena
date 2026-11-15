@@ -1,4 +1,5 @@
-import { utf8Length, type ModelClient, type ModelId, type ModelRequest, type ModelResponse } from '@debate-arena/engine';
+import { utf8Length, type CompleteOptions, type ModelClient, type ModelId, type ModelRequest, type ModelResponse } from '@debate-arena/engine';
+import { sseData } from './sse';
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -60,7 +61,8 @@ export class OpenRouterModelClient implements ModelClient {
     this.disableReasoning = options.disableReasoning ?? (() => false);
   }
 
-  async complete(request: ModelRequest): Promise<ModelResponse> {
+  async complete(request: ModelRequest, options: CompleteOptions = {}): Promise<ModelResponse> {
+    const { onText } = options;
     const response = await this.fetcher(ENDPOINT, {
       method: 'POST',
       headers: {
@@ -74,15 +76,60 @@ export class OpenRouterModelClient implements ModelClient {
         messages: request.messages,
         max_tokens: request.maxOutputTokens,
         ...(this.disableReasoning(request.model) ? { reasoning: { enabled: false } } : {}),
+        // Only a caller that shows the reply as it is written asks for a stream.
+        ...(onText ? { stream: true } : {}),
       }),
     });
 
-    const body = (await response.json().catch(() => ({}))) as CompletionBody;
-    if (!response.ok) {
-      throw new OpenRouterError(`OpenRouter ${response.status}: ${describeError(body.error, 'request failed')}`, response.status);
+    if (!response.ok || !onText) {
+      const body = (await response.json().catch(() => ({}))) as CompletionBody;
+      if (!response.ok) {
+        throw new OpenRouterError(`OpenRouter ${response.status}: ${describeError(body.error, 'request failed')}`, response.status);
+      }
+      return readCompletion(body, request, response.status);
     }
-    return readCompletion(body, request, response.status);
+    return readStream(response, request, onText);
   }
+}
+
+/** One Server-Sent Event of a streamed chat completion. */
+interface StreamChunk {
+  choices?: { delta?: { content?: string | null }; finish_reason?: string | null }[];
+  usage?: CompletionBody['usage'];
+  error?: OpenRouterErrorBody & { code?: number };
+}
+
+/**
+ * A streamed chat completion, reporting the text so far after each piece. Only `delta.content` is text:
+ * reasoning arrives in other fields and is never shown. Once the stream has started, an error comes as a chunk
+ * with a top-level `error` (the status stays 200), possibly as the only chunk.
+ */
+async function readStream(response: Response, request: ModelRequest, onText: (textSoFar: string) => void): Promise<ModelResponse> {
+  if (!response.body) throw new OpenRouterError(`OpenRouter returned no stream for ${request.model}`, response.status);
+  let text = '';
+  let finishReason: string | null = null;
+  let usage: CompletionBody['usage'];
+  for await (const data of sseData(response.body)) {
+    let chunk: StreamChunk;
+    try {
+      chunk = JSON.parse(data) as StreamChunk;
+    } catch {
+      continue;
+    }
+    const choice = chunk.choices?.[0];
+    if (chunk.error || choice?.finish_reason === 'error') {
+      throw new OpenRouterError(`OpenRouter: ${describeError(chunk.error, `stream failed for ${request.model}`)}`, chunk.error?.code ?? null);
+    }
+    const piece = choice?.delta?.content;
+    if (piece) {
+      text += piece;
+      onText(text);
+    }
+    // The finish reason repeats on the closing accounting chunk, which also carries the usage.
+    if (choice?.finish_reason) finishReason = choice.finish_reason;
+    if (chunk.usage) usage = chunk.usage;
+  }
+  return toResponse(text, finishReason, usage, request);
 }
 
 /** A chat completion body as a ModelResponse; shared by live calls and Batch API results. */
@@ -90,13 +137,16 @@ export function readCompletion(body: CompletionBody, request: ModelRequest, stat
   const choice = body.choices?.[0];
   if (!choice) throw new OpenRouterError(`OpenRouter returned no choices for ${request.model}`, status);
   if (choice.finish_reason === 'error') throw new OpenRouterError(`OpenRouter reported an error for ${request.model}`, status);
+  return toResponse(choice.message?.content ?? '', choice.finish_reason ?? null, body.usage, request);
+}
 
+function toResponse(text: string, finishReason: string | null, usage: CompletionBody['usage'], request: ModelRequest): ModelResponse {
   // Without usage, charge the worst case (prompt bytes bound its tokens; output is at most max_tokens),
   // so a missing field can never make a call free and slip past Budget enforcement.
   return {
-    text: choice.message?.content ?? '',
-    inputTokens: body.usage?.prompt_tokens ?? utf8Length(request.messages.map(m => m.content).join('')),
-    outputTokens: body.usage?.completion_tokens ?? request.maxOutputTokens,
-    finishReason: choice.finish_reason === 'length' ? 'length' : 'stop',
+    text,
+    inputTokens: usage?.prompt_tokens ?? utf8Length(request.messages.map(m => m.content).join('')),
+    outputTokens: usage?.completion_tokens ?? request.maxOutputTokens,
+    finishReason: finishReason === 'length' ? 'length' : 'stop',
   };
 }
