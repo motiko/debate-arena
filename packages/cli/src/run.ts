@@ -2,7 +2,9 @@
 // whose API token is in DEBATE_ARENA_TOKEN, and reads Debates as a signed-out Viewer. It never prints the token.
 import { parseArgs } from 'node:util';
 import { createApiClient, type PublicDebate } from '@debate-arena/api-client';
+import { follow } from './follow.ts';
 import { debateUrl, renderDebate } from './render.ts';
+import { safeOutput } from './terminal.ts';
 
 export interface CliDeps {
   env: Record<string, string | undefined>;
@@ -121,13 +123,19 @@ async function start(ctx: Context, positionals: string[], values: Values): Promi
     return 0;
   }
   ctx.print(`Started ${id}\n${url}\n`);
-  if (values.batch) ctx.print('A Batch Debate is published when complete; check back with `debate show`.\n');
-  return 0;
+  // A Batch Debate has no live stream, and is visible only to its starter until complete.
+  if (values.batch) {
+    ctx.print(`A Batch Debate is published when complete; check back with: debate show ${id}\n`);
+    return 0;
+  }
+  if (values.detach) return 0;
+  return follow(id, { ...ctx.deps, base: ctx.base });
 }
 
 async function show(ctx: Context, positionals: string[], values: Values): Promise<number> {
   const [id] = positionals;
   if (!id || positionals.length > 1) return usageError(ctx);
+  if (values.follow && !values.json) return follow(id, { ...ctx.deps, base: ctx.base });
   const response = await viewerClient(ctx).api.debates[':id'].$get({ param: { id } });
   if (response.status === 410) {
     const { blocked } = (await response.json()) as { blocked?: { explanation?: string | null } };
@@ -172,15 +180,14 @@ function usageError(ctx: Context): number {
 export async function run(argv: string[], deps: CliDeps): Promise<number> {
   const base = (deps.env.DEBATE_ARENA_URL?.trim() || DEFAULT_BASE).replace(/\/+$/, '');
   const token = deps.env.DEBATE_ARENA_TOKEN?.trim() || undefined;
-  // Defence in depth: whatever a server or the network echoes back, the token is never printed.
-  const redact = (text: string) => (token ? text.split(token).join('[token]') : text);
+  const safe = safeOutput(deps, token);
   const ctx: Context = {
-    deps,
+    deps: { ...deps, ...safe },
     base,
     token,
-    print: text => deps.out(redact(text)),
+    print: safe.out,
     fail: text => {
-      deps.err(redact(text));
+      safe.err(text);
       return new Exit(1);
     },
   };

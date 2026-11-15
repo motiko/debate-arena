@@ -34,11 +34,12 @@ export function renderAiAudience(result: AiAudience): string {
 
 export const renderVoteLink = (base: string, id: string) => `Read and vote: ${debateUrl(base, id)}\n`;
 
+/** The Motion, Debaters and status. */
+export const renderHeader = (debate: PublicDebate) =>
+  `${debate.motion}\nFor: ${debaterName(debate.debaters.for)} · Against: ${debaterName(debate.debaters.against)}\n${STATUS_LABEL[debate.status]}\n`;
+
 export function renderDebate(debate: PublicDebate, base: string): string {
-  const parts = [
-    `${debate.motion}\nFor: ${debaterName(debate.debaters.for)} · Against: ${debaterName(debate.debaters.against)}\n${STATUS_LABEL[debate.status]}\n`,
-    ...debate.turns.map(turn => renderTurn(debate, turn)),
-  ];
+  const parts = [renderHeader(debate), ...debate.turns.map(turn => renderTurn(debate, turn))];
   if (debate.verdict) parts.push(renderVerdict(debate.verdict));
   if (debate.aiAudience) parts.push(renderAiAudience(debate.aiAudience));
   parts.push(renderVoteLink(base, debate.id));

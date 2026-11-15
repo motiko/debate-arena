@@ -1,5 +1,7 @@
-import { expect, test } from 'vitest';
+import { FakeSocket } from '@debate-arena/api-client/testing';
+import { expect, test, vi } from 'vitest';
 import { run } from './run.ts';
+import { printable } from './terminal.ts';
 import { BASE, debate, recordingFetch, testDeps } from './testing.ts';
 
 const TOKEN = 'da_x';
@@ -16,6 +18,31 @@ test('start sends the token and the setup', async () => {
   expect(await requests[0]?.json()).toEqual({ motion: 'Pineapple belongs on pizza', debaters: { for: 'a/one', against: 'b/two' }, aiVoters: false, batch: false });
   expect(output.out).toContain('Started d1');
   expect(output.out).toContain(`${BASE}/debates/d1`);
+});
+
+test('start follows the Debate live unless detached', async () => {
+  FakeSocket.reset();
+  const { fetch } = recordingFetch(request => (request.method === 'POST' ? started() : Response.json(debate({ status: 'running', verdict: null, turns: [] }))));
+  const { deps, output } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch, WebSocketImpl: FakeSocket as unknown as typeof WebSocket });
+  const code = run(['start', 'M', '--for', 'a/one', '--against', 'b/two'], deps);
+  await vi.waitFor(() => expect(FakeSocket.instances).toHaveLength(1));
+  expect(FakeSocket.last.url).toBe('wss://debate-arena-web.motiko.workers.dev/api/debates/d1/live');
+  FakeSocket.last.open();
+  FakeSocket.last.emit({ type: 'complete', aiAudience: null });
+  expect(await code).toBe(0);
+  expect(output.out).toContain('Started d1');
+  expect(output.out).toContain('Read and vote:');
+});
+
+test('show --follow follows a running Debate', async () => {
+  FakeSocket.reset();
+  const { fetch } = recordingFetch(() => Response.json(debate({ status: 'running', verdict: null })));
+  const { deps } = testDeps({ fetch, WebSocketImpl: FakeSocket as unknown as typeof WebSocket });
+  const code = run(['show', 'd1', '--follow'], deps);
+  await vi.waitFor(() => expect(FakeSocket.instances).toHaveLength(1));
+  FakeSocket.last.open();
+  FakeSocket.last.emit({ type: 'failed', reason: 'x' });
+  expect(await code).toBe(1);
 });
 
 test('start passes the Panel, AI Voters and Batch options', async () => {
@@ -124,6 +151,19 @@ test('help prints usage and returns 0', async () => {
     expect(await run(argv, deps)).toBe(0);
     expect(output.out).toContain('Usage: debate');
   }
+});
+
+test('control characters from the server are never printed', async () => {
+  const hostile = '\x1b]0;pwned\x07Motion\x1b[2J with \x9b31m colour\ttab';
+  const { fetch } = recordingFetch(() => Response.json(debate({ motion: hostile })));
+  const { deps, output } = testDeps({ fetch });
+  await run(['show', 'd1'], deps);
+  expect(output.out).toBe(printable(output.out));
+  expect(output.out).toContain('Motion[2J with 31m colour\ttab');
+  const failing = recordingFetch(() => Response.json({ error: 'Bad \x1b[31mthing' }, { status: 400 }));
+  const second = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch: failing.fetch });
+  await run(['start', 'M', '--for', 'a', '--against', 'b', '--detach'], second.deps);
+  expect(second.output.err).not.toContain('\x1b');
 });
 
 test('the token never appears in output', async () => {
