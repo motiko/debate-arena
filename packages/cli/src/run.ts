@@ -25,13 +25,16 @@ export const DEFAULT_BASE = 'https://debate-arena-web.motiko.workers.dev';
 export const USAGE = `Usage: debate <command> [options]
 
 Commands:
-  start <motion> --for <model|api> --against <model|api>
+  start <motion> --for <model|custom> --against <model|custom>
       [--panel <model,model>] [--ai-voters] [--batch] [--detach] [--json]
-                                                   Start a Debate and follow it live; "api" seats an
-                                                   API Debater whose Turns you send with speak
+                                                   Start a Debate and follow it live; "custom" seats a
+                                                   Custom Debater whose Turns you send with speak
+      [--for-name <name>] [--for-model <model>]    A Custom Debater's nickname and self-reported model
+      [--against-name <name>] [--against-model <model>]
       [--dry-run]                                  Only show what it would cost in Quota points
   speak <id> [--slot <n>]                          Send the awaited API Turn from stdin, shown live
                                                    as it is read (e.g. my-agent | debate speak <id>)
+      [--name <name>] [--model <model>]            Name the Custom Debater with its first Turn
   show <id> [--follow] [--json]                    Show a Debate (and follow it while it runs)
   models [--search <words>] [--json]               List the models you can choose
   whoami [--json]                                  Show who your token signs you in as
@@ -70,6 +73,12 @@ const OPTIONS = {
   follow: { type: 'boolean' },
   'dry-run': { type: 'boolean' },
   slot: { type: 'string' },
+  'for-name': { type: 'string' },
+  'for-model': { type: 'string' },
+  'against-name': { type: 'string' },
+  'against-model': { type: 'string' },
+  name: { type: 'string' },
+  model: { type: 'string' },
   search: { type: 'string' },
   json: { type: 'boolean' },
   help: { type: 'boolean' },
@@ -108,9 +117,23 @@ const memberClient = (ctx: Context) =>
 /** Reads go without credentials: a signed-in Member who has not voted would get the Turns hidden. */
 const viewerClient = (ctx: Context) => createApiClient(ctx.base, { fetch: ctx.deps.fetch });
 
+/** The values of --for and --against that seat a Custom Debater. */
+const CUSTOM = ['custom', 'api'];
+
+/** A Side as the API takes it: a model id or "custom", or a Custom Debater with its nickname and model. */
+function seat(ctx: Context, side: 'for' | 'against', values: Values) {
+  const value = values[side]!;
+  const name = values[`${side}-name`];
+  const model = values[`${side}-model`];
+  if (name === undefined && model === undefined) return value;
+  if (!CUSTOM.includes(value)) throw ctx.fail(`--${side}-name and --${side}-model need --${side} custom\n`);
+  return { kind: 'custom' as const, ...(name !== undefined ? { name } : {}), ...(model !== undefined ? { model } : {}) };
+}
+
 async function start(ctx: Context, positionals: string[], values: Values): Promise<number> {
   const [motion] = positionals;
   if (!motion || !values.for || !values.against || positionals.length > 1) return usageError(ctx);
+  const debaters = { for: seat(ctx, 'for', values), against: seat(ctx, 'against', values) };
   const client = memberClient(ctx);
   const panel = values.panel
     ?.split(',')
@@ -118,7 +141,7 @@ async function start(ctx: Context, positionals: string[], values: Values): Promi
     .filter(Boolean);
   const body = {
     motion,
-    debaters: { for: values.for, against: values.against },
+    debaters,
     ...(panel?.length ? { panel } : {}),
     aiVoters: values['ai-voters'] ?? false,
     batch: values.batch ?? false,
@@ -236,7 +259,7 @@ async function speak(ctx: Context, positionals: string[], values: Values): Promi
   // No draft may land after the Turn.
   await inFlight;
 
-  const response = await submitTurn(ctx.base, token, id, slot, text, ctx.deps.fetch);
+  const response = await submitTurn(ctx.base, token, id, slot, text, ctx.deps.fetch, { name: values.name, model: values.model });
   if (response.status !== 201) throw await failure(ctx, response);
   const stored = (await response.json()) as { slotIndex: number; turn: { text: string } };
   const words = stored.turn.text.split(/\s+/).filter(Boolean).length;

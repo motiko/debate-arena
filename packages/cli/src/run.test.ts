@@ -7,6 +7,21 @@ import { BASE, debate, recordingFetch, testDeps } from './testing.ts';
 const TOKEN = 'da_x';
 const started = () => Response.json({ id: 'd1', panel: ['c/three'], selfJudging: false }, { status: 201 });
 
+test('start --for custom with a name and model seats a named Custom Debater', async () => {
+  const { fetch, requests } = recordingFetch(started);
+  const { deps } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch });
+  await run(['start', 'M', '--for', 'custom', '--for-name', 'Atlas', '--for-model', 'gpt-6', '--against', 'b/two', '--detach'], deps);
+  expect(await requests[0]?.json()).toMatchObject({ debaters: { for: { kind: 'custom', name: 'Atlas', model: 'gpt-6' }, against: 'b/two' } });
+});
+
+test('a name or model for a model seat is refused before anything is sent', async () => {
+  const { fetch, requests } = recordingFetch(started);
+  const { deps, output } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch });
+  expect(await run(['start', 'M', '--for', 'a/one', '--for-name', 'X', '--against', 'b/two', '--detach'], deps)).toBe(1);
+  expect(output.err).toBe('--for-name and --for-model need --for custom\n');
+  expect(requests).toEqual([]);
+});
+
 test('start sends the token and the setup', async () => {
   const { fetch, requests } = recordingFetch(started);
   const { deps, output } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch });

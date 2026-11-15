@@ -9,7 +9,17 @@ type AiAudience = NonNullable<PublicDebate['aiAudience']>;
 const SIDE_LABEL: Record<Side, string> = { for: 'For', against: 'Against' };
 const STATUS_LABEL: Record<PublicDebate['status'], string> = { running: 'Running', complete: 'Complete', failed: 'Failed' };
 
-const debaterName = (debater: Debater) => (debater.kind === 'ai' ? debater.model : debater.kind === 'api' ? 'API Debater' : 'a Member');
+/** A Custom Debater's model is shown as self-reported: the platform never checks it. */
+function customName(debater: { name?: string | undefined; model?: string | undefined }): string {
+  const model = debater.model ? `self-reported model: ${debater.model}` : '';
+  if (debater.name) return `${debater.name} (${['Custom', model].filter(Boolean).join(', ')})`;
+  return model ? `Custom Debater (${model})` : 'Custom Debater';
+}
+
+const debaterName = (debater: Debater) => (debater.kind === 'ai' ? debater.model : debater.kind === 'api' ? customName(debater) : 'a Member');
+
+/** "For is now Atlas (Custom)": a Custom Debater named itself with its first Turn. */
+export const renderNamed = (side: Side, debater: Debater) => `${SIDE_LABEL[side]} is now ${debaterName(debater)}\n`;
 
 /** "Waiting for For's Turn via the API until 12:10 UTC". */
 export function renderAwaiting(side: Side, deadline: string): string {

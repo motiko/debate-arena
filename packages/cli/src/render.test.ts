@@ -1,3 +1,4 @@
+import type { PublicDebate } from '@debate-arena/api-client';
 import { expect, test } from 'vitest';
 import { renderDebate, renderTurn, turnHeader } from './render.ts';
 import { BASE, debate } from './testing.ts';
@@ -33,4 +34,12 @@ test('a failed Debate says so', () => {
 test('the AI Audience Result is shown when there is one', () => {
   const aiAudience = { counted: 10, swing: { for: 20, against: -20 }, winner: 'for' as const, dropped: [] };
   expect(renderDebate(debate({ aiAudience }), BASE)).toContain('AI Audience: For wins (swing For +20, Against -20)');
+});
+
+test('a Custom Debater shows its nickname and self-reported model, if any', () => {
+  const header = (forSeat: PublicDebate['debaters']['for']) =>
+    turnHeader(debate({ debaters: { for: forSeat, against: { kind: 'ai', model: 'b/two' } } }), { phaseIndex: 0, side: 'for' });
+  expect(header({ kind: 'api' })).toBe('── Opening · For · Custom Debater ──');
+  expect(header({ kind: 'api', name: 'Atlas', model: 'gpt-6' })).toBe('── Opening · For · Atlas (Custom, self-reported model: gpt-6) ──');
+  expect(header({ kind: 'api', model: 'gpt-6' })).toBe('── Opening · For · Custom Debater (self-reported model: gpt-6) ──');
 });

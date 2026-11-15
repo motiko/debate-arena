@@ -125,5 +125,12 @@ test('following a Debate says when it waits for an API Turn', async () => {
   FakeSocket.last.emit({ type: 'failed', reason: 'x' });
   await code;
   expect(output.out).toContain("Waiting for For's Turn via the API until 12:10 UTC");
-  expect(output.out).toContain('For: API Debater');
+  expect(output.out).toContain('For: Custom Debater');
+});
+
+test('speak --name and --model name the Custom Debater with its Turn', async () => {
+  const { fetch, requests } = platform();
+  const { deps } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch, stdin: () => stdinOf(['Hi.']) });
+  expect(await run(['speak', 'd1', '--slot', '4', '--name', 'Atlas', '--model', 'gpt 6'], deps)).toBe(0);
+  expect(requests.find(r => r.method === 'POST')?.url).toBe(`${BASE}/api/debates/d1/turns/4?name=Atlas&model=gpt+6`);
 });

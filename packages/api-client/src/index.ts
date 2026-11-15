@@ -56,8 +56,14 @@ export function submitTurn(
   slot: number,
   body: string | ReadableStream<Uint8Array>,
   fetcher: typeof fetch = fetch,
+  /** A Custom Debater's nickname and self-reported model, which its first Turn may give. */
+  identity: { name?: string | undefined; model?: string | undefined } = {},
 ): Promise<Response> {
-  return fetcher(turnUrl(baseUrl, debateId, slot), {
+  const query = new URLSearchParams();
+  if (identity.name) query.set('name', identity.name);
+  if (identity.model) query.set('model', identity.model);
+  const search = query.size > 0 ? `?${query}` : '';
+  return fetcher(`${turnUrl(baseUrl, debateId, slot)}${search}`, {
     method: 'POST',
     headers: textHeaders(token),
     body,
