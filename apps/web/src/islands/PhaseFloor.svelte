@@ -18,9 +18,11 @@
     apiSides?: Side[];
     /** The Debate waits for the next slot's Turn through the API (live only). */
     awaiting?: boolean;
+    /** Fold long speeches; the live island turns it off so a speech read as it grew never collapses. */
+    fold?: boolean;
   }
 
-  let { format, turns, speakers, next = null, draft = null, apiSides = [], awaiting = false }: Props = $props();
+  let { format, turns, speakers, next = null, draft = null, apiSides = [], awaiting = false, fold = true }: Props = $props();
 
   // Only the next slot is being written; any other draft is stale.
   const writing = $derived(next && draft && draft.slotIndex === turns.length ? draft.text : null);
@@ -52,6 +54,7 @@
             text={turn.text}
             truncated={turn.truncated}
             submitted={apiSides.includes(turn.side)}
+            {fold}
           />
         </div>
       {/each}

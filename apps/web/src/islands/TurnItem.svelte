@@ -16,9 +16,11 @@
     draft?: boolean;
     /** An API Debater's Turn: labelled as submitted via API, since the platform did not generate it (ADR 0005). */
     submitted?: boolean;
+    /** Fold a long speech behind "Read the full speech". Off when watching live, where it was read as it grew. */
+    fold?: boolean;
   }
 
-  let { phase, speaker, side, text, truncated, draft = false, submitted = false }: Props = $props();
+  let { phase, speaker, side, text, truncated, draft = false, submitted = false, fold = true }: Props = $props();
 
   // The opening paragraphs show, up to about PREVIEW_WORDS so a greeting is not all there is; the rest wait
   // behind a disclosure that works without JavaScript. A speech cut off at the word limit ends in an ellipsis,
@@ -27,7 +29,7 @@
   const all = $derived(
     paragraphs(text).map((p, i, list) => (i < list.length - 1 ? p : truncated ? `${p}…` : draft ? closeEmphasis(p) : p)),
   );
-  const preview = $derived(draft ? all.length : previewLength(all));
+  const preview = $derived(draft || !fold ? all.length : previewLength(all));
   const shown = $derived(all.slice(0, preview));
   const rest = $derived(all.slice(preview));
   const restWords = $derived(rest.join(' ').split(/\s+/).filter(Boolean).length);

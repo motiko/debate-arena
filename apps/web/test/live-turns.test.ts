@@ -54,6 +54,14 @@ test("the API side's Turns are labelled as submitted via API", () => {
   expect(second).toHaveTextContent('AI-generated');
 });
 
+test('watching live, a long stored speech stays unfolded, so the draft read as it grew does not collapse', () => {
+  const argument = Array.from({ length: 40 }, () => 'word').join(' ');
+  const long = { ...turn(0), text: ['Madam Chair.', 'Let me set out why.', argument, argument, argument].join('\n\n') };
+  const { container } = render(LiveTurns, { debateId: 'd1', format, speakers, initialTurns: [long], fetcher: debateFetcher([long]), WebSocketImpl: impl });
+  expect(container.querySelector('details.more')).toBeNull();
+  expect(container.querySelectorAll('article > p')).toHaveLength(5);
+});
+
 test('mergeTurns places Turns by slot and ignores duplicates', () => {
   expect(mergeTurns([turn(0)], [{ slotIndex: 1, turn: turn(1) }, { slotIndex: 0, turn: turn(0) }, { slotIndex: 1, turn: turn(1) }])).toEqual([turn(0), turn(1)]);
 });

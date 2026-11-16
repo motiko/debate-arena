@@ -60,6 +60,12 @@ test('the summary stays in place once open, offering to show less', () => {
   expect(container.querySelector('details.more summary .when-open')?.textContent).toBe('Show less');
 });
 
+test('unfolded (live), a long speech shows all of its text, no disclosure', () => {
+  const { container } = render(TurnItem, { phase: 'Opening', speaker: 'Fake A', side: 'for', text: five, truncated: false, fold: false });
+  expect(container.querySelector('details')).toBeNull();
+  expect(container.querySelectorAll('article > p')).toHaveLength(5);
+});
+
 test('no "Read the full speech" for a short speech', () => {
   const { container } = render(TurnItem, { phase: 'Opening', speaker: 'Fake A', side: 'for', text: 'One\n\nTwo', truncated: false });
   expect(container.querySelector('details.more')).toBeNull();
