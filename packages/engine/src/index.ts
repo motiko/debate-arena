@@ -28,7 +28,7 @@ export { generateTurn, isApiSlot, submittedTurn, type GenerateTurnOptions } from
 export { isSelfJudging, modelFamily, suggestPanel, validatePanel } from './judging/panel';
 export { buildJudgeMessages, judgeDebate, parseVerdict } from './judging/judge';
 export { computeOxfordResult, type OxfordResult, type VoterStances } from './voting/oxford';
-export { castAiStance, parseStance, runAiAudience, type AiAudienceResult } from './voting/ai-voter';
+export { castAiStance, parseStance, runAiAudience, type AiAudienceResult, type AiVote } from './voting/ai-voter';
 export {
   buildScreenMessages,
   FLAG_CATEGORIES,

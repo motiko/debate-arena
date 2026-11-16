@@ -7,8 +7,14 @@ import { computeOxfordResult, type OxfordResult } from './oxford';
 
 export const STANCE_OUTPUT_TOKENS = 10;
 
-/** An Oxford result over AI Voters, plus the voter ids (`index:model`) left out because their stance failed. */
-export interface AiAudienceResult extends OxfordResult { dropped: string[] }
+/** One counted AI Voter: its model and its before- and after-stance. */
+export interface AiVote { model: ModelId; before: Stance; after: Stance }
+
+/**
+ * An Oxford result over AI Voters, the voter ids (`index:model`) left out because their stance failed, and each
+ * counted voter's votes in voter order.
+ */
+export interface AiAudienceResult extends OxfordResult { dropped: string[]; votes: AiVote[] }
 
 const STANCES: readonly Stance[] = ['for', 'against', 'undecided'];
 
@@ -57,6 +63,7 @@ export async function runAiAudience(
   const settled = await Promise.allSettled(
     voters.map(async (model, index) => ({
       voterId: `${index}:${model}`,
+      model,
       before: await castAiStance(setup.motion, model, client),
       after: await castAiStance(setup.motion, model, client, turns),
     })),
@@ -69,5 +76,5 @@ export async function runAiAudience(
   // a finished Debate; dropped voters are reported for disclosure.
   const dropped = settled.flatMap((r, index) => (r.status === 'rejected' ? [`${index}:${voters[index]}`] : []));
   const votes = settled.flatMap(r => (r.status === 'fulfilled' ? [r.value] : []));
-  return { ...computeOxfordResult(votes), dropped };
+  return { ...computeOxfordResult(votes), dropped, votes: votes.map(({ model, before, after }) => ({ model, before, after })) };
 }

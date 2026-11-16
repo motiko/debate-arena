@@ -28,7 +28,23 @@ test('AI Audience Result is an Oxford result over all AI Voters', async () => {
   const client = new FakeModelClient(r =>
     JSON.stringify(r.messages).includes(sixTurns[0]!.text) ? 'against' : 'undecided');
   const r = await runAiAudience(setup, sixTurns, ['x/v', 'x/v'], client);
-  expect(r).toEqual({ counted: 2, swing: { for: 0, against: 100 }, winner: 'against', dropped: [] });
+  const vote = { model: 'x/v', before: 'undecided', after: 'against' };
+  expect(r).toEqual({ counted: 2, swing: { for: 0, against: 100 }, winner: 'against', dropped: [], votes: [vote, vote] });
+});
+
+test("runAiAudience lists each counted voter's model and votes, in voter order", async () => {
+  const client = new FakeModelClient(r => {
+    if (r.model === 'b/y') return 'maybe';
+    const after = JSON.stringify(r.messages).includes(sixTurns[0]!.text);
+    return r.model === 'a/x' ? (after ? 'for' : 'undecided') : after ? 'against' : 'for';
+  });
+  const r = await runAiAudience(setup, sixTurns, ['a/x', 'b/y', 'c/z'], client);
+  expect(r.votes).toEqual([
+    { model: 'a/x', before: 'undecided', after: 'for' },
+    { model: 'c/z', before: 'for', after: 'against' },
+  ]);
+  expect(r.dropped).toEqual(['1:b/y']);
+  expect(r.counted).toBe(r.votes.length);
 });
 
 test('an AI Voter that never gives a valid stance is dropped, not fatal', async () => {
