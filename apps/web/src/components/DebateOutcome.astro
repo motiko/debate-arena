@@ -4,13 +4,11 @@
 // or folded together in one <details id="outcome"> that the dispatch box's "Show the result" also opens.
 // data-region: when a live Debate ends, or after the after-vote, the page swaps in a fresh render (lib/refresh).
 import type { PublicDebate } from '@debate-arena/api-client';
-import AiLabel from './AiLabel.astro';
 import AudienceResultView from './AudienceResultView.astro';
-import SwingChart from './SwingChart.astro';
 import VerdictView from './VerdictView.astro';
 import VotePanel from '../islands/VotePanel.svelte';
 import { t } from '../i18n/t';
-import { dispatchState, modelLabel, outcomeHidden, swingText, type ModelInfo } from '../lib/debate';
+import { dispatchState, modelLabel, outcomeHidden, type ModelInfo } from '../lib/debate';
 import { formatDate } from '../lib/format';
 
 interface Props {
@@ -68,18 +66,25 @@ const Wrapper = hidden ? 'details' : 'div';
                 </summary>
               )}
               <VerdictView verdict={debate.verdict} debaters={debate.debaters} motion={debate.motion} selfJudging={debate.selfJudging} models={models} />
-              {!isBatch && debate.status !== 'failed' && <AudienceResultView result={debate.audienceResult} myVote={debate.myVote} />}
-              {debate.aiAudience && (
-                <section class="ai-audience stack" aria-labelledby="ai-audience-title">
-                  <h2 id="ai-audience-title">
-                    {t('aiAudience.title')} <AiLabel />
-                  </h2>
-                  <SwingChart result={debate.aiAudience} label={swingText(debate.aiAudience, 'aiVoters')} />
-                  <p class="muted">{t('aiAudience.voters', { models: debate.aiVoters.map(m => modelLabel(m, models)).join(', ') })}</p>
-                  {debate.aiVotersShareDebaterModel && <p class="note">{t('aiAudience.shared')}</p>}
-                  {debate.aiAudience.dropped.length > 0 && <p class="muted">{t('aiAudience.dropped', { count: debate.aiAudience.dropped.length })}</p>}
-                </section>
-              )}
+              {/* The two audiences side by side, in the same panel; a Slow Debate has only the AI one. */}
+              <div class="audiences">
+                {!isBatch && debate.status !== 'failed' && (
+                  <AudienceResultView title={t('audience.title')} result={debate.audienceResult} voters="members" myVote={debate.myVote} />
+                )}
+                {debate.aiAudience && (
+                  <AudienceResultView
+                    title={t('aiAudience.title')}
+                    ai
+                    result={debate.aiAudience}
+                    voters="aiVoters"
+                    notes={[
+                      t('aiAudience.voters', { models: debate.aiVoters.map(m => modelLabel(m, models)).join(', ') }),
+                      ...(debate.aiAudience.dropped.length > 0 ? [t('aiAudience.dropped', { count: debate.aiAudience.dropped.length })] : []),
+                    ]}
+                    warning={debate.aiVotersShareDebaterModel ? t('aiAudience.shared') : undefined}
+                  />
+                )}
+              </div>
             </Wrapper>
           </>
         )}
@@ -152,9 +157,19 @@ const Wrapper = hidden ? 'details' : 'div';
   .fold[open] summary .when-open {
     display: inline;
   }
-  .ai-audience {
-    max-width: 44rem;
+  /* One column on a narrow screen; two equal panels once both fit. A lone panel keeps the reading width. */
+  .audiences {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+    gap: calc(var(--space) * 2);
+    max-width: 60rem;
     margin: calc(var(--space) * 2.5) auto 0;
+  }
+  .audiences:has(> :only-child) {
+    max-width: 44rem;
+  }
+  .audiences:empty {
+    display: none;
   }
   /* When the Debate ends (or the after-vote is cast) the fresh outcome settles in once. */
   @media (prefers-reduced-motion: no-preference) {

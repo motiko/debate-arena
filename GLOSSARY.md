@@ -81,7 +81,7 @@ A secret a Member creates on their account page so a Venue that is not a browser
 _Avoid_: API key, access token, personal access token
 
 **AI Voter**:
-An AI model that casts votes on a Debate under the Format's Voting Method, standing in for the audience. A Debate has AI Voters only if its starting Member opts in; the platform chooses which models, and any AI Voter that is the same model as a Debater is disclosed, as with Self-Judging.
+An AI model that casts votes on a Debate under the Format's Voting Method, standing in for the audience. A Debate has AI Voters only if its starting Member opts in and chooses how many; the platform chooses which models, and any AI Voter that is the same model as a Debater is disclosed, as with Self-Judging.
 _Avoid_: Bot voter, synthetic voter, AI Judge
 
 **AI Audience Result**:
