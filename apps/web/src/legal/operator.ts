@@ -2,11 +2,13 @@
 // launch: `node scripts/check-release.mjs` refuses a production deploy while any remain.
 export const OPERATOR = {
   name: 'Moti Koritz',
+  // The address line before the street (a c/o for a mail service); leave empty to omit.
+  careOf: 'c/o MDC#2424',
   street: 'Welserstraße 3',
   postcode: '87463',
   city: 'Dietmannsried',
   country: 'Deutschland',
-  email: 'support@motik.org',
+  email: 'debate-arena@motik.org',
   // Optional under § 5 DDG when another fast, direct way of contact exists; leave empty to omit.
   phone: '',
   // Responsible for content (§ 18 (2) MStV): usually the operator.

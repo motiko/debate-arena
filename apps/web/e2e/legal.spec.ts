@@ -18,6 +18,7 @@ test('legal pages show the operator', async ({ page }) => {
   await page.goto('/impressum');
   await expect(page.getByRole('heading', { level: 1, name: 'Impressum' })).toBeVisible();
   await expect(page.getByText(OPERATOR.name).first()).toBeVisible();
+  if (OPERATOR.careOf) await expect(page.getByText(OPERATOR.careOf).first()).toBeVisible();
   await page.goto('/privacy');
   await expect(page.getByRole('heading', { name: 'Who is responsible' })).toBeVisible();
   await expect(page.getByText(OPERATOR.email).first()).toBeVisible();

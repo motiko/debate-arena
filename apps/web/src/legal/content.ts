@@ -7,7 +7,7 @@ export interface LegalSection {
   paragraphs: string[];
 }
 
-const contact = `${OPERATOR.name}, ${OPERATOR.street}, ${OPERATOR.postcode} ${OPERATOR.city}, ${OPERATOR.country}; email ${OPERATOR.email}`;
+const contact = `${OPERATOR.name}, ${OPERATOR.careOf ? `${OPERATOR.careOf}, ` : ''}${OPERATOR.street}, ${OPERATOR.postcode} ${OPERATOR.city}, ${OPERATOR.country}; email ${OPERATOR.email}`;
 
 export const PRIVACY: LegalSection[] = [
   {
