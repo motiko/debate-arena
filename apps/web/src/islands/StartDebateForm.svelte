@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { t, tn } from '../i18n/t';
-  import { MAX_MOTION_LENGTH, providerName, selfJudgingWarning } from '../lib/debate';
+  import { MAX_CUSTOM_MODEL_LENGTH, MAX_CUSTOM_NAME_LENGTH, MAX_MOTION_LENGTH, providerName, selfJudgingWarning } from '../lib/debate';
   import ModelPicker from './ModelPicker.svelte';
 
   interface Model {
@@ -41,6 +41,8 @@
   // svelte-ignore state_referenced_locally
   let againstModel = $state(models.filter(m => m.roles.includes('debater'))[1]?.id ?? '');
   let judge = $state('');
+  /** A Custom Debater's optional nickname and self-reported model, per bench. */
+  let identity = $state({ for: { name: '', model: '' }, against: { name: '', model: '' } });
   let aiVoters = $state(false);
   let batch = $state(false);
   let pending = $state(false);
@@ -107,9 +109,17 @@
       .join(' · '),
   );
 
+  /** A bench as the API takes it: a model id, "api", or a Custom Debater with its nickname and model. */
+  const seatOf = (side: 'for' | 'against', model: string) => {
+    if (model !== API) return model;
+    const name = identity[side].name.trim();
+    const self = identity[side].model.trim();
+    return name || self ? { kind: 'custom', ...(name ? { name } : {}), ...(self ? { model: self } : {}) } : API;
+  };
+
   const body = (forMotion: string) => ({
     motion: forMotion,
-    debaters: { for: forModel, against: againstModel },
+    debaters: { for: seatOf('for', forModel), against: seatOf('against', againstModel) },
     aiVoters,
     ...(judge ? { panel: [judge] } : {}),
     ...(batch ? { batch: true } : {}),
@@ -224,6 +234,7 @@
           <p id="debater-for-provider" class="provider">
             {forModel === API ? t('new.apiHint') : t('new.provider', { provider: providerName(forModel) })}
           </p>
+          {#if forModel === API}{@render customFields('for')}{/if}
         </div>
 
         <p class="versus" aria-hidden="true">{t('new.versus')}</p>
@@ -244,6 +255,7 @@
           <p id="debater-against-provider" class="provider">
             {againstModel === API ? t('new.apiHint') : t('new.provider', { provider: providerName(againstModel) })}
           </p>
+          {#if againstModel === API}{@render customFields('against')}{/if}
           {#if againstError}<p id="debater-against-error" class="error">{againstError}</p>{/if}
         </div>
       </div>
@@ -303,6 +315,15 @@
     </div>
   </fieldset>
 </form>
+
+{#snippet customFields(side: 'for' | 'against')}
+  <div class="custom">
+    <label for={`custom-${side}-name`}>{t('new.customName')}</label>
+    <input id={`custom-${side}-name`} type="text" maxlength={MAX_CUSTOM_NAME_LENGTH} autocomplete="off" bind:value={identity[side].name} />
+    <label for={`custom-${side}-model`}>{t('new.customModel')}</label>
+    <input id={`custom-${side}-model`} type="text" maxlength={MAX_CUSTOM_MODEL_LENGTH} autocomplete="off" bind:value={identity[side].model} />
+  </div>
+{/snippet}
 
 <style>
   /* Fieldsets here are groups, not boxes: a rule above each, the legend as its heading. */
@@ -396,6 +417,14 @@
     font-family: var(--font-serif);
     font-size: 1.25rem;
     font-weight: 600;
+  }
+  .custom {
+    display: grid;
+    gap: 0.25rem;
+    margin-top: 0.5rem;
+  }
+  .custom label {
+    font-size: 0.85rem;
   }
   .provider {
     color: var(--muted);

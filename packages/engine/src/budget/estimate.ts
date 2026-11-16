@@ -1,3 +1,4 @@
+import { MAX_CUSTOM_MODEL_LENGTH, MAX_CUSTOM_NAME_LENGTH } from '../debate/custom-identity';
 import { MAX_ATTEMPTS, turnOutputCap, turnSlots } from '../debate/schedule';
 import type { DebateSetup, ModelId } from '../domain';
 import { UnknownModelPriceError } from '../errors';
@@ -23,6 +24,9 @@ export const PROMPT_OVERHEAD_TOKENS = 600;
  */
 export const API_TURN_BYTES_PER_WORD = 8;
 export const apiTurnMaxBytes = (maxWords: number) => maxWords * API_TURN_BYTES_PER_WORD;
+
+/** The most bytes a Custom Debater's screened identity can be: 4 per character of the longest name and model, plus labels. */
+export const IDENTITY_MAX_BYTES = 4 * (MAX_CUSTOM_NAME_LENGTH + MAX_CUSTOM_MODEL_LENGTH) + 16;
 
 /** A Quota point buys this much worst-case Budget: 1.25 US cents. */
 export const QUOTA_POINT_MICRO_USD = 12_500;
@@ -82,6 +86,10 @@ export function worstCaseBudgetMicroUsd(setup: DebateSetup, aiVoters: ModelId[],
     // Each API Turn is screened, as a Motion is.
     if (debater.kind === 'api' && screener) total += cost(screener, base + length, SCREEN_OUTPUT_TOKENS);
     transcript += length;
+  }
+  // A Custom Debater's nickname and model, given at start, are screened once with the Motion.
+  for (const debater of Object.values(setup.debaters)) {
+    if (debater.kind === 'api' && (debater.name || debater.model) && screener) total += cost(screener, base + IDENTITY_MAX_BYTES, SCREEN_OUTPUT_TOKENS);
   }
   for (const judge of setup.panel) total += cost(judge, base + transcript, JUDGE_OUTPUT_TOKENS);
   for (const voter of aiVoters) {

@@ -1,5 +1,12 @@
 import { expect, test } from 'vitest';
-import { reportCounts, reportReasons, waitingSince } from '../src/lib/moderation';
+import { reportCounts, reportReasons, screenCategory, waitingSince } from '../src/lib/moderation';
+
+test("a screen category is named, and a Custom Debater's nickname or model is said to be the cause", () => {
+  expect(screenCategory('S10')).toBe('Hate');
+  expect(screenCategory('name:S10')).toBe('Nickname or model: Hate');
+  expect(screenCategory('name:unscreened')).toBe('Nickname or model: Could not be screened');
+  expect(screenCategory('S99')).toBe('S99');
+});
 
 test('names only the kinds of Report there are, singular or plural', () => {
   expect(reportCounts(0, 1)).toBe('1 anonymous Report');

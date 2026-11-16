@@ -5,7 +5,7 @@ import PageHead from '../components/PageHead.astro';
 import Base from '../layouts/Base.astro';
 import { t, tn, type MessageKey } from '../i18n/t';
 import { formatDate } from '../lib/format';
-import { reportCounts, reportReasons, waitingSince } from '../lib/moderation';
+import { reportCounts, reportReasons, screenCategory, waitingSince } from '../lib/moderation';
 
 interface QueueItem {
   id: string;
@@ -29,8 +29,7 @@ if (me?.isModerator) {
   items = ((await res.json()) as { items: QueueItem[] }).items;
 }
 
-const KNOWN_CATEGORIES = ['S1', 'S3', 'S4', 'S9', 'S10', 'S11', 'S12', 'unscreened'];
-const category = (code: string) => (KNOWN_CATEGORIES.includes(code) ? t(`moderation.category.${code}` as MessageKey) : code);
+const category = screenCategory;
 const reason = (r: string) => t(`report.reason.${r}` as MessageKey);
 const label = (prefix: string, value: string, known: string[]) => (known.includes(value) ? t(`${prefix}.${value}` as MessageKey) : value);
 const visibility = (v: string) => label('moderation.visibility', v, ['listed', 'unlisted']);

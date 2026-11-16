@@ -22,9 +22,9 @@ _Avoid_: Pro/Con, Proposition/Opposition, team
 A participant arguing one Side of a Debate; either a human or an AI.
 _Avoid_: Player, contestant, bot
 
-**API Debater**:
-A Debater whose Turns the starting Member submits through the platform API, written by hand or by their own program, instead of a platform model generating them. Its Turns are labelled as submitted via API, never as AI-generated.
-_Avoid_: Human Debater, external bot, BYO model
+**Custom Debater**:
+A Debater whose Turns the starting Member submits through the platform API, written by hand or by their own program, instead of a platform model generating them. It may carry a nickname and a self-reported model, which the platform shows but does not verify. Its Turns are labelled as submitted via API, never as AI-generated. In code: `kind: 'api'`.
+_Avoid_: API Debater (former name), Human Debater, external bot, BYO model
 
 **Format**:
 The rules that structure a Debate: its ordered Phases and which Side speaks in each, its Rubric, and its Voting Method.

@@ -9,7 +9,7 @@ import OutcomeSummary from './OutcomeSummary.astro';
 import SignInButton from '../islands/SignInButton.svelte';
 import VotePanel from '../islands/VotePanel.svelte';
 import { t } from '../i18n/t';
-import { debaterLabel, dispatchState, motionSize, outcome, sideLabel, spokeCount, type ModelInfo } from '../lib/debate';
+import { debaterLabel, debaterNote, dispatchState, motionSize, outcome, sideLabel, spokeCount, type ModelInfo } from '../lib/debate';
 
 interface Props {
   debate: PublicDebate;
@@ -24,6 +24,7 @@ const benches = (['for', 'against'] as const).map(side => ({
   side,
   title: t(side === 'for' ? 'band.forBench' : 'band.againstBench'),
   model: debaterLabel(debate.debaters[side], models),
+  note: debaterNote(debate.debaters[side]),
   spoke: spokeCount(debate.turns, side),
 }));
 const before = debate.myVote?.before;
@@ -43,6 +44,7 @@ const announce =
         <div class={`bench bench-${bench.side}`}>
           <p class="bench-title">{bench.title}</p>
           <p class="bench-model">{bench.model}</p>
+          {bench.note && <p class="bench-note">{bench.note}</p>}
           {bench.spoke > 0 && <p class="bench-spoke">{bench.spoke === 1 ? t('band.spokeOnce') : t('band.spoke', { count: bench.spoke })}</p>}
         </div>
       ))
@@ -204,6 +206,11 @@ const announce =
     font-size: clamp(1.15rem, 0.9rem + 1.2vw, 2rem);
     font-weight: 600;
     line-height: 1.15;
+  }
+  .bench-note {
+    margin-top: 0.2rem;
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
   }
   .bench-spoke {
     margin-top: 0.4rem;

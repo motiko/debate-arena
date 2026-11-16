@@ -4,6 +4,16 @@ import { t, tn, type MessageKey } from '../i18n/t';
 const list = new Intl.ListFormat('en', { type: 'conjunction' });
 const relative = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
 
+const KNOWN_CATEGORIES = ['S1', 'S3', 'S4', 'S9', 'S10', 'S11', 'S12', 'unscreened'];
+/** The screen marks a category "name:" when a Custom Debater's nickname or model caused it, not the Motion. */
+const NAME_PREFIX = 'name:';
+
+/** A screen category in words ("Hate"), saying when a nickname or model caused it; an unknown code as it is. */
+export function screenCategory(code: string): string {
+  if (code.startsWith(NAME_PREFIX)) return t('moderation.category.name', { category: screenCategory(code.slice(NAME_PREFIX.length)) });
+  return KNOWN_CATEGORIES.includes(code) ? t(`moderation.category.${code}` as MessageKey) : code;
+}
+
 /** "2 Member Reports and 1 anonymous Report": only the kinds there are; empty when there are none. */
 export function reportCounts(members: number, anonymous: number): string {
   const parts = [];

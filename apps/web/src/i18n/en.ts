@@ -93,7 +93,9 @@ export const en = {
   'new.debaterFor': 'Debater For',
   'new.debaterAgainst': 'Debater Against',
   'new.versus': 'versus',
-  'new.api': 'API — submit this side’s Turns yourself',
+  'new.api': 'Custom — submit this side’s Turns yourself',
+  'new.customName': 'Nickname (optional)',
+  'new.customModel': 'Model (optional, self-reported)',
   'new.apiHint': 'Send each Turn with your API token, e.g. debate speak <id>. You have 10 minutes per Turn.',
   'new.search': 'Search {count} models',
   'new.moreMatches': 'Type to narrow down {count} more models',
@@ -104,7 +106,6 @@ export const en = {
   'new.slowUnavailable': 'Slow Debate is not available for {model}',
   'new.cost.one': '1 Quota point · you have {left} left today',
   'new.cost.other': '{count} Quota points · you have {left} left today',
-  'new.slowNoApi': 'A Slow Debate cannot have an API Debater',
   'new.provider': 'By {provider}',
   'new.sameModel': '{model} already debates For. Choose a different model Against.',
   'new.notBatch': '{model} cannot take part in a Slow Debate. Choose another model, or start a full Debate.',
@@ -254,6 +255,7 @@ export const en = {
   'moderation.category.S11': 'Suicide and self-harm',
   'moderation.category.S12': 'Sexual content',
   'moderation.category.unscreened': 'Could not be screened',
+  'moderation.category.name': 'Nickname or model: {category}',
   'header.moderation': 'Moderation',
 
   'batch.label': 'Slow Debate',
@@ -279,7 +281,9 @@ export const en = {
 
   'label.ai': 'AI-generated',
   'label.api': 'Submitted via API',
-  'debater.api': 'API Debater',
+  'debater.api': 'Custom Debater',
+  'debater.named': '{name} (Custom)',
+  'debater.model': 'self-reported model: {model}',
   'label.selfJudging': 'Self-Judging',
   'label.selfJudgingHint': 'A Judge of this Debate is the same model as one of the Debaters.',
 

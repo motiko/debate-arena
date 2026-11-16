@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { wordsToTokens } from '../debate/schedule';
 import { UnknownModelPriceError } from '../errors';
 import { setup } from '../testing/fixtures';
-import { apiTurnMaxBytes, type PriceTable, quotaPointsFor, utf8Length, worstCaseBudgetMicroUsd } from './estimate';
+import { apiTurnMaxBytes, IDENTITY_MAX_BYTES, type PriceTable, quotaPointsFor, utf8Length, worstCaseBudgetMicroUsd } from './estimate';
 
 // Every model at 1 USD per million tokens in and out, so micro-USD equals tokens.
 const unit = { inputPerMTokUsd: 1, outputPerMTokUsd: 1 };
@@ -51,6 +51,17 @@ test('an API Debater costs no model calls, one screen per Turn, and its Turns ar
   // = 7135, twice. Later calls read the larger For Turns: Against 2 reads +1560, Against 4 +2600, Against 6 and the
   // Judge +3380 each = 10920, twice.
   expect(worstCaseBudgetMicroUsd(apiFor, [], prices, 'g/guard')).toBe(46526 + 1290 - 16374 + 14270 + 21840);
+});
+
+test("a named Custom Debater's identity is screened once: (629+416+16), twice = 2122 more", () => {
+  const apiFor = { ...setup, debaters: { ...setup.debaters, for: { kind: 'api' } as const } };
+  const named = { ...setup, debaters: { ...setup.debaters, for: { kind: 'api', name: 'Atlas' } as const } };
+  const prices = { ...unitPrices, 'g/guard': unit };
+  expect(worstCaseBudgetMicroUsd(named, [], prices, 'g/guard') - worstCaseBudgetMicroUsd(apiFor, [], prices, 'g/guard')).toBe(2122);
+});
+
+test('an identity is read at its byte cap: 4 bytes per character of the longest name and model, plus labels', () => {
+  expect(IDENTITY_MAX_BYTES).toBe(4 * (40 + 60) + 16);
 });
 
 test('apiTurnMaxBytes is 8 bytes per word of the Phase', () => {

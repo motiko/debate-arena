@@ -1,6 +1,7 @@
 import {
   CLASSIC_FORMAT,
   isSelfJudging,
+  parseCustomIdentity,
   quotaPointsFor,
   suggestPanel,
   worstCaseBudgetMicroUsd,
@@ -26,12 +27,17 @@ import {
 export const MAX_MOTION_LENGTH = 300;
 /** No Debate may reserve more than this ($5), whatever the Member's Quota: a ceiling against mistakes. */
 export const MAX_DEBATE_BUDGET_MICRO_USD = 5_000_000;
-/** The value of a Side in `debaters` that seats an API Debater instead of a model. */
+/** The value of a Side in `debaters` that seats a Custom Debater instead of a model. */
 export const API_DEBATER = 'api';
+/** The values that seat a Custom Debater: its code name, and the name Members see. */
+export const CUSTOM_DEBATER_VALUES: readonly string[] = [API_DEBATER, 'custom'];
+
+/** A Side: a model id, a Custom Debater value, or a Custom Debater with an optional nickname and self-reported model. */
+export type SeatInput = ModelId | { kind: 'api' | 'custom'; name?: unknown; model?: unknown };
 
 export interface StartDebateInput {
   motion: string;
-  debaters: { for: ModelId; against: ModelId };
+  debaters: { for: SeatInput; against: SeatInput };
   panel?: ModelId[];
   aiVoters: boolean;
   batch: boolean;
@@ -79,13 +85,15 @@ export type PlanResult =
 const bad = (error: string) => ({ ok: false as const, status: 400 as const, error });
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isString = (v: unknown): v is string => typeof v === 'string';
+const isSeat = (v: unknown): v is SeatInput => isString(v) || (isRecord(v) && isString(v.kind) && CUSTOM_DEBATER_VALUES.includes(v.kind));
 
 function parseInput(input: unknown): StartDebateInput | string {
   if (!isRecord(input)) return 'Send a JSON object with motion, debaters and aiVoters';
   const { motion, debaters, panel, aiVoters, batch } = input;
   if (!isString(motion)) return 'motion must be a string';
-  if (!isRecord(debaters) || !isString(debaters.for) || !isString(debaters.against)) {
-    return 'debaters must name a model (or "api") for each Side: { "for": "...", "against": "..." }';
+  if (!isRecord(debaters) || !isSeat(debaters.for) || !isSeat(debaters.against)) {
+    return 'debaters must name a model (or "custom") for each Side: { "for": "...", "against": "..." }, '
+      + 'or a Custom Debater with a nickname and model: { "kind": "custom", "name": "...", "model": "..." }';
   }
   if (panel !== undefined && (!Array.isArray(panel) || !panel.every(isString))) return 'panel must be a list of model ids';
   if (aiVoters !== undefined && typeof aiVoters !== 'boolean') return 'aiVoters must be true or false';
@@ -123,8 +131,13 @@ export function planDebate(deps: Pick<StartDeps, 'catalog' | 'unlimitedQuota'>, 
   const catalog = catalogFor(deps.catalog, kind);
   const usable = (model: ModelId) => kind === 'live' || isBatchCapable(deps.catalog, model);
 
-  const seat = (model: ModelId): Debater | string => {
-    if (model === API_DEBATER) return kind === 'batch' ? 'A Slow Debate cannot have an API Debater' : { kind: 'api' };
+  const seat = (input: SeatInput): Debater | string => {
+    if (!isString(input) || CUSTOM_DEBATER_VALUES.includes(input)) {
+      if (kind === 'batch') return 'A Slow Debate cannot have a Custom Debater';
+      const identity = isString(input) ? {} : parseCustomIdentity(input);
+      return typeof identity === 'string' ? identity : { kind: 'api', ...identity };
+    }
+    const model = input;
     if (!hasRole(deps.catalog, model, 'debater')) return `Model ${model} cannot be a Debater`;
     if (!usable(model)) return `Model ${model} cannot take part in a Slow Debate`;
     return { kind: 'ai', model };

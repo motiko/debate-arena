@@ -225,9 +225,19 @@ export function modelLabel(id: string, models: ModelInfo[] = []): string {
   return models.find(m => m.id === id)?.label ?? id;
 }
 
+/** Mirrors the engine's Custom Debater limits (MAX_CUSTOM_NAME_LENGTH, MAX_CUSTOM_MODEL_LENGTH). */
+export const MAX_CUSTOM_NAME_LENGTH = 40;
+export const MAX_CUSTOM_MODEL_LENGTH = 60;
+
+/** A Custom Debater is named by its nickname; its self-reported model is never matched against the catalog. */
 export function debaterLabel(debater: Debater, models: ModelInfo[]): string {
-  if (debater.kind === 'api') return t('debater.api');
+  if (debater.kind === 'api') return debater.name ? t('debater.named', { name: debater.name }) : t('debater.api');
   return debater.kind === 'ai' ? modelLabel(debater.model, models) : debater.memberId;
+}
+
+/** The second line under a Custom Debater: its model, shown as self-reported (the platform never checks it). */
+export function debaterNote(debater: Debater): string | null {
+  return debater.kind === 'api' && debater.model ? t('debater.model', { model: debater.model }) : null;
 }
 
 export type MotionSize = 'l' | 'm' | 's';

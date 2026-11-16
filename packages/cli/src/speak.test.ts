@@ -125,5 +125,5 @@ test('following a Debate says when it waits for an API Turn', async () => {
   FakeSocket.last.emit({ type: 'failed', reason: 'x' });
   await code;
   expect(output.out).toContain("Waiting for For's Turn via the API until 12:10 UTC");
-  expect(output.out).toContain('For: API Debater');
+  expect(output.out).toContain('For: Custom Debater');
 });

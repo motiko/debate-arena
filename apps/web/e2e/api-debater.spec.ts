@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
 import { expectNoAxeViolations, hydrated, pickModel, uniqueMember } from './helpers';
 
-// An API Debater: the platform waits for its Turns, which the starting Member sends through the API (here with the
+// A Custom Debater (code: 'api'): the platform waits for its Turns, which the starting Member sends through the API (here with the
 // dev sign-in header, as the CLI does with an API token).
-test('start with an API Debater, see the wait, a draft, then the Turn labelled as submitted via API', async ({ page, request }) => {
+test('start with a named Custom Debater, see the wait, a draft, then the Turn labelled as submitted via API', async ({ page, request }) => {
   test.setTimeout(90_000);
   const member = uniqueMember('dev-api');
   await page.setExtraHTTPHeaders({ 'x-dev-member': member });
@@ -11,15 +11,19 @@ test('start with an API Debater, see the wait, a draft, then the Turn labelled a
   await page.goto('/new');
   await hydrated(page);
   await page.getByLabel('Motion').fill(motion);
-  await pickModel(page, 'Debater For', 'API');
+  await pickModel(page, 'Debater For', 'Custom');
   await expect(page.getByText(/debate speak <id>/)).toBeVisible();
   await expect(page.getByRole('checkbox', { name: /Slow Debate/ })).toHaveCount(0);
+  await page.getByLabel('Nickname (optional)').fill('Atlas');
+  await page.getByLabel('Model (optional, self-reported)').fill('gpt-6');
   await pickModel(page, 'Debater Against', 'Fake B');
+  await expectNoAxeViolations(page);
   await page.getByRole('button', { name: 'Start the Debate' }).click();
   await expect(page).toHaveURL(/\/debates\/[0-9a-f-]+$/);
   const id = new URL(page.url()).pathname.split('/').at(-1)!;
 
-  await expect(page.locator('.bench-model', { hasText: 'API Debater' })).toBeVisible();
+  await expect(page.locator('.bench-model', { hasText: 'Atlas (Custom)' })).toBeVisible();
+  await expect(page.locator('.bench-note', { hasText: 'self-reported model: gpt-6' })).toBeVisible();
   // Oxford: a signed-in Member states a position before reading, the starter too.
   await hydrated(page);
   await page.getByRole('radio', { name: 'For' }).check();
