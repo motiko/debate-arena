@@ -46,8 +46,11 @@ export function normaliseTag(raw: string): string | null {
 
 /** Reads the labeller's answer: the first JSON object in it. An unknown Category or unreadable answer gives null. */
 export function parseLabels(text: string): Labels | null {
-  const json = text.match(/\{[\s\S]*\}/)?.[0];
-  if (!json) return null;
+  // From the first "{" to the last "}", found by index: a regex here backtracks quadratically on a reply of braces.
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end <= start) return null;
+  const json = text.slice(start, end + 1);
   let parsed: unknown;
   try {
     parsed = JSON.parse(json);

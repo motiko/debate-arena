@@ -23,6 +23,12 @@ test('parseLabels keeps at most three Tags, without duplicates or ones too short
   expect(labels).toEqual({ category: 'politics', tags: ['elections', 'voting', 'europe'] });
 });
 
+test('parseLabels reads a hostile reply of many braces in linear time', () => {
+  const started = performance.now();
+  expect(parseLabels('{{'.repeat(50_000))).toBeNull();
+  expect(performance.now() - started).toBeLessThan(200);
+});
+
 test('parseLabels accepts no Tags', () => {
   expect(parseLabels('{"category":"science","tags":[]}')).toEqual({ category: 'science', tags: [] });
 });
