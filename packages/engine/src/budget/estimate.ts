@@ -3,6 +3,7 @@ import { MAX_ATTEMPTS, turnOutputCap, turnSlots } from '../debate/schedule';
 import type { DebateSetup, ModelId } from '../domain';
 import { UnknownModelPriceError } from '../errors';
 import { JUDGE_OUTPUT_TOKENS } from '../judging/judge';
+import { LABEL_OUTPUT_TOKENS } from '../labels/label';
 import { SCREEN_OUTPUT_TOKENS } from '../moderation/screen';
 import { STANCE_OUTPUT_TOKENS } from '../voting/ai-voter';
 
@@ -64,9 +65,9 @@ function priceOf(prices: PriceTable, model: ModelId): ModelPrice {
 /**
  * Worst-case AI cost of a Debate in micro-USD: every Turn at its output cap and every call made
  * MAX_ATTEMPTS times. Reserved from the Member's Quota before the Debate starts; unused cost is returned.
- * With a `screener`, one Motion screening call is included.
+ * With a `screener`, one Motion screening call is included; with a `labeller`, one Motion labelling call.
  */
-export function worstCaseBudgetMicroUsd(setup: DebateSetup, aiVoters: ModelId[], prices: PriceTable, screener?: ModelId): number {
+export function worstCaseBudgetMicroUsd(setup: DebateSetup, aiVoters: ModelId[], prices: PriceTable, screener?: ModelId, labeller?: ModelId): number {
   // tokens × USD per million tokens = micro-USD
   const cost = (model: ModelId, input: number, output: number) => {
     const price = priceOf(prices, model);
@@ -76,6 +77,7 @@ export function worstCaseBudgetMicroUsd(setup: DebateSetup, aiVoters: ModelId[],
   const base = PROMPT_OVERHEAD_TOKENS + utf8Length(setup.motion.text);
   let transcript = 0;
   let total = screener ? cost(screener, base, SCREEN_OUTPUT_TOKENS) : 0;
+  if (labeller) total += cost(labeller, base, LABEL_OUTPUT_TOKENS);
 
   for (const slot of turnSlots(setup.format)) {
     const maxWords = setup.format.phases[slot.phaseIndex]!.maxWords;

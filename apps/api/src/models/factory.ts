@@ -1,6 +1,8 @@
 import {
   FakeModelClient,
+  CATEGORIES,
   JUDGE_OUTPUT_TOKENS,
+  LABEL_OUTPUT_TOKENS,
   SCREEN_OUTPUT_TOKENS,
   STANCE_OUTPUT_TOKENS,
   type CompleteOptions,
@@ -23,6 +25,13 @@ export function devFakeReply(request: ModelRequest): string {
   if (request.maxOutputTokens === SCREEN_OUTPUT_TOKENS) {
     // `[flag-test]` in a Motion makes the fake screener Flag it, to try moderation locally.
     return request.messages.some(m => m.content.includes('[flag-test]')) ? 'unsafe\nS10' : 'safe';
+  }
+  if (request.maxOutputTokens === LABEL_OUTPUT_TOKENS) {
+    // Spread over the Categories by the Motion's length, so a local feed has something to filter.
+    const motion = request.messages.at(-1)?.content ?? '';
+    // `[label-fail-test]` in a Motion makes the fake labeller answer nonsense, to try a failed labelling.
+    if (motion.includes('[label-fail-test]')) return 'I would rather not.';
+    return JSON.stringify({ category: CATEGORIES[motion.length % CATEGORIES.length], tags: ['local dev', 'fake'] });
   }
   if (request.maxOutputTokens === JUDGE_OUTPUT_TOKENS) {
     return JSON.stringify({ winner: seed % 2 === 0 ? 'for' : 'against', reasoning: 'A fake Verdict for local development.' });

@@ -14,7 +14,6 @@ import {
   swingBars,
   modelLabel,
   voterModels,
-  nextFeedCursor,
   inlineEmphasis,
   otherLanguage,
   paragraphs,
@@ -67,15 +66,6 @@ test('swingText counts AI Voters for the AI Audience Result', () => {
   expect(swingText({ counted: 9, swing: { for: -10, against: 30 }, winner: 'against' }, 'aiVoters')).toBe(
     'For swung −10 points, Against +30 points across 9 AI Voters: Against wins the audience.',
   );
-});
-
-const summary = (completedAt: string) => ({ completedAt }) as unknown as Parameters<typeof nextFeedCursor>[0][number];
-
-test('nextFeedCursor gives the last completedAt only for a full page', () => {
-  const page = [summary('2026-11-13T10:00:00.000Z'), summary('2026-11-12T10:00:00.000Z')];
-  expect(nextFeedCursor(page, 2)).toBe('2026-11-12T10:00:00.000Z');
-  expect(nextFeedCursor(page, 3)).toBeNull();
-  expect(nextFeedCursor([], 20)).toBeNull();
 });
 
 test('sideLabel names Sides in GLOSSARY words', () => {

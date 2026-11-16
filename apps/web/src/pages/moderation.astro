@@ -1,5 +1,6 @@
 ---
 import DecisionForm from '../islands/DecisionForm.svelte';
+import LabelBackfill from '../islands/LabelBackfill.svelte';
 import SignInButton from '../islands/SignInButton.svelte';
 import PageHead from '../components/PageHead.astro';
 import Base from '../layouts/Base.astro';
@@ -113,6 +114,15 @@ const now = new Date();
           })}
         </ol>
       </>
+    )
+  }
+  {
+    me?.isModerator && (
+      <section class="panel stack labels" aria-labelledby="labels-title">
+        <h2 id="labels-title">{t('moderation.labelsTitle')}</h2>
+        <p class="muted">{t('moderation.labelsIntro')}</p>
+        <LabelBackfill client:visible />
+      </section>
     )
   }
 </Base>

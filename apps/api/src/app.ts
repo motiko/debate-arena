@@ -1,4 +1,4 @@
-import { isSelfJudging, type Stance } from '@debate-arena/engine';
+import { isSelfJudging, labelMotion, type Stance } from '@debate-arena/engine';
 import { Hono } from 'hono';
 import { exportMember } from './account/account';
 import { getAuth } from './auth/auth';
@@ -21,7 +21,8 @@ import { noticeDecision, noticeReportReceived, type NoticeDeps } from './notices
 import { keyedHash, parseReport, rateLimitNetwork, REPORT_UNLIST_THRESHOLD, REPORTS_PER_IP_PER_HOUR } from './moderation/reports';
 import { DAILY_QUOTA_POINTS, quotaRemaining } from './db/quota';
 import { hasUnlimitedQuota } from './auth/allowlists';
-import { addCost, awaitingOf, getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
+import { addCost, awaitingOf, getDebate, listCompletedDebates, saveLabels, unlabelledDebates, type DebateRecord, type LabelCursor } from './db/debates';
+import { parseFeedQuery, popularTags, searchDebates } from './db/feed';
 import { relayDraft, screenApiTurn, submitApiTurn } from './debates/api-turn';
 import { notifyViewers } from './debates/consumer';
 import { meteredClient } from './models/factory';
@@ -29,10 +30,14 @@ import { castAfter, castBefore, getVote, listVotes, type AudienceVote } from './
 import { audienceResult, checkVote, votingClosesAt, type VotePhase } from './votes/rules';
 import { voterKey } from './votes/voter-key';
 import { planDebate, startDebate } from './debates/start';
-import { isBatchCapable, priceTable, screenerFor } from './models/catalog';
+import { isBatchCapable, labellerFor, priceTable, screenerFor } from './models/catalog';
 import { loadModels } from './models/live-catalog';
 
 const FEED_PAGE_SIZE = 20;
+/** How many Tags the feed offers to browse by. */
+const POPULAR_TAGS = 20;
+/** How many older Debates one backfill request labels. */
+const LABELS_PER_REQUEST = 10;
 
 /** What Viewers may see of a Debate: no Member id, Budget or cost. */
 function publicView(d: DebateRecord) {
@@ -56,6 +61,9 @@ function publicView(d: DebateRecord) {
     aiAudience: d.aiAudience && { ...d.aiAudience, votes: d.aiAudience.votes ?? [] },
     createdAt: d.createdAt,
     completedAt: d.completedAt,
+    // AI-assigned (GLOSSARY: Category, Tag).
+    category: d.category,
+    tags: d.tags,
   };
 }
 
@@ -119,6 +127,16 @@ const isJson = (contentType: string | undefined) => contentType?.split(';')[0]?.
 
 const PHASES = ['before', 'after'] as const;
 const STANCES = ['for', 'against', 'undecided'] as const;
+
+/** A backfill request's cursor: null to start from the oldest, undefined when the body is not one. */
+function parseLabelCursor(input: unknown): LabelCursor | null | undefined {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return undefined;
+  const { after } = input as Record<string, unknown>;
+  if (after === undefined) return null;
+  if (typeof after !== 'string') return undefined;
+  const bar = after.indexOf('|');
+  return bar > 0 ? { completedAt: after.slice(0, bar), id: after.slice(bar + 1) } : undefined;
+}
 
 function parseVote(input: unknown): { phase: VotePhase; stance: Stance } | null {
   if (typeof input !== 'object' || input === null) return null;
@@ -231,6 +249,8 @@ export const app = new Hono<{ Bindings: Env }>()
         id: e.id,
         label: e.label,
         roles: e.roles,
+        // Hand-picked: the short list the feed offers to filter by.
+        curated: e.curated === true,
         // Batch-capable: may take part in a Slow Debate.
         batch: isBatchCapable(catalog, e.id),
         inputPerMTokUsd: e.price.inputPerMTokUsd,
@@ -326,9 +346,17 @@ export const app = new Hono<{ Bindings: Env }>()
   })
   .get('/debates', async c => {
     const before = c.req.query('before');
-    const debates = await listCompletedDebates(c.env.DB, FEED_PAGE_SIZE, before);
-    return c.json({ debates: debates.map(summary) });
+    // The date cursor of the first feed, kept for links and clients that page by it.
+    if (before) {
+      const debates = await listCompletedDebates(c.env.DB, FEED_PAGE_SIZE, before);
+      return c.json({ debates: debates.map(summary), query: { page: 1 }, page: 1, pageCount: 1, total: debates.length });
+    }
+    const query = parseFeedQuery(c.req.query());
+    const { debates, total } = await searchDebates(c.env.DB, query, FEED_PAGE_SIZE);
+    // `query` is what was applied (anything unusable dropped), for showing the filters in force.
+    return c.json({ debates: debates.map(summary), query, page: query.page, pageCount: Math.max(1, Math.ceil(total / FEED_PAGE_SIZE)), total });
   })
+  .get('/tags', async c => c.json({ tags: await popularTags(c.env.DB, POPULAR_TAGS) }))
   .get('/debates/:id', async c => {
     const debate = await getDebate(c.env.DB, c.req.param('id'));
     if (!debate) return c.json({ error: 'Debate not found' }, 404);
@@ -422,6 +450,35 @@ export const app = new Hono<{ Bindings: Env }>()
       if (email) await noticeReportReceived(deps, debate.id, email);
     });
     return c.json({ ok: true }, 201);
+  })
+  // Labels Debates screened before labelling existed (or whose labelling failed), a few per request so it stays
+  // within one Worker invocation. Paid by the platform: these Debates' Budgets are settled.
+  .post('/moderation/labels', async c => {
+    if (!isJson(c.req.header('content-type'))) return c.json({ error: NOT_JSON }, 415);
+    const denied = await requireModerator(c.env, c.req.raw);
+    if ('status' in denied) return c.json({ error: denied.error }, denied.status);
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      body = null;
+    }
+    const after = parseLabelCursor(body);
+    if (after === undefined) return c.json({ error: 'Send {} or { "after": "<next from the last answer>" }' }, 400);
+    const { debates, total } = await unlabelledDebates(c.env.DB, LABELS_PER_REQUEST, after ?? undefined);
+    const { client, catalog } = await loadModels(c.env);
+    const labeller = labellerFor(catalog);
+    let labelled = 0;
+    for (const debate of debates) {
+      const labels = await labelMotion(debate.motion, labeller, client);
+      if (!labels) continue;
+      await saveLabels(c.env.DB, debate.id, labels);
+      labelled += 1;
+    }
+    // The next round starts after the last Debate tried, labelled or not; `next` is null when none are left.
+    const remaining = total - debates.length;
+    const last = debates.at(-1);
+    return c.json({ labelled, failed: debates.length - labelled, remaining, next: remaining > 0 && last ? `${last.completedAt}|${last.id}` : null });
   })
   .get('/moderation/queue', async c => {
     const denied = await requireModerator(c.env, c.req.raw);

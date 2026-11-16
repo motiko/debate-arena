@@ -92,12 +92,14 @@ test('opting into AI Voters stores ten of them and raises the Budget', async () 
   expect(withVoters.budgetReservedMicroUsd).toBeGreaterThan(without.budgetReservedMicroUsd);
 });
 
-test('the Budget reserved at start covers screening the Motion', async () => {
+test('the Budget reserved at start covers screening and labelling the Motion', async () => {
   const r = await startDebate(makeDeps().deps, uniqueId('m'), valid);
   if (!r.ok) throw new Error('start failed');
   const stored = await getDebate(env.DB, r.id);
   const prices = priceTable(FAKE_CATALOG);
-  expect(r.budgetReservedMicroUsd).toBe(worstCaseBudgetMicroUsd(stored!.setup, [], prices, 'fake-guard/one'));
+  expect(r.budgetReservedMicroUsd).toBe(worstCaseBudgetMicroUsd(stored!.setup, [], prices, 'fake-guard/one', 'fake-label/one'));
+  expect(r.budgetReservedMicroUsd).toBeGreaterThan(worstCaseBudgetMicroUsd(stored!.setup, [], prices, 'fake-guard/one'));
+  expect(stored?.models).toHaveProperty(['fake-label/one']);
   expect(r.budgetReservedMicroUsd).toBeGreaterThan(worstCaseBudgetMicroUsd(stored!.setup, [], prices));
 });
 

@@ -25,7 +25,9 @@ test('a first visit sees how a Debate works, in three steps, on the first page o
   const steps = page.getByRole('region', { name: 'How it works' }).getByRole('listitem');
   await expect(steps).toHaveCount(3);
   await expect(steps.first()).toContainText('Motion');
-  await page.goto(`/?before=${encodeURIComponent(new Date().toISOString())}`);
+  await page.goto('/?page=2');
+  await expect(page.getByRole('region', { name: 'How it works' })).toHaveCount(0);
+  await page.goto('/?category=science');
   await expect(page.getByRole('region', { name: 'How it works' })).toHaveCount(0);
 });
 

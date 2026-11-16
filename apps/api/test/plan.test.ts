@@ -44,8 +44,8 @@ test('a Debate spends Quota points in proportion to its worst-case Budget', asyn
   const r = await startDebate(deps(), member, valid);
   if (!r.ok) throw new Error(r.error);
   const stored = await getDebate(env.DB, r.id);
-  // Fake models at $1 per million tokens: 47 816 micro-USD, 4 points.
-  expect(r.budgetReservedMicroUsd).toBe(47_816);
+  // Fake models at $1 per million tokens: 49 234 micro-USD, 4 points.
+  expect(r.budgetReservedMicroUsd).toBe(49_234);
   expect(stored?.quotaPoints).toBe(quotaPointsFor(r.budgetReservedMicroUsd));
   expect(stored?.quotaPoints).toBe(4);
   expect(await quotaRemaining(env.DB, member, now)).toBe(20);
@@ -154,7 +154,7 @@ test('an API Debater is stored as one and reserved as the engine reckons it', as
   if (!r.ok) throw new Error(r.error);
   const stored = await getDebate(env.DB, r.id);
   expect(stored?.setup.debaters.for).toEqual({ kind: 'api' });
-  expect(r.budgetReservedMicroUsd).toBe(worstCaseBudgetMicroUsd(stored!.setup, [], priceTable(CATALOG), 'fake-guard/one'));
+  expect(r.budgetReservedMicroUsd).toBe(worstCaseBudgetMicroUsd(stored!.setup, [], priceTable(CATALOG), 'fake-guard/one', 'fake-label/one'));
 });
 
 test('both benches may be API Debaters', async () => {
@@ -245,7 +245,7 @@ test('the Debate freezes the price and reasoning of every model it will call', a
   if (!r.ok) throw new Error(r.error);
   const stored = await getDebate(env.DB, r.id);
   const ids = Object.keys(stored!.models!).toSorted();
-  expect(ids).toEqual([...new Set(['fake-a/one', 'fake-b/one', 'fake-e/thinker', 'fake-guard/one', ...stored!.aiVoters])].toSorted());
+  expect(ids).toEqual([...new Set(['fake-a/one', 'fake-b/one', 'fake-e/thinker', 'fake-guard/one', 'fake-label/one', ...stored!.aiVoters])].toSorted());
   expect(stored!.models!['fake-e/thinker']).toEqual({ price: { ...price(1), extraOutputTokens: 2048 }, reasoning: 'mandatory' });
   expect(stored!.models!['fake-a/one']).toEqual({ price: price(1), reasoning: 'unsupported' });
 });
@@ -260,7 +260,7 @@ test('POST /debates/quote prices a line-up without charging or creating anything
   });
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({
-    budgetMicroUsd: 47_816,
+    budgetMicroUsd: 49_234,
     quotaPoints: 4,
     quotaRemaining: 24,
     slowAvailable: true,

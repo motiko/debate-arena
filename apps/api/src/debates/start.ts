@@ -16,6 +16,7 @@ import {
   catalogFor,
   hasRole,
   isBatchCapable,
+  labellerFor,
   MAX_AI_VOTERS,
   modelsFor,
   pickAiVoters,
@@ -174,8 +175,9 @@ export function planDebate(deps: Pick<StartDeps, 'catalog' | 'unlimitedQuota'>, 
   const aiVoters = pickAiVoters(catalog, parsed.aiVoters);
   const prices = priceTable(catalog);
   const screener = screenerFor(catalog);
-  const budgetMicroUsd = worstCaseBudgetMicroUsd(setup, aiVoters, prices, screener);
-  const aiVotersMicroUsd = aiVoters.length > 0 ? budgetMicroUsd - worstCaseBudgetMicroUsd(setup, [], prices, screener) : 0;
+  const labeller = labellerFor(catalog);
+  const budgetMicroUsd = worstCaseBudgetMicroUsd(setup, aiVoters, prices, screener, labeller);
+  const aiVotersMicroUsd = aiVoters.length > 0 ? budgetMicroUsd - worstCaseBudgetMicroUsd(setup, [], prices, screener, labeller) : 0;
   if (budgetMicroUsd > MAX_DEBATE_BUDGET_MICRO_USD) {
     return bad(`This line-up could cost up to ${usd(budgetMicroUsd)}; a Debate may reserve at most ${usd(MAX_DEBATE_BUDGET_MICRO_USD)}.`);
   }
@@ -189,6 +191,7 @@ export function planDebate(deps: Pick<StartDeps, 'catalog' | 'unlimitedQuota'>, 
     ...panel,
     ...aiVoters,
     screener,
+    labeller,
   ];
   const models: ModelSnapshot = {};
   for (const id of called) {

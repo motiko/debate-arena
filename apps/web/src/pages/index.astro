@@ -1,35 +1,43 @@
 ---
 import AiLabel from '../components/AiLabel.astro';
 import BatchBadge from '../components/BatchBadge.astro';
+import DebateLabels from '../components/DebateLabels.astro';
+import FeedFilters from '../components/FeedFilters.astro';
+import Pagination from '../components/Pagination.astro';
 import SelfJudgingBadge from '../components/SelfJudgingBadge.astro';
 import Base from '../layouts/Base.astro';
 import { t } from '../i18n/t';
-import { debaterLabel, FEED_PAGE_SIZE, feedOutcome, nextFeedCursor, type ModelInfo } from '../lib/debate';
+import { debaterLabel, feedOutcome, type ModelInfo } from '../lib/debate';
+import { appliedParams, feedHref, feedParams } from '../lib/feed';
 import { formatDate } from '../lib/format';
 
 const { api } = Astro.locals;
-const beforeParam = Astro.url.searchParams.get('before');
-// Only a real date is passed on as the cursor; anything else shows the first page.
-const before = beforeParam && !Number.isNaN(Date.parse(beforeParam)) ? beforeParam : undefined;
+const requested = feedParams(Astro.url.searchParams);
+const query = Object.fromEntries(Object.entries(requested).map(([key, value]) => [key, String(value)]));
 
-const [feedRes, modelsRes] = await Promise.all([
-  api.api.debates.$get({ query: before ? { before } : {} }),
-  api.api.models.$get(),
-]);
+const [feedRes, modelsRes, tagsRes] = await Promise.all([api.api.debates.$get({ query }), api.api.models.$get(), api.api.tags.$get()]);
 if (!feedRes.ok) throw new Error(`GET /api/debates failed (${feedRes.status})`);
-const { debates } = await feedRes.json();
-const models: ModelInfo[] = modelsRes.ok ? (await modelsRes.json()).models : [];
-const cursor = nextFeedCursor(debates, FEED_PAGE_SIZE);
+const feed = await feedRes.json();
+const { debates, page, pageCount, total } = feed;
+// What the API applied, not what was asked: a filter it could not use is neither shown nor kept.
+const params = appliedParams(feed.query);
+const catalog = modelsRes.ok ? (await modelsRes.json()).models : [];
+const models: ModelInfo[] = catalog;
+const debaterModels: ModelInfo[] = catalog.filter(m => m.curated && m.roles.includes('debater'));
+const popularTags = tagsRes.ok ? (await tagsRes.json()).tags.map(x => x.tag) : [];
+const filtered = Object.keys(params).some(key => key !== 'page');
+// A search result is not a page of its own; a Category or Tag page is, at its own address.
+const canonicalPath = params.q ? '/' : feedHref(params, { page: params.page });
 ---
 
-<Base title={t('feed.title')} description={t('feed.description')} canonicalPath={before ? `/?before=${encodeURIComponent(before)}` : '/'} wide>
+<Base title={t('feed.title')} description={t('feed.description')} canonicalPath={canonicalPath} noindex={!!params.q} wide>
   <div class="feed-head">
     <h1>{t('feed.title')}</h1>
     <p class="muted">{t('site.tagline')}</p>
   </div>
-  {/* For a first visit: what happens in a Debate, in order. Only on the first page; older pages are for browsing. */}
+  {/* For a first visit: what happens in a Debate, in order. Only on the unfiltered first page; the rest is for browsing. */}
   {
-    !before && (
+    !filtered && page === 1 && (
       <section class="how" aria-labelledby="how-title">
         <h2 id="how-title" class="visually-hidden">{t('feed.howTitle')}</h2>
         <ol class="how-steps">
@@ -40,13 +48,27 @@ const cursor = nextFeedCursor(debates, FEED_PAGE_SIZE);
       </section>
     )
   }
+  <div class="finding">
+    <FeedFilters params={params} models={debaterModels} allModels={models} popularTags={popularTags} total={total} />
+  </div>
   {
     debates.length === 0 ? (
       <div class="empty stack">
-        <p>{t('feed.empty')}</p>
-        <p>
-          <a href="/new">{t('feed.startFirst')}</a>
-        </p>
+        {filtered ? (
+          <>
+            <p>{t('feed.noMatch')}</p>
+            <p>
+              <a href="/">{t('feed.showAll')}</a>
+            </p>
+          </>
+        ) : (
+          <>
+            <p>{t('feed.empty')}</p>
+            <p>
+              <a href="/new">{t('feed.startFirst')}</a>
+            </p>
+          </>
+        )}
       </div>
     ) : (
       <ol class="order-paper" role="list">
@@ -58,6 +80,9 @@ const cursor = nextFeedCursor(debates, FEED_PAGE_SIZE);
             <p class="entry-sides">
               {t('feed.sides', { for: debaterLabel(d.debaters.for, models), against: debaterLabel(d.debaters.against, models) })}
             </p>
+            <div class="entry-labels">
+              <DebateLabels category={d.category} tags={d.tags} />
+            </div>
             <div class="entry-notes">
               <p class="entry-meta">
                 {d.verdict && feedOutcome(d) === 'votingOpen' ? (
@@ -83,13 +108,9 @@ const cursor = nextFeedCursor(debates, FEED_PAGE_SIZE);
       </ol>
     )
   }
-  {
-    cursor && (
-      <p class="older">
-        <a class="button secondary" href={`/?before=${encodeURIComponent(cursor)}`}>{t('feed.older')}</a>
-      </p>
-    )
-  }
+  <div class="older">
+    <Pagination params={params} page={page} pageCount={pageCount} />
+  </div>
 </Base>
 
 <style>
@@ -107,6 +128,7 @@ const cursor = nextFeedCursor(debates, FEED_PAGE_SIZE);
     grid-template-areas:
       'motion motion'
       'sides sides'
+      'labels labels'
       'notes date';
     align-items: baseline;
     gap: 0 1rem;
@@ -131,6 +153,11 @@ const cursor = nextFeedCursor(debates, FEED_PAGE_SIZE);
   .entry-sides {
     grid-area: sides;
     margin-top: 0.35rem;
+  }
+  .entry-labels {
+    grid-area: labels;
+    margin-top: 0.2rem;
+    color: var(--muted);
   }
   .entry-notes {
     grid-area: notes;
@@ -204,6 +231,7 @@ const cursor = nextFeedCursor(debates, FEED_PAGE_SIZE);
   @media (min-width: 64rem) {
     .feed-head,
     .how,
+    .finding,
     .empty,
     .older {
       margin-inline-start: calc(8rem + 2.5rem);
@@ -213,7 +241,8 @@ const cursor = nextFeedCursor(debates, FEED_PAGE_SIZE);
       grid-template-columns: 8rem minmax(0, 46rem) minmax(11rem, 1fr);
       grid-template-areas:
         'date motion notes'
-        'date sides notes';
+        'date sides notes'
+        'date labels notes';
       align-items: start;
       column-gap: 2.5rem;
       padding-block: 1.4rem;

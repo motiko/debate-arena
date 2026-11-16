@@ -3,7 +3,7 @@ import { addCost, getBudget } from '../db/debates';
 import type { DebateEvent } from '../live/events';
 import { BatchCallFailedError, BatchPendingError, type BatchApi } from '../models/batch';
 import type { ModelSnapshot } from '../db/debates';
-import { catalogFor, priceTable, reasoningOf, screenerFor, type DebateKind, type ReasoningMode } from '../models/catalog';
+import { catalogFor, labellerFor, priceTable, reasoningOf, screenerFor, type DebateKind, type ReasoningMode } from '../models/catalog';
 import { deferredClient } from '../models/deferred';
 import { BudgetExhaustedError, createBatchApi, createModels, meteredClient } from '../models/factory';
 import { loadModels } from '../models/live-catalog';
@@ -106,6 +106,7 @@ export async function consumer(
       },
       now: () => new Date(),
       screener: screenerFor(models.catalog),
+      labeller: labellerFor(models.catalog),
     };
     // The step's attempt: a re-sent Batch Debate step carries it, as a new message starts again at 1.
     const attempt = Math.max(message.attempts, message.body.attempt ?? 1);

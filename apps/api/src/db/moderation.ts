@@ -1,4 +1,4 @@
-import type { ScreenResult } from '@debate-arena/engine';
+import type { Labels, ScreenResult } from '@debate-arena/engine';
 
 export type Visibility = 'listed' | 'unlisted' | 'blocked';
 export type DecisionAction = 'relist' | 'block';
@@ -21,14 +21,15 @@ export interface ModerationDecision {
 const changed = (result: D1Result) => result.meta.changes === 1;
 
 /** Stores the Motion screen once. A Flag Unlists a listed Debate; it never removes anything. */
-export async function saveScreen(db: D1Database, debateId: string, result: ScreenResult, at: string): Promise<boolean> {
+export async function saveScreen(db: D1Database, debateId: string, result: ScreenResult, at: string, labels: Labels | null = null): Promise<boolean> {
   const saved = await db
     .prepare(
       `UPDATE debates SET screen_json = ?, screened_at = ?, flagged = ?,
-         visibility = CASE WHEN ? = 1 AND visibility = 'listed' THEN 'unlisted' ELSE visibility END
+         visibility = CASE WHEN ? = 1 AND visibility = 'listed' THEN 'unlisted' ELSE visibility END,
+         category = ?, tags_json = ?
        WHERE id = ? AND screened_at IS NULL`,
     )
-    .bind(JSON.stringify(result), at, result.flagged ? 1 : 0, result.flagged ? 1 : 0, debateId)
+    .bind(JSON.stringify(result), at, result.flagged ? 1 : 0, result.flagged ? 1 : 0, labels?.category ?? null, labels ? JSON.stringify(labels.tags) : null, debateId)
     .run();
   return changed(saved);
 }

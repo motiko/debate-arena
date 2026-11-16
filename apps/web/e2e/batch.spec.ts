@@ -13,8 +13,8 @@ test('start a Slow Debate, see it is being generated, then read it when complete
   await expect(page.getByText('You have 24 Quota points left today.')).toBeVisible();
   await page.getByRole('checkbox', { name: /Slow Debate/ }).check();
   await expect(page.locator('#start-summary')).toHaveText(/^Slow Debate · /);
-  // At batch prices the fake models cost half: 2 points instead of 4.
-  await expect(page.locator('#start-cost')).toHaveText('2 Quota points · you have 24 left today');
+  // At batch prices the fake models cost half: 3 points instead of 4 (screening and labelling stay at normal prices).
+  await expect(page.locator('#start-cost')).toHaveText('3 Quota points · you have 24 left today');
   await page.getByRole('button', { name: 'Start the Debate' }).click();
   await expect(page).toHaveURL(/\/debates\/[0-9a-f-]+$/);
   const id = new URL(page.url()).pathname.split('/').at(-1)!;

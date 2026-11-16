@@ -1,0 +1,234 @@
+---
+// The feed's finding aids: the Categories as an index across the top, a search form (plain GET, so it works without
+// JavaScript) with the rarer filters folded away, the popular Tags, and the filters in force with a way to drop each.
+import { t, tn } from '../i18n/t';
+import { modelLabel, type ModelInfo } from '../lib/debate';
+import { CATEGORIES, categoryLabel, feedHref, type FeedParams } from '../lib/feed';
+
+interface Props {
+  params: FeedParams;
+  /** The models offered in the Debater filter. */
+  models: ModelInfo[];
+  /** Every model's name, to show a filtered model that is not offered. */
+  allModels: ModelInfo[];
+  popularTags: string[];
+  total: number;
+}
+
+const { params, models, allModels, popularTags, total } = Astro.props;
+const filtered = Object.keys(params).some(key => key !== 'page');
+const offered = params.model && !models.some(m => m.id === params.model) ? [...models, { id: params.model, label: modelLabel(params.model, allModels) }] : models;
+const active = [
+  ...(params.q ? [{ name: t('feed.filterSearch', { q: params.q }), change: { q: undefined } }] : []),
+  ...(params.category ? [{ name: categoryLabel(params.category), change: { category: undefined } }] : []),
+  ...(params.tag ? [{ name: params.tag, change: { tag: undefined } }] : []),
+  ...(params.model ? [{ name: modelLabel(params.model, allModels), change: { model: undefined } }] : []),
+  ...(params.kind ? [{ name: t(params.kind === 'batch' ? 'feed.filterSlow' : 'feed.filterLive'), change: { kind: undefined } }] : []),
+];
+---
+
+<nav class="index" aria-label={t('feed.categories')}>
+  <ul role="list">
+    <li><a href={feedHref({ ...params, category: undefined }, {})} aria-current={params.category ? undefined : 'page'}>{t('feed.allCategories')}</a></li>
+    {
+      CATEGORIES.map(category => (
+        <li>
+          <a href={feedHref({ ...params, category }, {})} aria-current={params.category === category ? 'page' : undefined}>
+            {categoryLabel(category)}
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</nav>
+
+<form class="search" role="search" method="get" action="/">
+  <label for="feed-q">{t('feed.searchLabel')}</label>
+  <div class="query">
+    <input id="feed-q" type="search" name="q" value={params.q ?? ''} maxlength="100" autocomplete="off" />
+    <button type="submit">{t('feed.search')}</button>
+  </div>
+  {/* The Category and Tag come from links; a search keeps them. */}
+  {params.category && <input type="hidden" name="category" value={params.category} />}
+  {params.tag && <input type="hidden" name="tag" value={params.tag} />}
+  <details class="more" open={!!(params.model || params.kind)}>
+    <summary>{t('feed.moreFilters')}</summary>
+    <div class="more-fields">
+      <div class="field">
+        <label for="feed-model">{t('feed.modelLabel')}</label>
+        <select id="feed-model" name="model">
+          <option value="">{t('feed.anyModel')}</option>
+          {offered.map(m => <option value={m.id} selected={params.model === m.id}>{m.label}</option>)}
+        </select>
+      </div>
+      <label class="choice">
+        <input type="checkbox" name="kind" value="batch" checked={params.kind === 'batch'} />
+        {t('feed.slowOnly')}
+      </label>
+    </div>
+  </details>
+</form>
+
+<div class="found">
+  {
+    filtered && (
+      <>
+        <p class="count">{tn('feed.count', total)}</p>
+        <ul class="active" role="list">
+          {active.map(filter => (
+            <li>
+              <a href={feedHref(params, filter.change)} aria-label={t('feed.removeFilter', { name: filter.name })}>
+                {filter.name}
+                <span aria-hidden="true">×</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </>
+    )
+  }
+  {
+    popularTags.length > 0 && (
+      <p class="popular">
+        <span>{t('feed.popularTags')}</span>
+        {popularTags.map(tag => (
+          <a href={feedHref({ ...params, tag }, {})} aria-current={params.tag === tag ? 'true' : undefined}>
+            {tag}
+          </a>
+        ))}
+      </p>
+    )
+  }
+  <p class="ai-note">{t('feed.labelsNote')}</p>
+</div>
+
+<style>
+  /* The index: the Categories set as a line of serif words across the top of the order paper, the one in force in
+     brass. Words, not buttons: it reads as the paper's own table of contents. */
+  .index ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 1.1rem;
+    margin: 0;
+    padding: 0.25rem 0;
+    list-style: none;
+    border-bottom: 1px solid var(--line);
+  }
+  .index a {
+    display: inline-block;
+    padding-block: 0.55rem;
+    color: var(--muted);
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    text-decoration: none;
+  }
+  .index a:hover {
+    color: var(--ink);
+  }
+  .index a[aria-current='page'] {
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: inset 0 -2px 0 var(--brass);
+  }
+  .search {
+    margin-top: 1rem;
+  }
+  .search > label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.9rem;
+  }
+  .query {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .query input {
+    min-height: 2.75rem;
+  }
+  .more summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    color: var(--green);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .more-fields {
+    display: grid;
+    gap: 0.5rem 1.5rem;
+    align-items: end;
+    padding-bottom: 0.5rem;
+  }
+  .more-fields label {
+    font-size: 0.9rem;
+  }
+  .more-fields select {
+    min-height: 2.75rem;
+  }
+  .found {
+    display: grid;
+    gap: 0.5rem;
+    margin-block: 0.5rem 1rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .count {
+    color: var(--ink);
+    font-size: 1rem;
+    font-weight: 600;
+  }
+  .active,
+  .popular {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.1rem 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .active a {
+    display: inline-flex;
+    gap: 0.35rem;
+    align-items: baseline;
+    padding-block: 0.3rem;
+    color: var(--ink);
+    text-decoration-color: var(--line);
+  }
+  .active a span {
+    color: var(--against);
+    font-weight: 600;
+  }
+  .popular span {
+    font-weight: 600;
+  }
+  .popular a {
+    display: inline-block;
+    padding-block: 0.3rem;
+    color: var(--green);
+  }
+  .popular a[aria-current='true'] {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .ai-note {
+    font-size: 0.85rem;
+  }
+  /* On a phone the index is one line that scrolls sideways, so the Debates stay near the top. */
+  @media (max-width: 39.99rem) {
+    .index ul {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .index li {
+      flex: none;
+    }
+  }
+  @media (min-width: 40rem) {
+    .more-fields {
+      grid-template-columns: minmax(0, 18rem) auto;
+    }
+  }
+</style>

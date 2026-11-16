@@ -2,7 +2,9 @@ import { modelFamily } from '@debate-arena/engine';
 import { expect, test } from 'vitest';
 import {
   AI_VOTER_COUNT,
+  catalogFor,
   FAKE_CATALOG,
+  labellerFor,
   hasRole,
   modelsFor,
   pickAiVoters,
@@ -60,3 +62,11 @@ test('priceTable covers exactly the catalog', () => {
   expect(Object.keys(priceTable(FAKE_CATALOG)).toSorted()).toEqual(FAKE_CATALOG.entries.map(e => e.id).toSorted());
 });
 
+
+test('each catalog has a labeller, and a Slow Debate keeps it at its normal price', () => {
+  expect(labellerFor(PRODUCTION_CATALOG)).toBe('mistralai/mistral-small-2603');
+  expect(labellerFor(FAKE_CATALOG)).toBe('fake-label/one');
+  const slow = catalogFor(PRODUCTION_CATALOG, 'batch');
+  expect(labellerFor(slow)).toBe('mistralai/mistral-small-2603');
+  expect(slow.entries.find(e => e.id === 'mistralai/mistral-small-2603')?.roles).toEqual(['labeller']);
+});
