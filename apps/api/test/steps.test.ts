@@ -1,4 +1,4 @@
-import { FakeModelClient, JUDGE_OUTPUT_TOKENS, SCREEN_OUTPUT_TOKENS, STANCE_OUTPUT_TOKENS } from '@debate-arena/engine';
+import { FakeModelClient, JUDGE_OUTPUT_TOKENS, LABEL_OUTPUT_TOKENS, SCREEN_OUTPUT_TOKENS, STANCE_OUTPUT_TOKENS } from '@debate-arena/engine';
 import { recordDecision } from '../src/db/moderation';
 import { BudgetExhaustedError } from '../src/models/factory';
 import { env } from 'cloudflare:workers';
@@ -20,6 +20,8 @@ function makeDeps() {
       ? r.messages.some(m => m.content.includes('[flag-test]'))
         ? 'unsafe\nS10'
         : 'safe'
+      : r.maxOutputTokens === LABEL_OUTPUT_TOKENS
+      ? '{"category":"society","tags":["work","Cities"]}'
       : r.maxOutputTokens === JUDGE_OUTPUT_TOKENS
       ? '{"winner":"for","reasoning":"Stronger evidence."}'
       : r.maxOutputTokens === STANCE_OUTPUT_TOKENS
@@ -40,6 +42,7 @@ function makeDeps() {
     enqueueLater: async () => {},
     now: () => new Date('2026-11-13T12:30:00Z'),
     screener: 'fake-guard/one',
+    labeller: 'fake-label/one',
   };
   return { deps, jobs, events, client };
 }
@@ -76,9 +79,16 @@ test('the first step screens the Motion before any Turn, quietly', async () => {
   const d = newDebate();
   await createDebate(env.DB, d);
   expect(await runStep(deps, { debateId: d.id })).toBe('screen');
-  expect(client.calls).toHaveLength(1);
+  expect(client.calls).toHaveLength(2);
   expect(client.calls[0]).toMatchObject({ model: 'fake-guard/one', maxOutputTokens: SCREEN_OUTPUT_TOKENS });
-  expect(await getDebate(env.DB, d.id)).toMatchObject({ turns: [], screenedAt: '2026-11-13T12:30:00.000Z', visibility: 'listed' });
+  expect(client.calls[1]).toMatchObject({ model: 'fake-label/one', maxOutputTokens: LABEL_OUTPUT_TOKENS });
+  expect(await getDebate(env.DB, d.id)).toMatchObject({
+    turns: [],
+    screenedAt: '2026-11-13T12:30:00.000Z',
+    visibility: 'listed',
+    category: 'society',
+    tags: ['work', 'cities'],
+  });
   expect(events).toEqual([]);
   expect(jobs).toEqual([{ debateId: d.id }]);
   expect(await runStep(deps, jobs.shift()!)).toBe('turn');
@@ -133,7 +143,8 @@ test('a Custom seat without identity makes no identity screen call', async () =>
   const d = customDebate({});
   await createDebate(env.DB, d);
   await runStep(deps, { debateId: d.id });
-  expect(client.calls).toHaveLength(1);
+  // The Motion's screen and its labelling, nothing for the identity.
+  expect(client.calls.map(c => c.model)).toEqual(['fake-guard/one', 'fake-label/one']);
   expect(await getDebate(env.DB, d.id)).toMatchObject({ visibility: 'listed', flagged: false });
 });
 
@@ -151,6 +162,37 @@ test('a screening error never fails the Debate', async () => {
   jobs.push({ debateId: d.id });
   while (jobs.length) await runStep(deps, jobs.shift()!);
   expect(await getDebate(env.DB, d.id)).toMatchObject({ status: 'complete', visibility: 'unlisted', screen: { categories: ['unscreened'] } });
+});
+
+test('a labelling error leaves the Debate unlabelled but screened', async () => {
+  const { deps, jobs } = makeDeps();
+  const inner = deps.client;
+  deps.client = {
+    complete: async request => {
+      if (request.maxOutputTokens === LABEL_OUTPUT_TOKENS) throw new Error('labeller down');
+      return inner.complete(request);
+    },
+  };
+  const d = newDebate();
+  await createDebate(env.DB, d);
+  expect(await runStep(deps, { debateId: d.id })).toBe('screen');
+  expect(await getDebate(env.DB, d.id)).toMatchObject({ screenedAt: '2026-11-13T12:30:00.000Z', visibility: 'listed', category: null, tags: [] });
+  expect(jobs).toEqual([{ debateId: d.id }]);
+});
+
+test('a used-up Budget is not hidden by labelling', async () => {
+  const { deps } = makeDeps();
+  const inner = deps.client;
+  deps.client = {
+    complete: async request => {
+      if (request.maxOutputTokens === LABEL_OUTPUT_TOKENS) throw new BudgetExhaustedError('spent');
+      return inner.complete(request);
+    },
+  };
+  const d = newDebate();
+  await createDebate(env.DB, d);
+  await expect(runStep(deps, { debateId: d.id })).rejects.toBeInstanceOf(BudgetExhaustedError);
+  expect((await getDebate(env.DB, d.id))?.screenedAt).toBeNull();
 });
 
 test('a used-up Budget is not hidden by screening', async () => {

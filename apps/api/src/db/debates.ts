@@ -1,8 +1,11 @@
 import {
   isApiSlot,
   nextSlot,
+  isCategory,
   type AiAudienceResult,
+  type Category,
   type DebateSetup,
+  type Labels,
   type ModelId,
   type ModelPrice,
   type ScreenResult,
@@ -46,6 +49,10 @@ export interface DebateRecord {
   models: ModelSnapshot | null;
   /** While waiting for an API Debater's Turn: "<slot index>@<ISO deadline>". */
   turnDeadline: string | null;
+  /** AI-assigned when the Motion is screened; null until then, or when labelling failed (GLOSSARY: Category). */
+  category: Category | null;
+  /** AI-assigned with the Category; empty when unlabelled (GLOSSARY: Tag). */
+  tags: string[];
 }
 
 export type NewDebate = Pick<
@@ -76,6 +83,8 @@ interface DebateRow {
   kind: DebateKind;
   models_json: string | null;
   turn_deadline: string | null;
+  category: string | null;
+  tags_json: string | null;
 }
 
 interface TurnRow { phase_index: number; side: Turn['side']; text: string; truncated: number }
@@ -105,6 +114,9 @@ function toRecord(row: DebateRow, turns: Turn[]): DebateRecord {
     kind: row.kind,
     models: row.models_json ? (JSON.parse(row.models_json) as ModelSnapshot) : null,
     turnDeadline: row.turn_deadline,
+    // A Category no longer in the list reads as unlabelled.
+    category: isCategory(row.category) ? row.category : null,
+    tags: row.tags_json ? (JSON.parse(row.tags_json) as string[]) : [],
   };
 }
 
@@ -245,4 +257,9 @@ export async function addCost(db: D1Database, id: string, microUsd: number): Pro
     .prepare('UPDATE debates SET cost_micro_usd = cost_micro_usd + ? WHERE id = ?')
     .bind(Math.ceil(microUsd), id)
     .run();
+}
+
+/** Labels a Debate (the backfill for Debates screened before labelling, or whose labelling failed). */
+export async function saveLabels(db: D1Database, id: string, labels: Labels): Promise<void> {
+  await db.prepare('UPDATE debates SET category = ?, tags_json = ? WHERE id = ?').bind(labels.category, JSON.stringify(labels.tags), id).run();
 }

@@ -3,6 +3,7 @@ import {
   identityText,
   isApiSlot,
   judgeDebate,
+  labelMotion,
   nextSlot,
   runAiAudience,
   screenMotion,
@@ -28,7 +29,9 @@ export interface StepDeps {
   now: () => Date;
   /** The model that screens Motions (catalog role 'screener'). */
   screener: ModelId;
-  /** Screens Motions; defaults to `client`. A Batch Debate screens with a normal call, as the screener has no batch. */
+  /** The model that labels Motions with a Category and Tags (catalog role 'labeller'); without one, none are given. */
+  labeller?: ModelId;
+  /** Screens and labels Motions; defaults to `client`. A Batch Debate screens with a normal call, as the screener has no batch. */
   screenClient?: ModelClient;
   /** Errors meaning "not ready yet" (a Batch Debate's pending batch call): passed through, never counted as failures. */
   isPending?: (error: unknown) => boolean;
@@ -74,7 +77,10 @@ export async function runStep(deps: StepDeps, job: StepJob): Promise<StepOutcome
         categories: [...result.categories, ...named.categories.map(category => `name:${category}`)],
       };
     }
-    if (!(await saveScreen(db, id, result, deps.now().toISOString()))) return 'skipped';
+    // Labelled in the same step, and saved in the same write, so a retried step never labels twice.
+    const rethrow = (error: unknown) => error instanceof BudgetExhaustedError;
+    const labels = deps.labeller ? await labelMotion(setup.motion.text, deps.labeller, deps.screenClient ?? client, { rethrow }) : null;
+    if (!(await saveScreen(db, id, result, deps.now().toISOString(), labels))) return 'skipped';
     await enqueue({ debateId: id });
     return 'screen';
   }

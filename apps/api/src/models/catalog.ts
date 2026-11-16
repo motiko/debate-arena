@@ -1,6 +1,6 @@
 import { modelFamily, type ModelId, type ModelPrice, type PriceTable } from '@debate-arena/engine';
 
-export type ModelRole = 'debater' | 'judge' | 'voter' | 'screener';
+export type ModelRole = 'debater' | 'judge' | 'voter' | 'screener' | 'labeller';
 
 /**
  * 'optional': reasoning can be switched off, and the OpenRouter client does so.
@@ -60,7 +60,8 @@ export const PRODUCTION_CATALOG: Catalog = {
     { id: 'deepseek/deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash', price: price(0.3, 1.2), roles: ALL_ROLES, reasoning: 'optional', batchPrice: price(0.112, 0.336) },
     { id: 'meta-llama/llama-4-maverick', label: 'Llama 4 Maverick', price: price(0.35, 1), roles: ['debater', 'voter'], reasoning: 'unsupported' },
     { id: 'qwen/qwen3.8-flash', label: 'Qwen 3.8 Flash', price: price(0.15, 0.47), roles: ['debater', 'voter'], reasoning: 'optional' },
-    { id: 'mistralai/mistral-small-2603', label: 'Mistral Small', price: price(0.15, 0.6), roles: ['voter'], reasoning: 'optional' },
+    // Also labels Motions with a Category and Tags: cheap, and good enough at a short JSON answer.
+    { id: 'mistralai/mistral-small-2603', label: 'Mistral Small', price: price(0.15, 0.6), roles: ['voter', 'labeller'], reasoning: 'optional' },
     { id: 'qwen/qwen4-max', label: 'Qwen 4 Max', price: price(1.5, 4.5), roles: ['debater', 'judge'], reasoning: 'optional', suggestedJudge: true },
     { id: 'x-ai/grok-4.7', label: 'Grok 4.7', price: price(2, 6), roles: ['debater', 'judge'], reasoning: 'mandatory', leastEffort: 'low', suggestedJudge: true },
     { id: 'openai/gpt-6.1-sol', label: 'GPT-6.1 Sol', price: price(2, 10), roles: ['debater', 'judge'], reasoning: 'mandatory', leastEffort: 'low', suggestedJudge: true },
@@ -85,6 +86,7 @@ export const FAKE_CATALOG: Catalog = {
     })),
     { id: 'fake-a/debater-only', label: 'Fake A (Debater only)', price: price(1, 1), roles: ['debater'], reasoning: 'unsupported' },
     { id: 'fake-guard/one', label: 'Fake Guard (screener)', price: price(1, 1), roles: ['screener'], reasoning: 'unsupported' },
+    { id: 'fake-label/one', label: 'Fake Label (labeller)', price: price(1, 1), roles: ['labeller'], reasoning: 'unsupported' },
     // Replies after a delay, so a local Debate stays live long enough to watch (and to test live pages).
     { id: 'fake-slow/one', label: 'Fake Slow (Debater only)', price: price(1, 1), roles: ['debater'], reasoning: 'unsupported' },
     // Streams a full-length speech at a real model's uneven pace, to see locally how a live speech reads.
@@ -93,6 +95,9 @@ export const FAKE_CATALOG: Catalog = {
 };
 
 export type DebateKind = 'live' | 'batch';
+
+/** Roles whose calls a Batch Debate still makes as normal calls. */
+const NORMAL_CALL_ROLES: ModelRole[] = ['screener', 'labeller'];
 
 /** Served by the Batch API, and not mandatory-reasoning (a batch call cannot be capped against hidden reasoning). */
 const batchCapable = (e: CatalogEntry) => e.batchPrice !== undefined && e.reasoning !== 'mandatory';
@@ -111,14 +116,16 @@ export function reasoningOf(catalog: Catalog): (id: ModelId) => ReasoningMode {
 
 /**
  * The models a Debate of this kind may use, at the prices it pays. For a Batch Debate: batch-capable models at
- * their batch price, plus the screener (Motion screening stays a normal call) at its normal price.
+ * their batch price, plus the screener and the labeller (Motion screening and labelling stay normal calls) at their
+ * normal price, in those roles only.
  */
 export function catalogFor(catalog: Catalog, kind: DebateKind): Catalog {
   if (kind === 'live') return catalog;
   return {
     entries: catalog.entries.flatMap(e => {
       if (batchCapable(e)) return [{ ...e, price: e.batchPrice! }];
-      return e.roles.includes('screener') ? [e] : [];
+      const roles = e.roles.filter(role => NORMAL_CALL_ROLES.includes(role));
+      return roles.length > 0 ? [{ ...e, roles }] : [];
     }),
   };
 }
@@ -134,6 +141,13 @@ export function screenerFor(catalog: Catalog): ModelId {
   const screener = catalog.entries.find(e => e.roles.includes('screener'));
   if (!screener) throw new Error('The catalog has no screener');
   return screener.id;
+}
+
+/** The model that labels Motions with a Category and Tags. */
+export function labellerFor(catalog: Catalog): ModelId {
+  const labeller = catalog.entries.find(e => e.roles.includes('labeller'));
+  if (!labeller) throw new Error('The catalog has no labeller');
+  return labeller.id;
 }
 
 export function modelsFor(catalog: Catalog, role: ModelRole): ModelId[] {

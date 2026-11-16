@@ -35,12 +35,20 @@ A named stage of a Format, such as Opening, Rebuttal or Closing. Each Phase sets
 _Avoid_: Round, stage, section
 
 **Budget**:
-The total AI cost a Debate may consume, covering its AI Debaters, Judges, AI Voters and Motion screening. Reserved in full before the Debate begins; unused cost is returned.
+The total AI cost a Debate may consume, covering its AI Debaters, Judges, AI Voters and Motion screening and labelling. Reserved in full before the Debate begins; unused cost is returned.
 _Avoid_: Credits, allowance, cost limit
 
 **Quota**:
 How many Quota points a Member may spend per day on starting Debates. A Debate costs points in proportion to its worst-case Budget, so free models and Slow Debates cost less and expensive models, Judges or AI Voters more.
 _Avoid_: Budget, limit, credits, allowance
+
+**Category**:
+The broad subject a Debate belongs to, one from a fixed list (Politics, Economics, Technology, Science, Health, Environment, Philosophy, Society, Culture, Sport). Assigned by an AI model from the Motion and labelled as AI-generated; a Debate whose labelling failed has none.
+_Avoid_: Topic, section, genre, channel
+
+**Tag**:
+A short lower-case label naming what a Debate is about, more specific than its Category (e.g. "remote work"). A Debate has up to three, assigned by an AI model with its Category.
+_Avoid_: Keyword, hashtag, label
 
 **Rubric**:
 The criteria a Judge scores a Debate against. Each Format has its own Rubric.

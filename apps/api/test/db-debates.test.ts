@@ -8,6 +8,7 @@ import {
   failDebate,
   getDebate,
   listCompletedDebates,
+  saveLabels,
   saveVerdict,
 } from '../src/db/debates';
 import { newDebate, turnAt } from './helpers';
@@ -34,6 +35,8 @@ test('round-trips a new Debate', async () => {
     kind: 'live',
     models: null,
     turnDeadline: null,
+    category: null,
+    tags: [],
   });
 });
 
@@ -101,4 +104,12 @@ test('addCost accumulates', async () => {
 
 test('getDebate returns null for unknown ids', async () => {
   expect(await getDebate(env.DB, 'nope')).toBeNull();
+});
+
+test('a Debate is unlabelled until saveLabels', async () => {
+  const d = newDebate();
+  await createDebate(env.DB, d);
+  expect(await getDebate(env.DB, d.id)).toMatchObject({ category: null, tags: [] });
+  await saveLabels(env.DB, d.id, { category: 'science', tags: ['space'] });
+  expect(await getDebate(env.DB, d.id)).toMatchObject({ category: 'science', tags: ['space'] });
 });
