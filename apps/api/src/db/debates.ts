@@ -263,3 +263,17 @@ export async function addCost(db: D1Database, id: string, microUsd: number): Pro
 export async function saveLabels(db: D1Database, id: string, labels: Labels): Promise<void> {
   await db.prepare('UPDATE debates SET category = ?, tags_json = ? WHERE id = ?').bind(labels.category, JSON.stringify(labels.tags), id).run();
 }
+
+const UNLABELLED = `visibility = 'listed' AND status = 'complete' AND category IS NULL`;
+
+/** Listed, completed Debates without a Category, oldest first, and how many there are in all. */
+export async function unlabelledDebates(db: D1Database, limit: number): Promise<{ debates: { id: string; motion: string }[]; total: number }> {
+  const [rows, count] = await db.batch([
+    db.prepare(`SELECT id, json_extract(setup_json, '$.motion.text') AS motion FROM debates WHERE ${UNLABELLED} ORDER BY completed_at LIMIT ?`).bind(limit),
+    db.prepare(`SELECT COUNT(*) AS n FROM debates WHERE ${UNLABELLED}`),
+  ]);
+  return {
+    debates: (rows?.results ?? []) as { id: string; motion: string }[],
+    total: ((count?.results[0] as { n: number } | undefined)?.n) ?? 0,
+  };
+}

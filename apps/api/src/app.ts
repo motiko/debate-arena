@@ -1,4 +1,4 @@
-import { isSelfJudging, type Stance } from '@debate-arena/engine';
+import { isSelfJudging, labelMotion, type Stance } from '@debate-arena/engine';
 import { Hono } from 'hono';
 import { exportMember } from './account/account';
 import { getAuth } from './auth/auth';
@@ -21,7 +21,7 @@ import { noticeDecision, noticeReportReceived, type NoticeDeps } from './notices
 import { keyedHash, parseReport, rateLimitNetwork, REPORT_UNLIST_THRESHOLD, REPORTS_PER_IP_PER_HOUR } from './moderation/reports';
 import { DAILY_QUOTA_POINTS, quotaRemaining } from './db/quota';
 import { hasUnlimitedQuota } from './auth/allowlists';
-import { addCost, awaitingOf, getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
+import { addCost, awaitingOf, getDebate, listCompletedDebates, saveLabels, unlabelledDebates, type DebateRecord } from './db/debates';
 import { parseFeedQuery, popularTags, searchDebates } from './db/feed';
 import { relayDraft, screenApiTurn, submitApiTurn } from './debates/api-turn';
 import { notifyViewers } from './debates/consumer';
@@ -30,12 +30,14 @@ import { castAfter, castBefore, getVote, listVotes, type AudienceVote } from './
 import { audienceResult, checkVote, votingClosesAt, type VotePhase } from './votes/rules';
 import { voterKey } from './votes/voter-key';
 import { planDebate, startDebate } from './debates/start';
-import { isBatchCapable, priceTable, screenerFor } from './models/catalog';
+import { isBatchCapable, labellerFor, priceTable, screenerFor } from './models/catalog';
 import { loadModels } from './models/live-catalog';
 
 const FEED_PAGE_SIZE = 20;
 /** How many Tags the feed offers to browse by. */
 const POPULAR_TAGS = 20;
+/** How many older Debates one backfill request labels. */
+const LABELS_PER_REQUEST = 10;
 
 /** What Viewers may see of a Debate: no Member id, Budget or cost. */
 function publicView(d: DebateRecord) {
@@ -435,6 +437,23 @@ export const app = new Hono<{ Bindings: Env }>()
       if (email) await noticeReportReceived(deps, debate.id, email);
     });
     return c.json({ ok: true }, 201);
+  })
+  // Labels Debates screened before labelling existed (or whose labelling failed), a few per request so it stays
+  // within one Worker invocation. Paid by the platform: these Debates' Budgets are settled.
+  .post('/moderation/labels', async c => {
+    const denied = await requireModerator(c.env, c.req.raw);
+    if ('status' in denied) return c.json({ error: denied.error }, denied.status);
+    const { debates, total } = await unlabelledDebates(c.env.DB, LABELS_PER_REQUEST);
+    const { client, catalog } = await loadModels(c.env);
+    const labeller = labellerFor(catalog);
+    let labelled = 0;
+    for (const debate of debates) {
+      const labels = await labelMotion(debate.motion, labeller, client);
+      if (!labels) continue;
+      await saveLabels(c.env.DB, debate.id, labels);
+      labelled += 1;
+    }
+    return c.json({ labelled, remaining: total - labelled });
   })
   .get('/moderation/queue', async c => {
     const denied = await requireModerator(c.env, c.req.raw);
