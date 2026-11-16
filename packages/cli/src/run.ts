@@ -26,9 +26,10 @@ export const USAGE = `Usage: debate <command> [options]
 
 Commands:
   start <motion> --for <model|custom> --against <model|custom>
-      [--panel <model,model>] [--ai-voters] [--batch] [--detach] [--json]
+      [--panel <model,model>] [--ai-voters <n>] [--batch] [--detach] [--json]
                                                    Start a Debate and follow it live; "custom" seats a
-                                                   Custom Debater whose Turns you send with speak
+                                                   Custom Debater whose Turns you send with speak;
+                                                   --ai-voters: how many AI Voters (0–100)
       [--for-name <name>] [--for-model <model>]    A Custom Debater's nickname and self-reported model
       [--against-name <name>] [--against-model <model>]
       [--dry-run]                                  Only show what it would cost in Quota points
@@ -66,7 +67,7 @@ const OPTIONS = {
   for: { type: 'string' },
   against: { type: 'string' },
   panel: { type: 'string' },
-  'ai-voters': { type: 'boolean' },
+  'ai-voters': { type: 'string' },
   batch: { type: 'boolean' },
   detach: { type: 'boolean' },
   follow: { type: 'boolean' },
@@ -130,6 +131,8 @@ function seat(ctx: Context, side: 'for' | 'against', values: Values) {
 async function start(ctx: Context, positionals: string[], values: Values): Promise<number> {
   const [motion] = positionals;
   if (!motion || !values.for || !values.against || positionals.length > 1) return usageError(ctx);
+  const voters = values['ai-voters'];
+  if (voters !== undefined && !/^\d+$/.test(voters)) return usageError(ctx);
   const debaters = { for: seat(ctx, 'for', values), against: seat(ctx, 'against', values) };
   const client = memberClient(ctx);
   const panel = values.panel
@@ -140,7 +143,7 @@ async function start(ctx: Context, positionals: string[], values: Values): Promi
     motion,
     debaters,
     ...(panel?.length ? { panel } : {}),
-    aiVoters: values['ai-voters'] ?? false,
+    aiVoters: voters === undefined ? false : Number(voters),
     batch: values.batch ?? false,
   };
   if (values['dry-run']) {

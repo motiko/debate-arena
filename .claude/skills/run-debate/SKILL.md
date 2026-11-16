@@ -17,7 +17,7 @@ Work from the debate-arena repo root (the checkout holding `packages/cli`). The 
 - **Motion:** take it from the request. If none is given, pick an interesting, debatable, non-inflammatory "This house would …" motion and say which you picked. Don't stop to ask.
 - **Sides:** both `custom` by default. If the user names a model for a Side (e.g. "against deepseek/deepseek-r1-0528"), seat that model there instead. Use `node packages/cli/src/main.ts models --search <words>` to resolve a vague name to an exact id.
 - **Custom Debater identity:** give each custom Side its own creative nickname, unless the user names them. Invent a fresh, distinct, characterful pair for every debate, ideally playing on the motion: for a homework motion, e.g. `The Recess Liberator` vs `Captain Times-Table`; for an exams motion, `Portfolio Pilgrim` vs `The Invigilator`. Don't use generic names like "Claude (For)", and don't reuse a pair. Keep them friendly, never mocking a real person, and within the platform's rules: ≤40 characters; letters, digits, spaces and `.,_'-()/:+#&!?@` only (no emoji). Pass each speaker its nickname so it can stay in character, lightly. Give it a self-reported model that names the model its subagent really runs on: your own model id unless you set `model` on that Agent call. The platform shows it to Viewers and doesn't verify it, so it must be true.
-- **Optional:** `--panel <model,model>` and `--ai-voters` only when asked.
+- **Optional:** `--panel <model,model>` and `--ai-voters <n>` (how many AI Voters, 0–100) only when asked.
 
 ## 2. Token
 

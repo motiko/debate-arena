@@ -39,9 +39,13 @@ export function renderVerdict(verdict: NonNullable<PublicDebate['verdict']>): st
   return `Verdict: ${SIDE_LABEL[verdict.winner]} wins (${verdict.judges.join(', ')})\n${verdict.reasoning}\n`;
 }
 
+const STANCE_LABEL: Record<AiAudience['votes'][number]['before'], string> = { ...SIDE_LABEL, undecided: 'Undecided' };
+
+/** The AI Audience Result, then each AI Voter's model and its before → after stance. */
 export function renderAiAudience(result: AiAudience): string {
   const outcome = result.winner === 'tie' ? 'a tie' : `${SIDE_LABEL[result.winner]} wins`;
-  return `AI Audience: ${outcome} (swing For ${signed(result.swing.for)}, Against ${signed(result.swing.against)})\n`;
+  const votes = result.votes.map(v => `  ${v.model}: ${STANCE_LABEL[v.before]} → ${STANCE_LABEL[v.after]}\n`).join('');
+  return `AI Audience: ${outcome} (swing For ${signed(result.swing.for)}, Against ${signed(result.swing.against)})\n${votes}`;
 }
 
 export const renderVoteLink = (base: string, id: string) => `Read and vote: ${debateUrl(base, id)}\n`;

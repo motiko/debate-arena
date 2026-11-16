@@ -32,8 +32,14 @@ test('a failed Debate says so', () => {
 });
 
 test('the AI Audience Result is shown when there is one', () => {
-  const aiAudience = { counted: 10, swing: { for: 20, against: -20 }, winner: 'for' as const, dropped: [] };
+  const aiAudience = { counted: 10, swing: { for: 20, against: -20 }, winner: 'for' as const, dropped: [], votes: [] };
   expect(renderDebate(debate({ aiAudience }), BASE)).toContain('AI Audience: For wins (swing For +20, Against -20)');
+});
+
+test("renderAiAudience lists each AI Voter's model and votes", () => {
+  const votes = [{ model: 'a/x', before: 'undecided' as const, after: 'for' as const }];
+  const aiAudience = { counted: 1, swing: { for: 100, against: 0 }, winner: 'for' as const, dropped: [], votes };
+  expect(renderDebate(debate({ aiAudience }), BASE)).toContain('  a/x: Undecided → For\n');
 });
 
 test('a Custom Debater shows its nickname and self-reported model, if any', () => {
