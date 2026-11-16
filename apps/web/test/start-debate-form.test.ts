@@ -57,7 +57,7 @@ test('posts the Debate and goes to its page', async () => {
   await fireEvent.click(startButton());
   await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith('/debates/d9'));
   expect(new Headers(calls[0]?.headers).get('content-type')).toBe('application/json');
-  expect(JSON.parse(String(calls[0]?.body))).toEqual({ motion: 'Cats beat dogs', debaters: { for: 'fake-a/one', against: 'fake-b/one' }, aiVoters: true });
+  expect(JSON.parse(String(calls[0]?.body))).toEqual({ motion: 'Cats beat dogs', debaters: { for: 'fake-a/one', against: 'fake-b/one' }, aiVoters: 10 });
 });
 
 test('the Debater pickers offer Custom first and Debater models; the Judge picker offers Judge models after the platform', async () => {
@@ -149,6 +149,34 @@ test('shows what the line-up costs, quoted by the API', async () => {
   await vi.waitFor(() => expect(screen.getByText('4 Quota points · you have 20 left today')).toBeInTheDocument());
   expect(startButton()).toHaveAccessibleDescription(/4 Quota points · you have 20 left today/);
   expect(quotes.at(-1)).toMatchObject({ debaters: { for: 'fake-a/one', against: 'fake-b/one' }, aiVoters: false });
+});
+
+test('checking AI Voters shows a slider at 10 and sends the count', async () => {
+  const { fetcher, calls } = respond(201, { id: 'd9', panel: ['fake-c/one'], selfJudging: false });
+  render(StartDebateForm, { models, quotaRemaining: 24, fetcher, navigate: vi.fn() });
+  await fill('Cats beat dogs', 'Fake A', 'Fake B');
+  expect(screen.queryByRole('slider', { name: 'AI Voters' })).toBeNull();
+  await fireEvent.click(screen.getByRole('checkbox', { name: /AI Voters/ }));
+  const slider = screen.getByRole('slider', { name: 'AI Voters' });
+  expect(slider).toHaveValue('10');
+  expect(slider).toHaveAttribute('min', '1');
+  expect(slider).toHaveAttribute('max', '100');
+  await fireEvent.input(slider, { target: { value: '25' } });
+  await vi.waitFor(() => expect(startButton()).toBeEnabled());
+  await fireEvent.click(startButton());
+  await vi.waitFor(() => expect(calls).toHaveLength(1));
+  expect(JSON.parse(String(calls[0]?.body))).toMatchObject({ aiVoters: 25 });
+});
+
+test('the slider shows what its AI Voters cost, from the latest quote', async () => {
+  const { fetcher } = respond(201, {}, request => {
+    const voters = (request as { aiVoters: number | false }).aiVoters;
+    return Response.json({ ...QUOTE, aiVotersMicroUsd: voters === false ? 0 : voters * 3600 });
+  });
+  render(StartDebateForm, { models, quotaRemaining: 24, fetcher, navigate: vi.fn() });
+  await fireEvent.click(screen.getByRole('checkbox', { name: /AI Voters/ }));
+  await fireEvent.input(screen.getByRole('slider', { name: 'AI Voters' }), { target: { value: '25' } });
+  await vi.waitFor(() => expect(screen.getByText('25 AI Voters · up to $0.09')).toBeInTheDocument());
 });
 
 test('a quick second change drops the first answer', async () => {
@@ -297,7 +325,7 @@ test('sums up the Debate before the submit button', async () => {
   expect(screen.getByText('Fake Slow vs Fake B · judged by the platform')).toBeInTheDocument();
   await choose('Judge', 'Fake C');
   await fireEvent.click(screen.getByRole('checkbox', { name: /AI Voters/ }));
-  expect(screen.getByText('Fake Slow vs Fake B · judged by Fake C · with AI Voters')).toBeInTheDocument();
+  expect(screen.getByText('Fake Slow vs Fake B · judged by Fake C · with 10 AI Voters')).toBeInTheDocument();
 });
 
 test('the two Debaters are chosen as two benches', () => {
