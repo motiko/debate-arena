@@ -39,9 +39,6 @@ const price = (inputPerMTokUsd: number, outputPerMTokUsd: number): ModelPrice =>
 
 /**
  * Prices in USD per million tokens, from https://openrouter.ai/api/v1/models on 2026-11-13 (batch prices on 2026-11-14).
- * Before adding a model, send it one real request with reasoning off: its `reasoning.mandatory` there is not enough.
- * Not offered, because they refuse reasoning-off: Gemini 3.8 Flash ("Reasoning is mandatory for this endpoint", live
- * and batch) and Mistral Large 4 (its provider accepts reasoning_effort low, medium or high only, not "none").
  */
 export const PRODUCTION_CATALOG: Catalog = {
   entries: (
