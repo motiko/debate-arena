@@ -1,24 +1,38 @@
 ---
+// One audience's result, as a panel: the human Audience Result or the AI Audience Result, shown the same way (the
+// same chart, wording and closing line) and side by side in DebateOutcome. They are never merged (GLOSSARY).
+import type { OxfordResult } from '@debate-arena/engine';
 import type { PublicDebate } from '@debate-arena/api-client';
+import AiLabel from './AiLabel.astro';
 import SwingChart from './SwingChart.astro';
 import { t } from '../i18n/t';
 import { swingText } from '../lib/debate';
 import { formatDate } from '../lib/format';
 
 interface Props {
-  result: PublicDebate['audienceResult'];
-  myVote: PublicDebate['myVote'];
+  title: string;
+  /** The AI Audience Result: labelled as AI-generated. */
+  ai?: boolean;
+  result: OxfordResult & { votingClosesAt?: string | null };
+  voters: 'members' | 'aiVoters';
+  myVote?: PublicDebate['myVote'];
+  /** Lines under the chart, e.g. which models voted. */
+  notes?: string[];
+  /** A disclosure under the notes, e.g. that some AI Voters are a Debater's model. */
+  warning?: string | undefined;
 }
 
-const { result, myVote } = Astro.props;
-const closesAt = result.votingClosesAt;
+const { title, ai = false, result, voters, myVote = null, notes = [], warning } = Astro.props;
+const closesAt = result.votingClosesAt ?? null;
 const closed = closesAt !== null && Date.parse(closesAt) <= Date.now();
 const stance = (s: 'for' | 'against' | 'undecided') => (s === 'for' ? t('side.for') : s === 'against' ? t('side.against') : t('vote.undecided'));
+const headingId = ai ? 'ai-audience-title' : 'audience-title';
 ---
 
-<section class="division stack" aria-labelledby="audience-title">
-  <h2 id="audience-title">{t('audience.title')}</h2>
-  <SwingChart result={result} label={swingText(result)} empty={closed ? undefined : t('result.emptyChart')} />
+<section class="division stack" aria-labelledby={headingId}>
+  <h2 id={headingId}>{title} {ai && <AiLabel />}</h2>
+  <!-- Members' votes are still coming in until voting closes; AI Voters' are all in. -->
+  <SwingChart result={result} label={swingText(result, voters)} empty={ai || closed ? undefined : t('result.emptyChart')} />
   {
     myVote && (
       <p>
@@ -26,6 +40,8 @@ const stance = (s: 'for' | 'against' | 'undecided') => (s === 'for' ? t('side.fo
       </p>
     )
   }
+  {notes.map(note => <p class="muted">{note}</p>)}
+  {warning && <p class="note">{warning}</p>}
   {
     closesAt && (
       <p class="muted">
@@ -34,10 +50,3 @@ const stance = (s: 'for' | 'against' | 'undecided') => (s === 'for' ? t('side.fo
     )
   }
 </section>
-
-<style>
-  .division {
-    max-width: 44rem;
-    margin: calc(var(--space) * 2.5) auto 0;
-  }
-</style>

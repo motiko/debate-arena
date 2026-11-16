@@ -63,14 +63,22 @@ test('show --follow follows a running Debate', async () => {
 test('start passes the Panel, AI Voters and Batch options', async () => {
   const { fetch, requests } = recordingFetch(started);
   const { deps } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch });
-  await run(['start', 'M', '--for', 'a/one', '--against', 'b/two', '--panel', 'c/three, d/four', '--ai-voters', '--batch'], deps);
+  await run(['start', 'M', '--for', 'a/one', '--against', 'b/two', '--panel', 'c/three, d/four', '--ai-voters', '3', '--batch'], deps);
   expect(await requests[0]?.json()).toEqual({
     motion: 'M',
     debaters: { for: 'a/one', against: 'b/two' },
     panel: ['c/three', 'd/four'],
-    aiVoters: true,
+    aiVoters: 3,
     batch: true,
   });
+});
+
+test('start --ai-voters with a value that is not a whole number is a usage error, not a request', async () => {
+  const { fetch, requests } = recordingFetch(started);
+  const { deps, output } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch });
+  expect(await run(['start', 'M', '--for', 'a/one', '--against', 'b/two', '--ai-voters', 'x'], deps)).toBe(2);
+  expect(requests).toHaveLength(0);
+  expect(output.err).toContain('Usage: debate');
 });
 
 test('start without DEBATE_ARENA_TOKEN explains where to get one', async () => {

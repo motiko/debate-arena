@@ -17,6 +17,8 @@
   interface Quote {
     quotaPoints: number;
     quotaRemaining: number;
+    /** What the AI Voters add to the worst-case Budget, in micro-USD. */
+    aiVotersMicroUsd: number;
   }
 
   interface Props {
@@ -44,6 +46,8 @@
   /** A Custom Debater's optional nickname and self-reported model, per bench. */
   let identity = $state({ for: { name: '', model: '' }, against: { name: '', model: '' } });
   let aiVoters = $state(false);
+  /** How many AI Voters, when they are on. */
+  let aiVoterCount = $state(10);
   let batch = $state(false);
   let pending = $state(false);
   let motionError = $state('');
@@ -103,7 +107,7 @@
       batch && t('new.batch'),
       t('new.summaryFaceOff', { for: labelOf(forModel), against: labelOf(againstModel) }),
       t('new.summaryJudge', { judge: judge ? labelOf(judge) : t('new.summaryPlatform') }),
-      aiVoters && t('new.summaryAiVoters'),
+      aiVoters && t('new.summaryAiVoters', { count: aiVoterCount }),
     ]
       .filter(Boolean)
       .join(' · '),
@@ -120,7 +124,7 @@
   const body = (forMotion: string) => ({
     motion: forMotion,
     debaters: { for: seatOf('for', forModel), against: seatOf('against', againstModel) },
-    aiVoters,
+    aiVoters: aiVoters ? aiVoterCount : false,
     ...(judge ? { panel: [judge] } : {}),
     ...(batch ? { batch: true } : {}),
   });
@@ -139,7 +143,7 @@
         const data = (await response.json().catch(() => ({}))) as Partial<Quote> & { error?: string };
         if (seq !== quoteSeq) return;
         if (response.ok && typeof data.quotaPoints === 'number' && typeof data.quotaRemaining === 'number') {
-          quote = { quotaPoints: data.quotaPoints, quotaRemaining: data.quotaRemaining };
+          quote = { quotaPoints: data.quotaPoints, quotaRemaining: data.quotaRemaining, aiVotersMicroUsd: data.aiVotersMicroUsd ?? 0 };
           quoteError = '';
         } else {
           quote = null;
@@ -153,6 +157,9 @@
   });
   const cost = $derived(quote ? tn('new.cost', quote.quotaPoints, { left: quote.quotaRemaining }) : '');
   const overQuota = $derived(quote !== null && quote.quotaPoints > quote.quotaRemaining);
+  const aiVotersCost = $derived(
+    t('new.aiVotersCount', { count: aiVoterCount, usd: quote ? (quote.aiVotersMicroUsd / 1e6).toFixed(2) : '…' }),
+  );
 
   const describedBy = (...ids: (string | false)[]) => ids.filter(Boolean).join(' ');
 
@@ -284,6 +291,12 @@
       <div class="field">
         <label class="choice"><input type="checkbox" bind:checked={aiVoters} aria-describedby="ai-voters-hint" /> {t('new.aiVoters')}</label>
         <p id="ai-voters-hint" class="muted">{t('new.aiVotersHint')}</p>
+        {#if aiVoters}
+          <div class="voter-count">
+            <input type="range" min="1" max="100" step="1" aria-label={t('new.aiVotersSlider')} bind:value={aiVoterCount} />
+            <output>{aiVotersCost}</output>
+          </div>
+        {/if}
       </div>
     </fieldset>
 
@@ -326,6 +339,21 @@
 {/snippet}
 
 <style>
+  /* The AI Voter count: the slider fills the line, what it costs beside it (below it on a narrow screen). */
+  .voter-count {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+  }
+  .voter-count input {
+    flex: 1 1 12rem;
+    min-height: 2.75rem;
+    accent-color: var(--for);
+  }
+  .voter-count output {
+    font-variant-numeric: tabular-nums;
+  }
   /* Fieldsets here are groups, not boxes: a rule above each, the legend as its heading. */
   fieldset {
     border: 0;

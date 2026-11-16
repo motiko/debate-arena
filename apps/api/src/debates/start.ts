@@ -16,6 +16,7 @@ import {
   catalogFor,
   hasRole,
   isBatchCapable,
+  MAX_AI_VOTERS,
   modelsFor,
   pickAiVoters,
   priceTable,
@@ -39,7 +40,8 @@ export interface StartDebateInput {
   motion: string;
   debaters: { for: SeatInput; against: SeatInput };
   panel?: ModelId[];
-  aiVoters: boolean;
+  /** How many AI Voters (0 for none). The body may also say true (AI_VOTER_COUNT) or false. */
+  aiVoters: number;
   batch: boolean;
 }
 /**
@@ -75,6 +77,8 @@ export type PlanResult =
       aiVoters: ModelId[];
       models: ModelSnapshot;
       budgetMicroUsd: number;
+      /** What the AI Voters add to the worst-case Budget: 0 without them. */
+      aiVotersMicroUsd: number;
       quotaPoints: number;
       selfJudging: boolean;
       /** Both Debaters are batch-capable models, so this line-up could be a Slow Debate. */
@@ -96,13 +100,16 @@ function parseInput(input: unknown): StartDebateInput | string {
       + 'or a Custom Debater with a nickname and model: { "kind": "custom", "name": "...", "model": "..." }';
   }
   if (panel !== undefined && (!Array.isArray(panel) || !panel.every(isString))) return 'panel must be a list of model ids';
-  if (aiVoters !== undefined && typeof aiVoters !== 'boolean') return 'aiVoters must be true or false';
+  const voterCount = aiVoters === true ? AI_VOTER_COUNT : aiVoters === false || aiVoters === undefined ? 0 : aiVoters;
+  if (typeof voterCount !== 'number' || !Number.isInteger(voterCount) || voterCount < 0 || voterCount > MAX_AI_VOTERS) {
+    return `aiVoters must be true, false or a whole number from 0 to ${MAX_AI_VOTERS}`;
+  }
   if (batch !== undefined && typeof batch !== 'boolean') return 'batch must be true or false';
   return {
     motion,
     debaters: { for: debaters.for, against: debaters.against },
     ...(panel ? { panel } : {}),
-    aiVoters: aiVoters ?? false,
+    aiVoters: voterCount,
     batch: batch ?? false,
   };
 }
@@ -164,16 +171,17 @@ export function planDebate(deps: Pick<StartDeps, 'catalog' | 'unlimitedQuota'>, 
   }
 
   const setup: DebateSetup = { motion: { text: motion }, format: CLASSIC_FORMAT, debaters, panel };
-  const aiVoters = parsed.aiVoters ? pickAiVoters(catalog, AI_VOTER_COUNT) : [];
+  const aiVoters = pickAiVoters(catalog, parsed.aiVoters);
   const prices = priceTable(catalog);
   const screener = screenerFor(catalog);
   const budgetMicroUsd = worstCaseBudgetMicroUsd(setup, aiVoters, prices, screener);
+  const aiVotersMicroUsd = aiVoters.length > 0 ? budgetMicroUsd - worstCaseBudgetMicroUsd(setup, [], prices, screener) : 0;
   if (budgetMicroUsd > MAX_DEBATE_BUDGET_MICRO_USD) {
     return bad(`This line-up could cost up to ${usd(budgetMicroUsd)}; a Debate may reserve at most ${usd(MAX_DEBATE_BUDGET_MICRO_USD)}.`);
   }
   const quotaPoints = deps.unlimitedQuota ? 0 : quotaPointsFor(budgetMicroUsd);
   if (quotaPoints > DAILY_QUOTA_POINTS) {
-    return bad(`This line-up needs ${quotaPoints} Quota points; a day has ${DAILY_QUOTA_POINTS}. Choose cheaper models or leave out AI Voters.`);
+    return bad(`This line-up needs ${quotaPoints} Quota points; a day has ${DAILY_QUOTA_POINTS}. Choose cheaper models or fewer AI Voters.`);
   }
 
   const called = [
@@ -195,6 +203,7 @@ export function planDebate(deps: Pick<StartDeps, 'catalog' | 'unlimitedQuota'>, 
     aiVoters,
     models,
     budgetMicroUsd,
+    aiVotersMicroUsd,
     quotaPoints,
     selfJudging: isSelfJudging(panel, [debaters.for, debaters.against]),
     slowAvailable,

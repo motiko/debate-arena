@@ -50,6 +50,20 @@ test('debate page shows Turns, Verdict and AI labels', async ({ page, request })
   expect(await page.getByText('AI-generated', { exact: true }).count()).toBeGreaterThanOrEqual(8);
 });
 
+test('the AI Audience Result sits beside the Audience Result in the same panel', async ({ page, request }) => {
+  const { id } = await startDebate(request, { aiVoters: true });
+  await waitComplete(request, id);
+  await page.goto(`/debates/${id}`);
+  await page.locator('.dispatch').getByRole('link', { name: 'Show the result' }).click();
+  const panels = page.locator('.audiences > section.division');
+  await expect(panels).toHaveCount(2);
+  await expect(panels.nth(0).getByRole('heading', { level: 2 })).toHaveText('Audience Result');
+  const ai = panels.nth(1);
+  await expect(ai.getByRole('heading', { level: 2 })).toContainText('AI Audience Result');
+  await expect(ai.getByText('AI-generated', { exact: true })).toBeVisible();
+  for (const panel of [panels.nth(0), ai]) await expect(panel.locator('.swing, .swing-empty')).toHaveCount(1);
+});
+
 test('debate page reads without JavaScript', async ({ browser, request }) => {
   const { id } = await startDebate(request);
   await waitComplete(request, id);
