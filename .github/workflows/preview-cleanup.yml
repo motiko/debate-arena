@@ -3,21 +3,30 @@ name: Preview cleanup
 # Deletes a pull request's preview when it closes. `pull_request_target` runs the base branch's own copy of this
 # workflow and of scripts/preview.mjs — never the pull request's code — so it is safe with secrets, and it also runs
 # for pull requests closed while they have merge conflicts (plain `pull_request` workflows do not).
+# Run it by hand (Actions → Preview cleanup → Run workflow) when a closed pull request's cleanup did not run: GitHub
+# cannot re-run a run that failed to start, which once left PR #22's preview behind.
 on:
   pull_request_target:
     types: [closed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Number of the pull request whose preview to delete
+        required: true
+        type: number
 
 permissions:
   contents: read
 
 jobs:
   cleanup:
-    if: vars.PREVIEWS == 'true' && github.event.pull_request.head.repo.full_name == github.repository
+    if: vars.PREVIEWS == 'true' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     steps:
-      # The base branch (default for pull_request_target); the pull request's code is never checked out.
+      # The default branch, by hand too; the pull request's code is never checked out.
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
@@ -29,5 +38,5 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
         run: node scripts/preview.mjs down "$PR_NUMBER"
