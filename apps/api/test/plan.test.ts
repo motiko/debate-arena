@@ -160,6 +160,18 @@ test('the suggested Judge is a curated model when the catalog has curated ones',
   expect(r.setup.panel).toEqual(['fake-c/one']);
 });
 
+test('the suggested Judge comes from the suggested Judges, in their order, when the catalog marks any', () => {
+  const marked: Catalog = {
+    entries: [
+      ...FAKE_CATALOG.entries.map(e => ({ ...e, curated: true as const })),
+      ...['fake-d/one', 'fake-c/one'].map(id => ({ ...FAKE_CATALOG.entries.find(e => e.id === id)!, curated: true as const, suggestedJudge: true as const })),
+    ].filter((e, i, all) => all.findLastIndex(x => x.id === e.id) === i),
+  };
+  const r = planDebate({ catalog: marked }, valid);
+  if (!r.ok) throw new Error(r.error);
+  expect(r.setup.panel).toEqual(['fake-d/one']);
+});
+
 test('the Debate freezes the price and reasoning of every model it will call', async () => {
   const r = await startDebate(deps(), uniqueId('m'), { ...valid, panel: ['fake-e/thinker'], aiVoters: true });
   if (!r.ok) throw new Error(r.error);

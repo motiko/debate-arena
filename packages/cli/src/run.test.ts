@@ -119,18 +119,18 @@ test('whoami shows the Member and their Quota', async () => {
   expect(output.out).toBe('Signed in as Ada. 4 Quota points left today.\n');
 });
 
-test('models lists each model with its roles', async () => {
+test('models lists each model with its price and roles', async () => {
   const models = [
-    { id: 'a/one', label: 'One', roles: ['debater', 'judge'], batch: true },
-    { id: 'b/two', label: 'Two', roles: ['debater'], batch: false },
+    { id: 'a/one', label: 'One', roles: ['debater', 'judge'], batch: true, inputPerMTokUsd: 1.5, outputPerMTokUsd: 4.5 },
+    { id: 'b/two', label: 'Two', roles: ['debater'], batch: false, inputPerMTokUsd: 0.1, outputPerMTokUsd: 0.5 },
   ];
   const { fetch } = recordingFetch(() => Response.json({ models }));
   const { deps, output } = testDeps({ fetch });
   expect(await run(['models'], deps)).toBe(0);
   const lines = output.out.trimEnd().split('\n');
   expect(lines).toHaveLength(2);
-  expect(lines[0]).toMatch(/^a\/one\s+One\s+debater, judge\s+batch$/);
-  expect(lines[1]).toMatch(/^b\/two\s+Two\s+debater$/);
+  expect(lines[0]).toMatch(/^a\/one\s+One\s+\$1\.50 \/ \$4\.50 per 1M tokens\s+debater, judge\s+batch$/);
+  expect(lines[1]).toMatch(/^b\/two\s+Two\s+\$0\.10 \/ \$0\.50 per 1M tokens\s+debater$/);
 });
 
 test('show renders a completed Debate with Verdict and vote link, without credentials', async () => {

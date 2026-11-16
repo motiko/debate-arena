@@ -107,8 +107,10 @@ function parseInput(input: unknown): StartDebateInput | string {
   };
 }
 
-/** The Judges the platform suggests from: the curated ones, when the catalog marks any. */
+/** The Judges the platform suggests from: the suggested ones, else the curated ones, when the catalog marks any. */
 function suggestedJudges(catalog: Catalog): ModelId[] {
+  const suggested = catalog.entries.filter(e => e.suggestedJudge && e.roles.includes('judge')).map(e => e.id);
+  if (suggested.length > 0) return suggested;
   const curated = catalog.entries.filter(e => e.curated && e.roles.includes('judge')).map(e => e.id);
   return curated.length > 0 ? curated : modelsFor(catalog, 'judge');
 }

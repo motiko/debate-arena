@@ -103,8 +103,8 @@ test('start --dry-run prices the line-up and starts nothing', async () => {
 
 test('models --search lists only the models matching every word', async () => {
   const models = [
-    { id: 'anthropic/claude-haiku-5.5', label: 'Claude Haiku 5.5', roles: ['debater', 'judge'], batch: true },
-    { id: 'openai/gpt-6.1-terra', label: 'GPT-6.1 Terra', roles: ['debater', 'judge'], batch: true },
+    { id: 'anthropic/claude-haiku-5.5', label: 'Claude Haiku 5.5', roles: ['debater', 'judge'], batch: true, inputPerMTokUsd: 0.1, outputPerMTokUsd: 0.5 },
+    { id: 'openai/gpt-6.1-terra', label: 'GPT-6.1 Terra', roles: ['debater', 'judge'], batch: true, inputPerMTokUsd: 1, outputPerMTokUsd: 5 },
   ];
   const { fetch } = recordingFetch(() => Response.json({ models }));
   const { deps, output } = testDeps({ fetch });

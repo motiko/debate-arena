@@ -52,6 +52,8 @@
   interface Choice {
     value: string;
     name: string;
+    /** Shown next to the name: what the model costs. */
+    price?: string;
     detail: string;
   }
 
@@ -66,10 +68,10 @@
   const toChoice = (m: PickerModel): Choice => ({
     value: m.id,
     name: m.label,
-    detail:
-      m.inputPerMTokUsd === undefined || m.outputPerMTokUsd === undefined
-        ? providerName(m.id)
-        : `${providerName(m.id)} · ${t('new.price', { input: formatPrice(m.inputPerMTokUsd), output: formatPrice(m.outputPerMTokUsd) })}`,
+    ...(m.inputPerMTokUsd === undefined || m.outputPerMTokUsd === undefined
+      ? {}
+      : { price: t('new.price', { input: formatPrice(m.inputPerMTokUsd), output: formatPrice(m.outputPerMTokUsd) }) }),
+    detail: providerName(m.id),
   });
 
   const search = $derived(editing ? query : '');
@@ -177,7 +179,7 @@
           choose(choice);
         }}
       >
-        <span class="name">{choice.name}</span>
+        <span class="head"><span class="name">{choice.name}</span>{#if choice.price}<span class="price">{choice.price}</span>{/if}</span>
         {#if choice.detail}<span class="detail">{choice.detail}</span>{/if}
       </li>
     {/each}
@@ -229,6 +231,19 @@
   }
   li[aria-selected='true'] .name {
     font-weight: 700;
+  }
+  /* The name and its price share a line; on a narrow screen the price wraps below the name. */
+  .head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    column-gap: 0.75rem;
+  }
+  .price {
+    font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
   .detail,
   .note {

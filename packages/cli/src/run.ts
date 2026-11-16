@@ -199,16 +199,20 @@ async function show(ctx: Context, positionals: string[], values: Values): Promis
 async function models(ctx: Context, values: Values): Promise<number> {
   const response = await viewerClient(ctx).api.models.$get();
   if (!response.ok) throw await failure(ctx, response);
-  const { models: all } = (await response.json()) as { models: { id: string; label: string; roles: string[]; batch: boolean }[] };
+  const { models: all } = (await response.json()) as {
+    models: { id: string; label: string; roles: string[]; batch: boolean; inputPerMTokUsd: number; outputPerMTokUsd: number }[];
+  };
   const list = values.search ? all.filter(m => matchesSearch(m, values.search!, m.id.split('/')[0] ?? '')) : all;
   if (values.json) {
     ctx.print(`${JSON.stringify(list)}\n`);
     return 0;
   }
   const width = (pick: (m: (typeof list)[number]) => string) => Math.max(0, ...list.map(m => pick(m).length));
-  const [idWidth, labelWidth, rolesWidth] = [width(m => m.id), width(m => m.label), width(m => m.roles.join(', '))];
+  const usd = (n: number) => `$${n > 0 && n < 0.1 ? n.toFixed(3) : n.toFixed(2)}`;
+  const price = (m: (typeof list)[number]) => `${usd(m.inputPerMTokUsd)} / ${usd(m.outputPerMTokUsd)} per 1M tokens`;
+  const [idWidth, labelWidth, priceWidth, rolesWidth] = [width(m => m.id), width(m => m.label), width(price), width(m => m.roles.join(', '))];
   for (const m of list) {
-    const row = [m.id.padEnd(idWidth), m.label.padEnd(labelWidth), m.roles.join(', ').padEnd(rolesWidth), m.batch ? 'batch' : ''];
+    const row = [m.id.padEnd(idWidth), m.label.padEnd(labelWidth), price(m).padEnd(priceWidth), m.roles.join(', ').padEnd(rolesWidth), m.batch ? 'batch' : ''];
     ctx.print(`${row.join('  ').trimEnd()}\n`);
   }
   return 0;

@@ -36,10 +36,13 @@ test('typing filters by name, id and provider; every word must match', async () 
   expect(screen.getByText('No model matches “openai haiku”')).toBeInTheDocument();
 });
 
-test('each option shows its provider and price', async () => {
+test('each option shows its price next to its name, and its provider below', async () => {
   const { input } = setup();
   await fireEvent.input(input, { target: { value: 'qwen' } });
-  expect(screen.getByRole('option')).toHaveTextContent('Qwen · $0.15 / $0.47 per M tokens');
+  const option = screen.getByRole('option');
+  expect(option.querySelector('.head .price')).toHaveTextContent('$0.15 / $0.47 per M tokens');
+  expect(option.querySelector('.head .name')?.nextElementSibling).toBe(option.querySelector('.price'));
+  expect(option.querySelector('.detail')).toHaveTextContent(/^Qwen$/);
 });
 
 test('ArrowDown and Enter choose an option', async () => {

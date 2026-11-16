@@ -24,6 +24,8 @@ export interface CatalogEntry {
   contextLength?: number;
   /** Hand-picked and verified: only curated models are AI Voters, the screener and suggested Judges. */
   curated?: true;
+  /** The platform's choice of Judge when none is given: the first suggested one, in catalog order (see suggestPanel). */
+  suggestedJudge?: true;
   /** For a mandatory-reasoning model: the least reasoning effort it accepts. */
   leastEffort?: string;
 }
@@ -38,7 +40,9 @@ const ALL_ROLES: ModelRole[] = ['debater', 'judge', 'voter'];
 const price = (inputPerMTokUsd: number, outputPerMTokUsd: number): ModelPrice => ({ inputPerMTokUsd, outputPerMTokUsd });
 
 /**
- * Prices in USD per million tokens, from https://openrouter.ai/api/v1/models on 2026-11-13 (batch prices on 2026-11-14).
+ * Prices in USD per million tokens, from https://openrouter.ai/api/v1/models on 2026-11-13 (batch prices on 2026-11-14;
+ * the suggested Judges on 2026-11-16). The suggested Judges are capable models from five families, cheapest first, so
+ * the default Judge is Qwen 4 Max unless a Qwen model debates.
  */
 export const PRODUCTION_CATALOG: Catalog = {
   entries: (
@@ -50,6 +54,11 @@ export const PRODUCTION_CATALOG: Catalog = {
     { id: 'meta-llama/llama-4-maverick', label: 'Llama 4 Maverick', price: price(0.35, 1), roles: ['debater', 'voter'], reasoning: 'unsupported' },
     { id: 'qwen/qwen3.8-flash', label: 'Qwen 3.8 Flash', price: price(0.15, 0.47), roles: ['debater', 'voter'], reasoning: 'optional' },
     { id: 'mistralai/mistral-small-2603', label: 'Mistral Small', price: price(0.15, 0.6), roles: ['voter'], reasoning: 'optional' },
+    { id: 'qwen/qwen4-max', label: 'Qwen 4 Max', price: price(1.5, 4.5), roles: ['debater', 'judge'], reasoning: 'optional', suggestedJudge: true },
+    { id: 'x-ai/grok-4.7', label: 'Grok 4.7', price: price(2, 6), roles: ['debater', 'judge'], reasoning: 'mandatory', leastEffort: 'low', suggestedJudge: true },
+    { id: 'openai/gpt-6.1-sol', label: 'GPT-6.1 Sol', price: price(2, 10), roles: ['debater', 'judge'], reasoning: 'mandatory', leastEffort: 'low', suggestedJudge: true },
+    { id: 'google/gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro', price: price(2, 12), roles: ['debater', 'judge'], reasoning: 'mandatory', leastEffort: 'low', suggestedJudge: true },
+    { id: 'anthropic/claude-opus-5.5', label: 'Claude Opus 5.5', price: price(4, 20), roles: ['debater', 'judge'], reasoning: 'mandatory', leastEffort: 'low', suggestedJudge: true },
     // Screens Motions for abuse (flag only). Answers "safe" or "unsafe" plus hazard codes.
     { id: 'meta-llama/llama-guard-4-12b', label: 'Llama Guard 4', price: price(0.18, 0.18), roles: ['screener'], reasoning: 'unsupported' },
     ] satisfies CatalogEntry[]
