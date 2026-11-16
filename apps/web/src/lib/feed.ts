@@ -55,3 +55,9 @@ export function pageList(page: number, pageCount: number): (number | 'gap')[] {
 export function categoryLabel(category: string): string {
   return (CATEGORIES as readonly string[]).includes(category) ? t(`category.${category}` as MessageKey) : category;
 }
+
+/** The feed parameters for the query the API says it applied (anything it could not use already dropped). */
+export function appliedParams(query: Omit<FeedParams, 'page'> & { page: number }): FeedParams {
+  const { page, ...filters } = query;
+  return page > 1 ? { ...filters, page } : filters;
+}

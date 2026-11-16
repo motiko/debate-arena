@@ -17,6 +17,8 @@ export interface FeedQuery {
 export const MAX_SEARCH_WORDS = 5;
 export const MAX_SEARCH_LENGTH = 100;
 const MAX_MODEL_LENGTH = 200;
+/** Pages beyond this are read as this one (empty): a bigger number would overflow the OFFSET. */
+export const MAX_PAGE = 100_000;
 
 /** Reads a feed query from request parameters. Anything unusable is dropped, never refused: a bad page is page 1. */
 export function parseFeedQuery(params: Record<string, string | undefined>): FeedQuery {
@@ -30,7 +32,7 @@ export function parseFeedQuery(params: Record<string, string | undefined>): Feed
     ...(tag ? { tag } : {}),
     ...(model && model.length <= MAX_MODEL_LENGTH ? { model } : {}),
     ...(params.kind === 'live' || params.kind === 'batch' ? { kind: params.kind } : {}),
-    page: page >= 1 ? page : 1,
+    page: page >= 1 ? Math.min(page, MAX_PAGE) : 1,
   };
 }
 

@@ -8,16 +8,19 @@ import SelfJudgingBadge from '../components/SelfJudgingBadge.astro';
 import Base from '../layouts/Base.astro';
 import { t } from '../i18n/t';
 import { debaterLabel, feedOutcome, type ModelInfo } from '../lib/debate';
-import { feedHref, feedParams } from '../lib/feed';
+import { appliedParams, feedHref, feedParams } from '../lib/feed';
 import { formatDate } from '../lib/format';
 
 const { api } = Astro.locals;
-const params = feedParams(Astro.url.searchParams);
-const query = Object.fromEntries(Object.entries(params).map(([key, value]) => [key, String(value)]));
+const requested = feedParams(Astro.url.searchParams);
+const query = Object.fromEntries(Object.entries(requested).map(([key, value]) => [key, String(value)]));
 
 const [feedRes, modelsRes, tagsRes] = await Promise.all([api.api.debates.$get({ query }), api.api.models.$get(), api.api.tags.$get()]);
 if (!feedRes.ok) throw new Error(`GET /api/debates failed (${feedRes.status})`);
-const { debates, page, pageCount, total } = await feedRes.json();
+const feed = await feedRes.json();
+const { debates, page, pageCount, total } = feed;
+// What the API applied, not what was asked: a filter it could not use is neither shown nor kept.
+const params = appliedParams(feed.query);
 const catalog = modelsRes.ok ? (await modelsRes.json()).models : [];
 const models: ModelInfo[] = catalog;
 const debaterModels: ModelInfo[] = catalog.filter(m => m.curated && m.roles.includes('debater'));

@@ -66,3 +66,11 @@ test('a filtered feed passes axe', async ({ page, request }) => {
   await page.goto('/?tag=fake');
   await expectNoAxeViolations(page);
 });
+
+test('a filter the feed cannot use is not shown as applied, nor kept', async ({ page }) => {
+  await page.goto('/?category=cooking&kind=live');
+  await expect(page.getByRole('link', { name: 'Remove filter: cooking' })).toHaveCount(0);
+  await expect(page.locator('input[type="hidden"][name="category"]')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Remove filter: Live Debates' })).toBeVisible();
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', /\/\?kind=live$/);
+});

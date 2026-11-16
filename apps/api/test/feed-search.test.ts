@@ -2,7 +2,7 @@ import { env, exports } from 'cloudflare:workers';
 import type { Category } from '@debate-arena/engine';
 import { expect, test } from 'vitest';
 import { completeDebate, createDebate, saveLabels, type NewDebate } from '../src/db/debates';
-import { parseFeedQuery, popularTags } from '../src/db/feed';
+import { MAX_PAGE, parseFeedQuery, popularTags } from '../src/db/feed';
 import { newDebate, sampleSetup, uniqueId } from './helpers';
 
 interface FeedPage {
@@ -53,6 +53,11 @@ test('an unknown Category or kind is ignored rather than refused', async () => {
   expect((await feed(`tag=${t}&category=cooking&kind=weird`)).total).toBe(1);
 });
 
+test('the feed says which query it applied, so a Viewer is never shown a filter that was dropped', async () => {
+  const page = (await feed('category=cooking&tag=x&kind=live&q=%20cats%20%20dogs&page=abc')) as FeedPage & { query: unknown };
+  expect(page.query).toEqual({ q: 'cats dogs', kind: 'live', page: 1 });
+});
+
 test('filters by a Debater model on either Side, never a Custom Debater\'s self-reported model', async () => {
   const t = tag();
   const model = `${tag()}/m`;
@@ -100,6 +105,11 @@ test('pages hold twenty Debates, newest first, and say how many pages there are'
 
 test.each(['0', '-3', 'abc', '1.5', ''])('page=%j reads as the first page', page => {
   expect(parseFeedQuery({ page }).page).toBe(1);
+});
+
+test('an absurdly large page is an empty page, not an error', async () => {
+  expect(parseFeedQuery({ page: '99999999999999999999' }).page).toBe(MAX_PAGE);
+  expect(await feed('page=99999999999999999999')).toMatchObject({ debates: [], page: MAX_PAGE });
 });
 
 test('the search is cut to five words and a hundred characters', () => {

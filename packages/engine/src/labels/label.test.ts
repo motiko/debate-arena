@@ -51,6 +51,16 @@ test('labelMotion asks the labeller with its own output cap', async () => {
   expect(client.calls[0]?.maxOutputTokens).toBe(LABEL_OUTPUT_TOKENS);
 });
 
+test('a Tag with letters outside English is dropped rather than shown mangled', () => {
+  expect(normaliseTag('Ökonomie')).toBeNull();
+  expect(normaliseTag('énergie')).toBeNull();
+  expect(parseLabels('{"category":"economics","tags":["Ökonomie","energy"]}')).toEqual({ category: 'economics', tags: ['energy'] });
+});
+
+test('the labeller is asked for English Tags', () => {
+  expect(buildLabelMessages('Die Schuldenbremse gehört abgeschafft')[0]?.content).toContain('English');
+});
+
 test('a failed labelling call gives no labels, unless the host rethrows it', async () => {
   const failing = new FakeModelClient(() => {
     throw new Error('provider down');

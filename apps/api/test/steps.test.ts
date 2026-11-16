@@ -164,6 +164,28 @@ test('a screening error never fails the Debate', async () => {
   expect(await getDebate(env.DB, d.id)).toMatchObject({ status: 'complete', visibility: 'unlisted', screen: { categories: ['unscreened'] } });
 });
 
+test('labelling runs alongside the screen, so it does not hold up the first Turn', async () => {
+  const { deps } = makeDeps();
+  const inner = deps.client;
+  let labelling = false;
+  let labelledDuringScreen = false;
+  deps.client = {
+    complete: async request => {
+      if (request.maxOutputTokens === LABEL_OUTPUT_TOKENS) labelling = true;
+      if (request.maxOutputTokens === SCREEN_OUTPUT_TOKENS) {
+        await new Promise(resolve => setTimeout(resolve, 10));
+        labelledDuringScreen = labelling;
+      }
+      return inner.complete(request);
+    },
+  };
+  const d = newDebate();
+  await createDebate(env.DB, d);
+  expect(await runStep(deps, { debateId: d.id })).toBe('screen');
+  expect(labelledDuringScreen).toBe(true);
+  expect((await getDebate(env.DB, d.id))?.category).toBe('society');
+});
+
 test('a labelling error leaves the Debate unlabelled but screened', async () => {
   const { deps, jobs } = makeDeps();
   const inner = deps.client;

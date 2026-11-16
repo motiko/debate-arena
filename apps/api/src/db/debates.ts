@@ -266,14 +266,28 @@ export async function saveLabels(db: D1Database, id: string, labels: Labels): Pr
 
 const UNLABELLED = `visibility = 'listed' AND status = 'complete' AND category IS NULL`;
 
-/** Listed, completed Debates without a Category, oldest first, and how many there are in all. */
-export async function unlabelledDebates(db: D1Database, limit: number): Promise<{ debates: { id: string; motion: string }[]; total: number }> {
+/** Where a backfill got to: the last Debate it tried, in (completed_at, id) order. */
+export interface LabelCursor { completedAt: string; id: string }
+
+/**
+ * Listed, completed Debates without a Category, oldest first, after `after` (so ones the labeller could not label
+ * are passed over, not tried again forever), and how many there are after it in all.
+ */
+export async function unlabelledDebates(
+  db: D1Database,
+  limit: number,
+  after?: LabelCursor,
+): Promise<{ debates: { id: string; motion: string; completedAt: string }[]; total: number }> {
+  const where = after ? `${UNLABELLED} AND (completed_at > ? OR (completed_at = ? AND id > ?))` : UNLABELLED;
+  const binds = after ? [after.completedAt, after.completedAt, after.id] : [];
   const [rows, count] = await db.batch([
-    db.prepare(`SELECT id, json_extract(setup_json, '$.motion.text') AS motion FROM debates WHERE ${UNLABELLED} ORDER BY completed_at LIMIT ?`).bind(limit),
-    db.prepare(`SELECT COUNT(*) AS n FROM debates WHERE ${UNLABELLED}`),
+    db
+      .prepare(`SELECT id, json_extract(setup_json, '$.motion.text') AS motion, completed_at AS completedAt FROM debates WHERE ${where} ORDER BY completed_at, id LIMIT ?`)
+      .bind(...binds, limit),
+    db.prepare(`SELECT COUNT(*) AS n FROM debates WHERE ${where}`).bind(...binds),
   ]);
   return {
-    debates: (rows?.results ?? []) as { id: string; motion: string }[],
+    debates: (rows?.results ?? []) as { id: string; motion: string; completedAt: string }[],
     total: ((count?.results[0] as { n: number } | undefined)?.n) ?? 0,
   };
 }

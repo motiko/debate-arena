@@ -23,7 +23,7 @@ const active = [
   ...(params.category ? [{ name: categoryLabel(params.category), change: { category: undefined } }] : []),
   ...(params.tag ? [{ name: params.tag, change: { tag: undefined } }] : []),
   ...(params.model ? [{ name: modelLabel(params.model, allModels), change: { model: undefined } }] : []),
-  ...(params.kind === 'batch' ? [{ name: t('feed.filterSlow'), change: { kind: undefined } }] : []),
+  ...(params.kind ? [{ name: t(params.kind === 'batch' ? 'feed.filterSlow' : 'feed.filterLive'), change: { kind: undefined } }] : []),
 ];
 ---
 

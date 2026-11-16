@@ -68,7 +68,14 @@ export async function runStep(deps: StepDeps, job: StepJob): Promise<StepOutcome
   if (debate.screenedAt === null) {
     const screen = (text: string, what: 'motion' | 'name') =>
       screenMotion(text, deps.screener, deps.screenClient ?? client, { what, rethrow: error => error instanceof BudgetExhaustedError });
-    let result = await screen(setup.motion.text, 'motion');
+    // The Motion is labelled alongside its screen, so labelling never holds up the first Turn; both are saved in
+    // one write, so a retried step never labels twice.
+    const rethrow = (error: unknown) => error instanceof BudgetExhaustedError;
+    const [motionScreen, labels] = await Promise.all([
+      screen(setup.motion.text, 'motion'),
+      deps.labeller ? labelMotion(setup.motion.text, deps.labeller, deps.screenClient ?? client, { rethrow }) : null,
+    ]);
+    let result = motionScreen;
     for (const debater of Object.values(setup.debaters)) {
       if (debater.kind !== 'api' || (!debater.name && !debater.model)) continue;
       const named = await screen(identityText(debater), 'name');
@@ -77,9 +84,6 @@ export async function runStep(deps: StepDeps, job: StepJob): Promise<StepOutcome
         categories: [...result.categories, ...named.categories.map(category => `name:${category}`)],
       };
     }
-    // Labelled in the same step, and saved in the same write, so a retried step never labels twice.
-    const rethrow = (error: unknown) => error instanceof BudgetExhaustedError;
-    const labels = deps.labeller ? await labelMotion(setup.motion.text, deps.labeller, deps.screenClient ?? client, { rethrow }) : null;
     if (!(await saveScreen(db, id, result, deps.now().toISOString(), labels))) return 'skipped';
     await enqueue({ debateId: id });
     return 'screen';

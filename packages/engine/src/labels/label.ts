@@ -23,15 +23,19 @@ export function buildLabelMessages(motion: string): ModelMessage[] {
       role: 'user',
       content:
         `${UNTRUSTED_NOTICE}\nLabel this Motion of a public debate. Choose exactly one category from: ${CATEGORIES.join(', ')}. ` +
-        `Add one to ${MAX_TAGS} short lower-case topic tags of one to three words. ` +
+        `Add one to ${MAX_TAGS} short lower-case topic tags of one to three words, in English, ASCII letters only. ` +
         `Answer with JSON only, like {"category": "technology", "tags": ["remote work"]}.\n` +
         `Motion: ${JSON.stringify(motion)}`,
     },
   ];
 }
 
-/** A Tag as stored: lower case, letters, digits, spaces and hyphens, single-spaced; null when nothing usable is left. */
+/**
+ * A Tag as stored: lower case, letters, digits, spaces and hyphens, single-spaced; null when nothing usable is left,
+ * or when it has letters outside English, which stripping would mangle ("Ökonomie" → "konomie").
+ */
 export function normaliseTag(raw: string): string | null {
+  if (/\p{L}/u.test(raw.replace(/[a-z]/gi, ''))) return null;
   const tag = raw
     .toLowerCase()
     .replace(/[^a-z0-9 -]/g, '')

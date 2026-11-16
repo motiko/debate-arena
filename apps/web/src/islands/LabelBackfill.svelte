@@ -11,27 +11,29 @@
   let status = $state('');
   let error = $state('');
 
-  // Each request labels a few Debates; ask again until none are left, or a round labels none (its labeller failed).
+  // Each request labels a few Debates and says where to go on from; ones the labeller could not label are passed
+  // over, so the run always ends.
   async function run() {
     pending = true;
     status = '';
     error = '';
     let labelled = 0;
+    let failed = 0;
+    let after: string | null = null;
     try {
-      for (;;) {
-        const res = await fetcher('/api/moderation/labels', { method: 'POST' });
+      do {
+        const res = await fetcher('/api/moderation/labels', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(after ? { after } : {}),
+        });
         if (!res.ok) throw new Error(`POST /api/moderation/labels failed (${res.status})`);
-        const round = (await res.json()) as { labelled: number; remaining: number };
+        const round = (await res.json()) as { labelled: number; failed: number; next: string | null };
         labelled += round.labelled;
-        if (round.remaining === 0) {
-          status = `${tn('moderation.labelled', labelled)} ${t('moderation.labelsDone')}`;
-          break;
-        }
-        if (round.labelled === 0) {
-          status = `${tn('moderation.labelled', labelled)} ${t('moderation.labelsLeft', { count: round.remaining })}`;
-          break;
-        }
-      }
+        failed += round.failed;
+        after = round.next;
+      } while (after);
+      status = `${tn('moderation.labelled', labelled)} ${failed > 0 ? t('moderation.labelsLeft', { count: failed }) : t('moderation.labelsDone')}`;
     } catch {
       error = t('moderation.labelsFailed');
     }

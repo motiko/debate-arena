@@ -394,6 +394,7 @@ export const en = {
   'feed.removeFilter': 'Remove filter: {name}',
   'feed.filterSearch': '“{q}”',
   'feed.filterSlow': 'Slow Debates',
+  'feed.filterLive': 'Live Debates',
   'feed.noMatch': 'No Debates match.',
   'feed.showAll': 'Show all Debates',
   'feed.pages': 'Pages',

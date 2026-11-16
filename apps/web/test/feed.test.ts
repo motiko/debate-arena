@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { feedHref, feedParams, pageList } from '../src/lib/feed';
+import { appliedParams, feedHref, feedParams, pageList } from '../src/lib/feed';
 
 test('feedHref keeps the filters, drops empty ones and goes back to the first page', () => {
   expect(feedHref({ q: 'cats', category: 'science', page: 3 }, { tag: 'space' })).toBe('/?q=cats&category=science&tag=space');
@@ -25,4 +25,9 @@ test('pageList shows the first, the last and the neighbours of the current page,
   expect(pageList(5, 10)).toEqual([1, 'gap', 4, 5, 6, 'gap', 10]);
   expect(pageList(1, 10)).toEqual([1, 2, 'gap', 10]);
   expect(pageList(3, 10)).toEqual([1, 2, 3, 4, 'gap', 10]);
+});
+
+test('appliedParams turns the query the API applied into feed parameters, leaving out page 1', () => {
+  expect(appliedParams({ q: 'cats', kind: 'live', page: 1 })).toEqual({ q: 'cats', kind: 'live' });
+  expect(appliedParams({ tag: 'space', page: 3 })).toEqual({ tag: 'space', page: 3 });
 });
