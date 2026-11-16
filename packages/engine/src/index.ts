@@ -39,6 +39,18 @@ export {
   type ScreenResult,
 } from './moderation/screen';
 export {
+  buildLabelMessages,
+  CATEGORIES,
+  isCategory,
+  labelMotion,
+  LABEL_OUTPUT_TOKENS,
+  MAX_TAGS,
+  normaliseTag,
+  parseLabels,
+  type Category,
+  type Labels,
+} from './labels/label';
+export {
   JUDGE_OUTPUT_TOKENS,
   PROMPT_OVERHEAD_TOKENS,
   API_TURN_BYTES_PER_WORD,

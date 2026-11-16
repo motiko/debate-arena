@@ -37,6 +37,12 @@ test('budget covers screening the Motion', () => {
   expect(worstCaseBudgetMicroUsd(setup, [], { ...unitPrices, 'g/guard': unit }, 'g/guard')).toBe(46526 + 1290);
 });
 
+test('budget covers labelling the Motion', () => {
+  // (629 Motion prompt + 80 output) per attempt, twice
+  const prices = { ...unitPrices, 'g/guard': unit, 'l/label': unit };
+  expect(worstCaseBudgetMicroUsd(setup, [], prices, 'g/guard', 'l/label')).toBe(46526 + 1290 + 1418);
+});
+
 test('human Debaters cost nothing', () => {
   const humanFor = { ...setup, debaters: { ...setup.debaters, for: { kind: 'human', memberId: 'm1' } as const } };
   // Drops the three For Turns: (629+840) + (2309+560) + (3429+420) = 8187, twice
