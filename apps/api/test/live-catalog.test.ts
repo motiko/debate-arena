@@ -149,6 +149,20 @@ test('a fresh stored catalog is used without fetching', async () => {
   expect(models.catalog.entries.map(e => e.id)).toContain('openai/gpt-5.4-nano');
 });
 
+test('a stored catalog gets the curated entries of this deploy, not those it was stored with', async () => {
+  const old = PRODUCTION_CATALOG.entries.filter(e => !e.suggestedJudge);
+  const nowCurated = PRODUCTION_CATALOG.entries.find(e => e.suggestedJudge)!;
+  const live = { id: nowCurated.id, label: 'Stale label', price: nowCurated.price, roles: ['debater', 'judge'], reasoning: 'optional' };
+  await env.DB.prepare('INSERT INTO model_catalog (id, catalog_json, fetched_at) VALUES (1, ?, ?)')
+    .bind(JSON.stringify({ entries: [...old, live] }), new Date(0).toISOString())
+    .run();
+  const models = await createCatalogLoader()(modelEnv, { fetcher: (async () => json(fixture)) as typeof fetch, now: () => 10 });
+  const entries = models.catalog.entries.filter(e => e.id === nowCurated.id);
+  expect(entries).toHaveLength(1);
+  expect(entries[0]).toMatchObject({ label: nowCurated.label, curated: true, suggestedJudge: true });
+  expect(models.catalog.entries.slice(0, PRODUCTION_CATALOG.entries.length).map(e => e.id)).toEqual(PRODUCTION_CATALOG.entries.map(e => e.id));
+});
+
 test('a stored catalog older than an hour is fetched again and replaced', async () => {
   await createCatalogLoader()(modelEnv, { fetcher: (async () => json(fixture)) as typeof fetch, now: () => 0 });
   const fewer = { data: fixture.data.filter(m => m.id !== 'openai/gpt-5.4-nano') };

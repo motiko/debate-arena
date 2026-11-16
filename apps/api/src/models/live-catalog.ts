@@ -144,13 +144,22 @@ export function parseOpenRouterModels(body: unknown, curated: Catalog): Catalog 
     });
   }
 
-  const liveById = new Map(live.map(e => [e.id, e]));
+  return withCurated(live, curated);
+}
+
+/**
+ * `entries` with the curated catalog first, in its order, and in place of any entry of the same id. A curated entry
+ * without a batch price takes the one listed for its model. A stored catalog goes through this again on load, so a
+ * deploy that changes the curated models applies at once, not when the stored row expires.
+ */
+export function withCurated(entries: CatalogEntry[], curated: Catalog): Catalog {
+  const listed = new Map(entries.map(e => [e.id, e]));
   const curatedEntries = curated.entries.map(e => {
-    const fromList = liveById.get(e.id);
+    const fromList = listed.get(e.id);
     return !e.batchPrice && fromList?.batchPrice ? { ...e, batchPrice: fromList.batchPrice } : e;
   });
   const curatedIds = new Set(curated.entries.map(e => e.id));
-  const rest = live.filter(e => !curatedIds.has(e.id)).toSorted((a, b) => a.label.localeCompare(b.label));
+  const rest = entries.filter(e => !e.curated && !curatedIds.has(e.id)).toSorted((a, b) => a.label.localeCompare(b.label));
   return { entries: [...curatedEntries, ...rest] };
 }
 
@@ -203,7 +212,9 @@ export function createCatalogLoader(): (env: CatalogEnv, deps?: CatalogDeps) => 
       catalog_json: string;
       fetched_at: string;
     }>();
-    const stored = row ? { catalog: JSON.parse(row.catalog_json) as Catalog, at: Date.parse(row.fetched_at) } : undefined;
+    const stored = row
+      ? { catalog: withCurated((JSON.parse(row.catalog_json) as Catalog).entries, PRODUCTION_CATALOG), at: Date.parse(row.fetched_at) }
+      : undefined;
     if (stored && fresh(stored.at)) {
       memo = stored;
       return withCatalog(stored.catalog);
