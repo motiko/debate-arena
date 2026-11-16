@@ -5,6 +5,7 @@
 // benches (lib/refresh); data-announce is what that swap says to screen readers.
 import type { PublicDebate } from '@debate-arena/api-client';
 import BatchBadge from './BatchBadge.astro';
+import DebateLabels from './DebateLabels.astro';
 import OutcomeSummary from './OutcomeSummary.astro';
 import SignInButton from '../islands/SignInButton.svelte';
 import VotePanel from '../islands/VotePanel.svelte';
@@ -37,6 +38,9 @@ const announce =
 <div class="debate-band">
   <p class="band-label">{t('band.motion')} {debate.kind === 'batch' && <BatchBadge />}</p>
   <h1 class={`motion motion-${motionSize(debate.motion)}`}>{debate.motion}</h1>
+  <div class="band-labels">
+    <DebateLabels category={debate.category} tags={debate.tags} labelled />
+  </div>
 
   <div class="benches" data-region="benches" data-announce={announce}>
     {
@@ -148,6 +152,15 @@ const announce =
 </script>
 
 <style>
+  /* The Category and Tags under the Motion, quiet on the band; they lead back into the feed. */
+  .band-labels {
+    margin-top: 0.35rem;
+    color: var(--band-muted);
+  }
+  .band-labels :global(a),
+  .band-labels :global(.badge) {
+    color: var(--band-ink);
+  }
   .debate-band {
     padding-top: clamp(1.5rem, 1rem + 2vw, 3rem);
   }

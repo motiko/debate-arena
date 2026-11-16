@@ -83,3 +83,9 @@ test('/api/models marks batch-capable models', async () => {
   expect(models.find(m => m.id === 'fake-a/one')?.batch).toBe(true);
   expect(models.find(m => m.id === 'fake-slow/one')?.batch).toBe(false);
 });
+
+test('/api/models says which models are curated', async () => {
+  const { models } = (await (await exports.default.fetch('https://api.test/api/models')).json()) as { models: { id: string; curated: boolean }[] };
+  for (const m of models) expect(m.curated).toBe(FAKE_CATALOG.entries.find(e => e.id === m.id)?.curated === true);
+  expect(models.length).toBeGreaterThan(0);
+});

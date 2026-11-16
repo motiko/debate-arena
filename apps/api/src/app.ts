@@ -239,6 +239,8 @@ export const app = new Hono<{ Bindings: Env }>()
         id: e.id,
         label: e.label,
         roles: e.roles,
+        // Hand-picked: the short list the feed offers to filter by.
+        curated: e.curated === true,
         // Batch-capable: may take part in a Slow Debate.
         batch: isBatchCapable(catalog, e.id),
         inputPerMTokUsd: e.price.inputPerMTokUsd,

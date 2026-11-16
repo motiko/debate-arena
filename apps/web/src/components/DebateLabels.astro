@@ -1,0 +1,69 @@
+---
+// A Debate's Category and Tags, each a link to the feed filtered by it. On the Debate page they carry the AI-generated
+// label; the feed says once, above the list, that an AI model assigns them.
+import AiLabel from './AiLabel.astro';
+import { t } from '../i18n/t';
+import { categoryLabel, feedHref } from '../lib/feed';
+
+interface Props {
+  category: string | null;
+  tags: string[];
+  labelled?: boolean;
+}
+
+const { category, tags, labelled = false } = Astro.props;
+---
+
+{
+  (category || tags.length > 0) && (
+    <ul class="labels" role="list" aria-label={t('labels.title')}>
+      {category && (
+        <li>
+          <a class="category" href={feedHref({}, { category })}>
+            {categoryLabel(category)}
+          </a>
+        </li>
+      )}
+      {tags.map(tag => (
+        <li>
+          <a class="tag" href={feedHref({}, { tag })}>
+            {tag}
+          </a>
+        </li>
+      ))}
+      {labelled && (
+        <li>
+          <AiLabel />
+        </li>
+      )}
+    </ul>
+  )
+}
+
+<style>
+  .labels {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.15rem 0.9rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.9rem;
+  }
+  .labels a {
+    display: inline-block;
+    padding-block: 0.35rem;
+    color: inherit;
+    text-decoration-color: var(--line);
+    text-underline-offset: 0.2em;
+  }
+  .labels a:hover {
+    text-decoration-color: currentColor;
+  }
+  /* The Category leads, in the house serif; Tags follow in the plain text face. */
+  .category {
+    font-family: var(--font-serif);
+    font-weight: 600;
+  }
+</style>
