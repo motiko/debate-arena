@@ -22,6 +22,7 @@ import { keyedHash, parseReport, rateLimitNetwork, REPORT_UNLIST_THRESHOLD, REPO
 import { DAILY_QUOTA_POINTS, quotaRemaining } from './db/quota';
 import { hasUnlimitedQuota } from './auth/allowlists';
 import { addCost, awaitingOf, getDebate, listCompletedDebates, type DebateRecord } from './db/debates';
+import { parseFeedQuery, popularTags, searchDebates } from './db/feed';
 import { relayDraft, screenApiTurn, submitApiTurn } from './debates/api-turn';
 import { notifyViewers } from './debates/consumer';
 import { meteredClient } from './models/factory';
@@ -33,6 +34,8 @@ import { isBatchCapable, priceTable, screenerFor } from './models/catalog';
 import { loadModels } from './models/live-catalog';
 
 const FEED_PAGE_SIZE = 20;
+/** How many Tags the feed offers to browse by. */
+const POPULAR_TAGS = 20;
 
 /** What Viewers may see of a Debate: no Member id, Budget or cost. */
 function publicView(d: DebateRecord) {
@@ -56,6 +59,9 @@ function publicView(d: DebateRecord) {
     aiAudience: d.aiAudience && { ...d.aiAudience, votes: d.aiAudience.votes ?? [] },
     createdAt: d.createdAt,
     completedAt: d.completedAt,
+    // AI-assigned (GLOSSARY: Category, Tag).
+    category: d.category,
+    tags: d.tags,
   };
 }
 
@@ -326,9 +332,16 @@ export const app = new Hono<{ Bindings: Env }>()
   })
   .get('/debates', async c => {
     const before = c.req.query('before');
-    const debates = await listCompletedDebates(c.env.DB, FEED_PAGE_SIZE, before);
-    return c.json({ debates: debates.map(summary) });
+    // The date cursor of the first feed, kept for links and clients that page by it.
+    if (before) {
+      const debates = await listCompletedDebates(c.env.DB, FEED_PAGE_SIZE, before);
+      return c.json({ debates: debates.map(summary), page: 1, pageCount: 1, total: debates.length });
+    }
+    const query = parseFeedQuery(c.req.query());
+    const { debates, total } = await searchDebates(c.env.DB, query, FEED_PAGE_SIZE);
+    return c.json({ debates: debates.map(summary), page: query.page, pageCount: Math.max(1, Math.ceil(total / FEED_PAGE_SIZE)), total });
   })
+  .get('/tags', async c => c.json({ tags: await popularTags(c.env.DB, POPULAR_TAGS) }))
   .get('/debates/:id', async c => {
     const debate = await getDebate(c.env.DB, c.req.param('id'));
     if (!debate) return c.json({ error: 'Debate not found' }, 404);

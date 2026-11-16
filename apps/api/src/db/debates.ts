@@ -60,7 +60,7 @@ export type NewDebate = Pick<
   'id' | 'memberId' | 'setup' | 'aiVoters' | 'selfJudging' | 'quotaPoints' | 'budgetReservedMicroUsd' | 'createdAt'
 > & { kind?: DebateKind; models?: ModelSnapshot };
 
-interface DebateRow {
+export interface DebateRow {
   id: string;
   member_id: string;
   status: DebateStatus;
@@ -89,7 +89,7 @@ interface DebateRow {
 
 interface TurnRow { phase_index: number; side: Turn['side']; text: string; truncated: number }
 
-function toRecord(row: DebateRow, turns: Turn[]): DebateRecord {
+export function toRecord(row: DebateRow, turns: Turn[]): DebateRecord {
   return {
     id: row.id,
     memberId: row.member_id,
