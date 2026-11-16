@@ -62,7 +62,7 @@ Add any style or persona the user asked for (e.g. "argue like a 1920s barrister"
 After spawning, start a background Bash watcher (timeout 600000 ms) that ends with the debate:
 `node .claude/skills/debate-speaker/scripts/wait-turn.mjs <id> end` (re-run it if it prints `{"waiting":true}`).
 
-While the speakers work, stay quiet: don't poll, and don't post progress unless something fails. When the watcher or the speakers report `done`, summarise for the user in a few lines:
+Repeat the watch link in every message you send about the debate until it ends: the user may have scrolled past the first one, so never write a status line without it. While the speakers work, don't poll, and don't post progress unless something fails. When the watcher or the speakers report `done`, summarise for the user in a few lines:
 - the winner and the judge's reasoning in one or two sentences, from `verdict`;
 - any Turn that was cut at the word limit or failed;
 - the link again, so they can read the debate and vote (only humans can vote; the CLI cannot).
