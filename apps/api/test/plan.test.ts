@@ -1,11 +1,12 @@
 import { quotaPointsFor, worstCaseBudgetMicroUsd } from '@debate-arena/engine';
 import { env, exports } from 'cloudflare:workers';
 import { expect, test } from 'vitest';
-import { getDebate } from '../src/db/debates';
+import type { AiAudienceResult } from '@debate-arena/engine';
+import { completeDebate, createDebate, getDebate } from '../src/db/debates';
 import { quotaRemaining } from '../src/db/quota';
 import { planDebate, startDebate, type StartDeps, type StepJob } from '../src/debates/start';
 import { FAKE_CATALOG, priceTable, type Catalog } from '../src/models/catalog';
-import { uniqueId } from './helpers';
+import { newDebate, uniqueId } from './helpers';
 
 const now = new Date('2026-11-15T12:00:00Z');
 const price = (p: number) => ({ inputPerMTokUsd: p, outputPerMTokUsd: p });
@@ -64,12 +65,79 @@ test('a line-up needing more points than a day has is refused, unless the Quota 
   expect(await startDebate(deps(), member, pricey)).toEqual({
     ok: false,
     status: 400,
-    error: 'This line-up needs 31 Quota points; a day has 24. Choose cheaper models or leave out AI Voters.',
+    error: 'This line-up needs 31 Quota points; a day has 24. Choose cheaper models or fewer AI Voters.',
   });
   expect(await quotaRemaining(env.DB, member, now)).toBe(24);
   const r = await startDebate(deps({ unlimitedQuota: true }), member, pricey);
   if (!r.ok) throw new Error(r.error);
   expect((await getDebate(env.DB, r.id))?.quotaPoints).toBe(0);
+});
+
+test('aiVoters as a count picks that many AI Voters', () => {
+  const count = (aiVoters: unknown) => {
+    const r = plan({ ...valid, aiVoters });
+    if (!r.ok) throw new Error(r.error);
+    return r;
+  };
+  expect(count(3).aiVoters).toHaveLength(3);
+  expect(count(true).aiVoters).toHaveLength(10);
+  for (const none of [0, false]) {
+    expect(count(none).aiVoters).toEqual([]);
+    expect(count(none).aiVotersMicroUsd).toBe(0);
+  }
+});
+
+test('aiVotersMicroUsd is what the AI Voters add to the Budget', () => {
+  const r = plan({ ...valid, aiVoters: 4 });
+  if (!r.ok) throw new Error(r.error);
+  const prices = priceTable(CATALOG);
+  const screener = 'fake-guard/one';
+  expect(r.aiVotersMicroUsd).toBe(
+    worstCaseBudgetMicroUsd(r.setup, r.aiVoters, prices, screener) - worstCaseBudgetMicroUsd(r.setup, [], prices, screener),
+  );
+  expect(r.aiVotersMicroUsd).toBeGreaterThan(0);
+});
+
+test('an AI Voter count out of range or not whole is refused, for every Member', async () => {
+  const error = 'aiVoters must be true, false or a whole number from 0 to 100';
+  for (const aiVoters of [5000, 101, -1, 2.5, '10']) {
+    expect(plan({ ...valid, aiVoters })).toEqual({ ok: false, status: 400, error });
+  }
+  const member = uniqueId('m');
+  const before = await env.DB.prepare('SELECT COUNT(*) AS n FROM debates').first<{ n: number }>();
+  expect(await startDebate(deps({ unlimitedQuota: true }), member, { ...valid, aiVoters: 5000 })).toEqual({ ok: false, status: 400, error });
+  const after = await env.DB.prepare('SELECT COUNT(*) AS n FROM debates').first<{ n: number }>();
+  expect(after?.n).toBe(before?.n);
+  const quoted = await exports.default.fetch('https://api.test/api/debates/quote', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-dev-member': member },
+    body: JSON.stringify({ ...valid, aiVoters: 101 }),
+  });
+  expect(quoted.status).toBe(400);
+  expect(await quoted.json()).toEqual({ error });
+});
+
+test('the quote reports what the AI Voters add', async () => {
+  const quote = async (aiVoters: unknown) => {
+    const res = await exports.default.fetch('https://api.test/api/debates/quote', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-dev-member': uniqueId('m') },
+      body: JSON.stringify({ ...valid, aiVoters }),
+    });
+    return ((await res.json()) as { aiVotersMicroUsd: number }).aiVotersMicroUsd;
+  };
+  expect(await quote(2)).toBeGreaterThan(0);
+  expect(await quote(false)).toBe(0);
+});
+
+test('a stored AI Audience Result without votes is served with votes: []', async () => {
+  const d = newDebate();
+  await createDebate(env.DB, d);
+  const old = { counted: 0, swing: { for: 0, against: 0 }, winner: 'tie', dropped: [] } as unknown as AiAudienceResult;
+  await completeDebate(env.DB, d.id, old, new Date().toISOString());
+  const res = await exports.default.fetch(`https://api.test/api/debates/${d.id}`);
+  expect(res.status).toBe(200);
+  expect(((await res.json()) as { aiAudience: { votes: unknown } }).aiAudience.votes).toEqual([]);
 });
 
 test('a line-up over $5 is refused for everyone', async () => {
@@ -198,6 +266,7 @@ test('POST /debates/quote prices a line-up without charging or creating anything
     slowAvailable: true,
     panel: ['fake-c/one'],
     selfJudging: false,
+    aiVotersMicroUsd: 0,
   });
   const after = await env.DB.prepare('SELECT COUNT(*) AS n FROM debates').first<{ n: number }>();
   expect(after?.n).toBe(before?.n);

@@ -35,6 +35,11 @@ export interface ReasoningMode { support: ReasoningSupport; leastEffort?: string
 export interface Catalog { entries: CatalogEntry[] }
 
 export const AI_VOTER_COUNT = 10;
+/**
+ * The most AI Voters a Debate may have. Each makes up to four provider calls in one step, so 100 stays well inside a
+ * Worker's subrequest limit; a Member with unlimited Quota pays nothing, so the Quota alone cannot bound it.
+ */
+export const MAX_AI_VOTERS = 100;
 
 const ALL_ROLES: ModelRole[] = ['debater', 'judge', 'voter'];
 const price = (inputPerMTokUsd: number, outputPerMTokUsd: number): ModelPrice => ({ inputPerMTokUsd, outputPerMTokUsd });

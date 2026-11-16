@@ -52,7 +52,8 @@ function publicView(d: DebateRecord) {
     // The API slot the Debate waits for, and until when (null when it is not waiting).
     awaiting: awaitingOf(d),
     verdict: d.verdict,
-    aiAudience: d.aiAudience,
+    // Results stored before AI Voters' votes were kept have none to list.
+    aiAudience: d.aiAudience && { ...d.aiAudience, votes: d.aiAudience.votes ?? [] },
     createdAt: d.createdAt,
     completedAt: d.completedAt,
   };
@@ -286,6 +287,7 @@ export const app = new Hono<{ Bindings: Env }>()
       slowAvailable: plan.slowAvailable,
       panel: plan.setup.panel,
       selfJudging: plan.selfJudging,
+      aiVotersMicroUsd: plan.aiVotersMicroUsd,
     });
   })
   .post('/debates/:id/turns/:slot', async c => {
