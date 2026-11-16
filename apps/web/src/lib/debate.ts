@@ -225,6 +225,13 @@ export function modelLabel(id: string, models: ModelInfo[] = []): string {
   return models.find(m => m.id === id)?.label ?? id;
 }
 
+/** The AI Voters' models, each once in first-seen order, with how many when it repeats: "Claude Haiku 5.5 ×17, …". */
+export function voterModels(voters: string[], models: ModelInfo[] = []): string {
+  const counts = new Map<string, number>();
+  for (const id of voters) counts.set(id, (counts.get(id) ?? 0) + 1);
+  return [...counts].map(([id, n]) => (n > 1 ? `${modelLabel(id, models)} ×${n}` : modelLabel(id, models))).join(', ');
+}
+
 /** Mirrors the engine's Custom Debater limits (MAX_CUSTOM_NAME_LENGTH, MAX_CUSTOM_MODEL_LENGTH). */
 export const MAX_CUSTOM_NAME_LENGTH = 40;
 export const MAX_CUSTOM_MODEL_LENGTH = 60;

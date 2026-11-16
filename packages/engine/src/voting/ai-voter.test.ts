@@ -3,7 +3,7 @@ import { DebateNotFinishedError, StanceParseError } from '../errors';
 import type { ModelClient } from '../models/client';
 import { FakeModelClient } from '../models/fake';
 import { setup, sixTurns } from '../testing/fixtures';
-import { castAiStance, parseStance, runAiAudience } from './ai-voter';
+import { AI_VOTER_CONCURRENCY, castAiStance, parseStance, runAiAudience } from './ai-voter';
 
 test('parses stances leniently but strictly by word', () => {
   expect(parseStance('Against.')).toBe('against');
@@ -45,6 +45,24 @@ test("runAiAudience lists each counted voter's model and votes, in voter order",
   ]);
   expect(r.dropped).toEqual(['1:b/y']);
   expect(r.counted).toBe(r.votes.length);
+});
+
+test('many AI Voters are asked a few at a time, and all of them vote', async () => {
+  let inFlight = 0;
+  let most = 0;
+  const client: ModelClient = {
+    complete: async () => {
+      most = Math.max(most, ++inFlight);
+      await new Promise(resolve => setTimeout(resolve, 1));
+      inFlight--;
+      return { text: 'for', inputTokens: 1, outputTokens: 1 };
+    },
+  };
+  const voters = Array.from({ length: 20 }, (_, i) => `x/v${i}`);
+  const r = await runAiAudience(setup, sixTurns, voters, client);
+  expect(r.votes.map(v => v.model)).toEqual(voters);
+  expect(most).toBeLessThanOrEqual(AI_VOTER_CONCURRENCY);
+  expect(most).toBeGreaterThan(1);
 });
 
 test('an AI Voter that never gives a valid stance is dropped, not fatal', async () => {

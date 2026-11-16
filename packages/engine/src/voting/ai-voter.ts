@@ -6,6 +6,29 @@ import type { ModelClient, ModelMessage } from '../models/client';
 import { computeOxfordResult, type OxfordResult } from './oxford';
 
 export const STANCE_OUTPUT_TOKENS = 10;
+/**
+ * How many AI Voters are asked at once. A Worker opens at most six connections at a time, and firing a large
+ * audience at once also invites provider rate limits, which would drop voters; asked in a pool, any count runs.
+ */
+export const AI_VOTER_CONCURRENCY = 6;
+
+/** Runs `task` for every item, at most `limit` at a time, settling each like Promise.allSettled, in input order. */
+async function settlePooled<T, R>(items: T[], limit: number, task: (item: T, index: number) => Promise<R>): Promise<PromiseSettledResult<R>[]> {
+  const results = Array.from<PromiseSettledResult<R>>({ length: items.length });
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      try {
+        results[index] = { status: 'fulfilled', value: await task(items[index]!, index) };
+      } catch (reason) {
+        results[index] = { status: 'rejected', reason };
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
 
 /** One counted AI Voter: its model and its before- and after-stance. */
 export interface AiVote { model: ModelId; before: Stance; after: Stance }
@@ -60,14 +83,12 @@ export async function runAiAudience(
   options: { rethrow?: (error: unknown) => boolean } = {},
 ): Promise<AiAudienceResult> {
   if (nextSlot(setup.format, turns)) throw new DebateNotFinishedError('The Debate still has Turns to come');
-  const settled = await Promise.allSettled(
-    voters.map(async (model, index) => ({
-      voterId: `${index}:${model}`,
-      model,
-      before: await castAiStance(setup.motion, model, client),
-      after: await castAiStance(setup.motion, model, client, turns),
-    })),
-  );
+  const settled = await settlePooled(voters, AI_VOTER_CONCURRENCY, async (model, index) => ({
+    voterId: `${index}:${model}`,
+    model,
+    before: await castAiStance(setup.motion, model, client),
+    after: await castAiStance(setup.motion, model, client, turns),
+  }));
   // Errors the host marks (e.g. a batch result not ready yet) are not voter failures: every voter has been asked
   // by now, so the host can wait and run the whole audience again.
   const pending = settled.find(r => r.status === 'rejected' && options.rethrow?.(r.reason));

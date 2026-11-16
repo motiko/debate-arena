@@ -13,6 +13,7 @@ import {
   spokeCount,
   swingBars,
   modelLabel,
+  voterModels,
   nextFeedCursor,
   inlineEmphasis,
   otherLanguage,
@@ -80,6 +81,12 @@ test('nextFeedCursor gives the last completedAt only for a full page', () => {
 test('sideLabel names Sides in GLOSSARY words', () => {
   expect(sideLabel('for')).toBe('For');
   expect(sideLabel('against')).toBe('Against');
+});
+
+test('voterModels names each AI Voter model once, with how many when it repeats, in first-seen order', () => {
+  const models = [{ id: 'fake-a/one', label: 'Fake A' }, { id: 'fake-b/one', label: 'Fake B' }];
+  expect(voterModels(['fake-a/one', 'fake-b/one', 'fake-a/one', 'x/raw', 'fake-a/one'], models)).toBe('Fake A ×3, Fake B, x/raw');
+  expect(voterModels([], models)).toBe('');
 });
 
 test('modelLabel prefers the catalog label and falls back to the id', () => {

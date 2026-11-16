@@ -36,8 +36,10 @@ export interface Catalog { entries: CatalogEntry[] }
 
 export const AI_VOTER_COUNT = 10;
 /**
- * The most AI Voters a Debate may have. Each makes up to four provider calls in one step, so 100 stays well inside a
- * Worker's subrequest limit; a Member with unlimited Quota pays nothing, so the Quota alone cannot bound it.
+ * The most AI Voters a Debate may have. All of them run in one step: each makes up to four provider calls (two stances,
+ * two attempts), and each call two metering queries (Budget guard, cost), asked AI_VOTER_CONCURRENCY voters at a time.
+ * A Member with unlimited Quota pays nothing, so the Quota alone cannot bound the count; raise this only after checking
+ * that step against the Worker's current per-invocation limits.
  */
 export const MAX_AI_VOTERS = 100;
 

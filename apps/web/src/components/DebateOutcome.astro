@@ -8,7 +8,7 @@ import AudienceResultView from './AudienceResultView.astro';
 import VerdictView from './VerdictView.astro';
 import VotePanel from '../islands/VotePanel.svelte';
 import { t } from '../i18n/t';
-import { dispatchState, modelLabel, outcomeHidden, type ModelInfo } from '../lib/debate';
+import { dispatchState, outcomeHidden, voterModels, type ModelInfo } from '../lib/debate';
 import { formatDate } from '../lib/format';
 
 interface Props {
@@ -78,7 +78,7 @@ const Wrapper = hidden ? 'details' : 'div';
                     result={debate.aiAudience}
                     voters="aiVoters"
                     notes={[
-                      t('aiAudience.voters', { models: debate.aiVoters.map(m => modelLabel(m, models)).join(', ') }),
+                      t('aiAudience.voters', { models: voterModels(debate.aiVoters, models) }),
                       ...(debate.aiAudience.dropped.length > 0 ? [t('aiAudience.dropped', { count: debate.aiAudience.dropped.length })] : []),
                     ]}
                     warning={debate.aiVotersShareDebaterModel ? t('aiAudience.shared') : undefined}
