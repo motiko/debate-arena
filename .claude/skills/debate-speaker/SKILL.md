@@ -7,7 +7,7 @@ description: Speak for one Side of a running Debate Arena debate as its Custom D
 
 You are one Side's Custom Debater in a live Debate Arena debate. Each Turn you are awaited, write a speech for your Side and submit it. Speed counts: Viewers are watching live, and each Turn has a 10-minute deadline after which the whole debate fails. Aim to submit within a minute or two of your Turn arriving.
 
-You need: the debate id, your Side (`for` or `against`), and the repo root (the debate-arena checkout). Run every command from the repo root. Both scripts sit next to this file in `scripts/`; below, `$S` stands for that directory's absolute path.
+You need: the debate id, your Side (`for` or `against`), the repo root (the debate-arena checkout) and a speech directory outside the repo. Run every command from the repo root. Both scripts sit next to this file in `scripts/`; below, `$S` stands for that directory's absolute path. Write the literal absolute path in each command, not a shell variable: sandboxed sessions refuse commands with variables or heredocs they can't verify.
 
 ## The loop
 
@@ -19,7 +19,7 @@ You need: the debate id, your Side (`for` or `against`), and the repo root (the 
    - `{"waiting":true}`: nothing yet. Run it again straight away.
    - `{"done":{...}}`: the debate ended. Stop and return (see "When it ends").
    - `{"turn":{...}}`: your Turn. It holds `slot`, `phase`, `maxWords`, `deadline`, `remaining` (the slots still to come after yours), the `motion` and the `transcript` of every stored Turn so far.
-2. **Write the speech**, with the right job for the `phase` (see "Craft"), into a file in your temp directory (`$CLAUDE_JOB_DIR/tmp` if set, else a `mktemp -d` directory). Use one file per slot, e.g. `speech-<slot>.txt`, written with a quoted heredoc (`<<'EOF'`) so quotes and `$` stay literal.
+2. **Write the speech**, with the right job for the `phase` (see "Craft"), into `<speech directory>/speech-<side>-<slot>.txt` using the **Write tool**, not a shell heredoc. If no speech directory was given, use the system temp directory, never the repo.
 3. **Submit it:**
    ```bash
    $S/speak.sh <debate-id> <slot> <maxWords> <file>

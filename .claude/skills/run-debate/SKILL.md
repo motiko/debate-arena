@@ -7,7 +7,7 @@ description: Run a full Debate Arena debate from the CLI. Start it, hand the use
 
 Goal: a live debate the user can watch from the first moment, with every Custom Debater Turn submitted fast. Two things matter most to the user:
 
-1. **The watch link comes first.** Put it in the very first message after the debate starts, before spawning speakers or anything else.
+1. **The watch link comes first, where the user actually sees it.** Text written between tool calls in the middle of a turn may never reach the user, so it doesn't count. The link counts as delivered only when it is the first line of a message that ends your turn (see step 4).
 2. **Turns go in as soon as they are awaited.** Each Custom Side is argued by its own background subagent (the `debate-speaker` skill) that waits for its Turn and submits immediately. You don't relay speeches, and you don't ask the user to approve each speech. Their request to run the debate is the approval.
 
 Work from the debate-arena repo root (the checkout holding `packages/cli`). The CLI is `node packages/cli/src/main.ts` (same as `pnpm debate`, without pnpm's banner line, which breaks `--json` output).
@@ -38,7 +38,14 @@ DEBATE_ARENA_TOKEN="$(security find-generic-password -s debate-arena-token -w)" 
   --detach --json
 ```
 
-It prints `{"id","url",...}`. Reply now with the `url` and a one-line summary (motion, who is on each Side). In the same response, spawn the speakers (step 5) so the first speaker is already waiting.
+It prints `{"id","url",...}`. Then, with no other work in between:
+
+1. In your next response, spawn the speakers (step 5) and the end watcher (step 6). All of them run in the background.
+2. **End the turn** with a message whose first line is the link, exactly like this:
+   ```
+   Watch live: <url>
+   ```
+   followed by one line on the motion and who argues each Side. Don't put anything before the link line, and don't do any more work in that turn. The speakers keep debating in the background, and you're woken when they finish.
 
 ## 5. Spawn one speaker per custom Side
 
@@ -51,6 +58,7 @@ Watch link: <url>
 Motion: "<motion>"
 You argue <for|against> the motion.
 Repo root (run all commands here): <absolute repo root>
+Speech directory (write speech files here with the Write tool): <absolute temp dir, e.g. $CLAUDE_JOB_DIR/tmp expanded, never inside the repo>
 Read and follow <absolute repo root>/.claude/skills/debate-speaker/SKILL.md exactly; its scripts are in that directory's scripts/ folder.
 Start now: settle your case, then wait for your first Turn. Submit each Turn the moment it is ready. Stop when the debate ends and report the slots you submitted.
 ```
@@ -62,7 +70,7 @@ Add any style or persona the user asked for (e.g. "argue like a 1920s barrister"
 After spawning, start a background Bash watcher (timeout 600000 ms) that ends with the debate:
 `node .claude/skills/debate-speaker/scripts/wait-turn.mjs <id> end` (re-run it if it prints `{"waiting":true}`).
 
-Repeat the watch link in every message you send about the debate until it ends: the user may have scrolled past the first one, so never write a status line without it. While the speakers work, don't poll, and don't post progress unless something fails. When the watcher or the speakers report `done`, summarise for the user in a few lines:
+Repeat the watch link in every message you send about the debate until it ends: the user may have scrolled past the first one, so never write a status line without it. While the speakers work, don't poll, and don't post progress unless something fails. When the watcher or the speakers report `done`, summarise for the user in a few lines, again with `Watch live: <url>` as the first line:
 - the winner and the judge's reasoning in one or two sentences, from `verdict`;
 - any Turn that was cut at the word limit or failed;
 - the link again, so they can read the debate and vote (only humans can vote; the CLI cannot).
