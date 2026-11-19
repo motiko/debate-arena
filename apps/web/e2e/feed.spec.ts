@@ -15,6 +15,16 @@ test('searching for a word of the Motion finds that Debate and only Debates with
   await expect(page.getByText('1 Debate', { exact: true })).toBeVisible();
 });
 
+test('Category, Tag and Debater are folded under More filters and apply together', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('combobox', { name: 'Category' })).toBeHidden();
+  await page.getByText('More filters').click();
+  await page.getByRole('combobox', { name: 'Category' }).selectOption('science');
+  await page.getByRole('button', { name: 'Apply filters' }).click();
+  await expect(page).toHaveURL(/[?&]category=science/);
+  await expect(page.getByRole('link', { name: 'Remove filter: Science' })).toBeVisible();
+});
+
 test('a search with no match says so and offers the whole feed', async ({ page }) => {
   await page.goto(`/?q=${word()}`);
   await expect(page.getByText('No Debates match.')).toBeVisible();
@@ -33,7 +43,7 @@ test("an entry's Category and Tag lead to the Debates filed with them", async ({
   await page.goto(`/?q=${encodeURIComponent(motion)}`);
   await page.getByRole('listitem').filter({ hasText: motion }).locator(`a[href*="category=${category}"]`).click();
   await expect(page).toHaveURL(new RegExp(`[?&]category=${category}`));
-  await expect(page.getByRole('navigation', { name: 'Categories' }).locator('[aria-current="page"]')).toHaveAttribute('href', `/?category=${category}`);
+  await expect(page.getByRole('combobox', { name: 'Category', includeHidden: true })).toHaveValue(category);
   await expect(page.getByRole('heading', { level: 2, name: motion })).toBeVisible();
 });
 
@@ -70,7 +80,7 @@ test('a filtered feed passes axe', async ({ page, request }) => {
 test('a filter the feed cannot use is not shown as applied, nor kept', async ({ page }) => {
   await page.goto('/?category=cooking&kind=live');
   await expect(page.getByRole('link', { name: 'Remove filter: cooking' })).toHaveCount(0);
-  await expect(page.locator('input[type="hidden"][name="category"]')).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Category', includeHidden: true })).toHaveValue('');
   await expect(page.getByRole('link', { name: 'Remove filter: Live Debates' })).toBeVisible();
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', /\/\?kind=live$/);
 });
