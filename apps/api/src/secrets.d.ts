@@ -1,5 +1,6 @@
-// Secrets are not in wrangler.jsonc, so `wrangler types` cannot see them. Locally they come from .dev.vars;
-// in production from `wrangler secret put`; in tests from vitest.config.ts miniflare bindings.
+// Secrets are not in wrangler.jsonc, so they are typed here. Locally they come from .dev.vars; in production from
+// `wrangler secret put`; in tests from vitest.config.ts miniflare bindings. `wrangler types` runs with an empty
+// --env-file so it never reads .dev.vars: the generated file stays the same on every machine.
 interface WorkerSecrets {
   BETTER_AUTH_SECRET: string;
   GITHUB_CLIENT_ID: string;

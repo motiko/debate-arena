@@ -9,8 +9,8 @@
   },
   "scripts": {
     "dev": "wrangler d1 migrations apply DB --local && WRANGLER_REGISTRY_PATH=../../.wrangler/dev-registry wrangler dev --var DEV_AUTH:true --var BETTER_AUTH_URL:http://localhost:4321",
-    "types": "wrangler types",
-    "typecheck": "wrangler types && tsc --noEmit",
+    "types": "wrangler types --env-file=/dev/null",
+    "typecheck": "wrangler types --env-file=/dev/null && tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
