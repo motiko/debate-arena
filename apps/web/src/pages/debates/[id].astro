@@ -33,7 +33,7 @@ const apiSides = (['for', 'against'] as const).filter(side => debate.debaters[si
   {isBatch && debate.status === 'complete' && <p class="muted">{t('batch.noVotes')}</p>}
 
   {/* data-region: the before-vote brings the hidden Turns in without a reload, with focus on them (lib/refresh).
-      On request only: the end of a live Debate and the after-vote leave the floor (and any opened speech) as it is. */}
+      On request only: the end of a live Debate and the after-vote leave the floor as it is. */}
   <div data-region="turns" data-on-request>
   <section id="turns" tabindex="-1" aria-label={t('debate.turns')}>
     {

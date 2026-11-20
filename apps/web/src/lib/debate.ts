@@ -1,5 +1,5 @@
 // Pure view helpers for Debates, shared by pages and islands.
-import { countWords, dominantScript, isSelfJudging, type Debater, type OxfordResult, type Phase, type Script, type Side, type Turn } from '@debate-arena/engine';
+import { dominantScript, isSelfJudging, type Debater, type OxfordResult, type Phase, type Script, type Side, type Turn } from '@debate-arena/engine';
 import { t } from '../i18n/t';
 
 export interface ModelInfo {
@@ -71,20 +71,6 @@ export function inlineEmphasis(text: string): TextRun[] {
   }
   if (at < text.length) runs.push({ text: text.slice(at) });
   return runs;
-}
-
-/** About how much of a speech its preview shows: enough to reach the argument past a greeting. */
-export const PREVIEW_WORDS = 60;
-/** A rest shorter than this is shown too: a disclosure for a sentence or two only costs a click. */
-const SHORT_TAIL_WORDS = 25;
-
-/** How many of a speech's paragraphs show before "Read the full speech". */
-export function previewLength(paragraphs: string[]): number {
-  let words = 0;
-  let shown = 0;
-  while (shown < paragraphs.length && words < PREVIEW_WORDS) words += countWords(paragraphs[shown++]!);
-  const rest = paragraphs.slice(shown).reduce((sum, p) => sum + countWords(p), 0);
-  return rest < SHORT_TAIL_WORDS ? paragraphs.length : shown;
 }
 
 // The most likely language of each script, for a `lang` attribute. Han without kana is read as Chinese.

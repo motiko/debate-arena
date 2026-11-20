@@ -201,7 +201,6 @@
     draft={written}
     {apiSides}
     awaiting={settling === null && awaitingSlot === turns.length}
-    fold={false}
   />
 </div>
 

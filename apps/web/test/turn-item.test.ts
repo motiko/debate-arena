@@ -33,13 +33,10 @@ test('names the speech by phase, speaker and Side', () => {
   expect(screen.getByRole('heading', { level: 3, name: 'Opening: Fake A, For' })).toBeInTheDocument();
 });
 
-test('shows the speech up to its first argument and keeps the rest behind "Read the full speech"', () => {
+test('a long speech shows all of its text, no disclosure', () => {
   const { container } = render(TurnItem, { phase: 'Opening', speaker: 'Fake A', side: 'for', text: five, truncated: false });
-  // Greeting, promise and two paragraphs of argument: about 60 words in view.
-  expect(container.querySelectorAll('article > p')).toHaveLength(4);
-  const more = container.querySelector('details.more');
-  expect(more?.querySelector('summary .when-closed')?.textContent).toBe(`Read the full speech · ${argument.split(/\s+/).length} more words`);
-  expect(more?.querySelectorAll('p')).toHaveLength(1);
+  expect(container.querySelector('details')).toBeNull();
+  expect(container.querySelectorAll('article > p')).toHaveLength(5);
 });
 
 test('a draft cut off inside emphasis shows it emphasised, never a stray asterisk', () => {
@@ -53,22 +50,6 @@ test('renders *emphasis* and **strong** text, never the asterisks', () => {
   expect(container.querySelector('article em')?.textContent).toBe('only');
   expect(container.querySelector('article strong')?.textContent).toBe('firmly');
   expect(container.querySelector('article > p')?.textContent).toBe('Nuclear is the only route, firmly.');
-});
-
-test('the summary stays in place once open, offering to show less', () => {
-  const { container } = render(TurnItem, { phase: 'Opening', speaker: 'Fake A', side: 'for', text: five, truncated: false });
-  expect(container.querySelector('details.more summary .when-open')?.textContent).toBe('Show less');
-});
-
-test('unfolded (live), a long speech shows all of its text, no disclosure', () => {
-  const { container } = render(TurnItem, { phase: 'Opening', speaker: 'Fake A', side: 'for', text: five, truncated: false, fold: false });
-  expect(container.querySelector('details')).toBeNull();
-  expect(container.querySelectorAll('article > p')).toHaveLength(5);
-});
-
-test('no "Read the full speech" for a short speech', () => {
-  const { container } = render(TurnItem, { phase: 'Opening', speaker: 'Fake A', side: 'for', text: 'One\n\nTwo', truncated: false });
-  expect(container.querySelector('details.more')).toBeNull();
 });
 
 test('a draft shows all of its text, no disclosure, no cut note, and a caret', () => {
@@ -85,9 +66,8 @@ test('a draft shows all of its text, no disclosure, no cut note, and a caret', (
   expect(container.querySelectorAll('article > p')[4]?.lastElementChild).toBe(caret);
 });
 
-test('notes a Turn cut off at the word limit outside the collapsed part', () => {
+test('notes a Turn cut off at the word limit, under the speech', () => {
   const { container } = render(TurnItem, { phase: 'Closing', speaker: 'Fake B', side: 'against', text: five, truncated: true });
   const note = screen.getByText(/cut off at the word limit/i);
-  expect(note.closest('details')).toBeNull();
   expect(note.parentElement).toBe(container.querySelector('article'));
 });

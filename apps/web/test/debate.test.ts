@@ -17,7 +17,6 @@ import {
   inlineEmphasis,
   otherLanguage,
   paragraphs,
-  previewLength,
   selfJudgingWarning,
   sideLabel,
   swingText,
@@ -256,21 +255,6 @@ describe('inlineEmphasis', () => {
     expect(inlineEmphasis('5 * 3 * 2 is thirty')).toEqual([{ text: '5 * 3 * 2 is thirty' }]);
     expect(inlineEmphasis('a footnote*')).toEqual([{ text: 'a footnote*' }]);
     expect(inlineEmphasis('')).toEqual([]);
-  });
-});
-
-describe('previewLength', () => {
-  const words = (n: number) => Array.from({ length: n }, () => 'word').join(' ');
-  test('shows paragraphs until about 60 words are in view, not just the greeting', () => {
-    const speech = ['Madam Chair, honourable opponents, judges.', 'This House believes it. Let me set out why.', words(80), words(80), words(80)];
-    expect(previewLength(speech)).toBe(3);
-  });
-  test('a long first paragraph is preview enough', () => {
-    expect(previewLength([words(100), words(80)])).toBe(1);
-  });
-  test('shows everything when the rest would be a short tail or the speech is short', () => {
-    expect(previewLength([words(70), words(15)])).toBe(2);
-    expect(previewLength([words(10), words(10)])).toBe(2);
   });
 });
 
