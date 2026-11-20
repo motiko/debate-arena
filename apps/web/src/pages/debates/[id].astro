@@ -32,14 +32,6 @@ const apiSides = (['for', 'against'] as const).filter(side => debate.debaters[si
   {isBatch && debate.status === 'running' && <p class="note" role="status">{t('batch.generating')}</p>}
   {isBatch && debate.status === 'complete' && <p class="muted">{t('batch.noVotes')}</p>}
 
-  <details class="how">
-    <summary>{t('how.title')}</summary>
-    <div class="how-body">
-      <p>{t('how.debate')} {t('how.judge')}</p>
-      <p>{isBatch ? t('batch.noVotes') : `${t('how.vote')} ${t('how.apart')}`}</p>
-    </div>
-  </details>
-
   {/* data-region: the before-vote brings the hidden Turns in without a reload, with focus on them (lib/refresh).
       On request only: the end of a live Debate and the after-vote leave the floor (and any opened speech) as it is. */}
   <div data-region="turns" data-on-request>
@@ -88,31 +80,6 @@ const apiSides = (['for', 'against'] as const).filter(side => debate.debaters[si
   /* Focused only by script, as a place to read on from: no ring around the whole floor (as with the Verdict). */
   #turns:focus {
     outline: none;
-  }
-  .how {
-    max-width: 44rem;
-    color: var(--muted);
-  }
-  .how summary {
-    display: inline-flex;
-    align-items: center;
-    min-height: 2.75rem;
-    color: var(--ink);
-    font-weight: 600;
-    text-decoration: underline;
-    text-decoration-color: var(--line);
-    text-underline-offset: 0.18em;
-    cursor: pointer;
-  }
-  .how summary:hover {
-    text-decoration-color: currentColor;
-  }
-  .how-body {
-    max-width: 38rem;
-    padding-bottom: 0.5rem;
-  }
-  .how-body p + p {
-    margin-top: 0.5rem;
   }
   .onward {
     display: flex;

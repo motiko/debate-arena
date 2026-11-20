@@ -280,6 +280,8 @@ export const en = {
   'result.aiVoters': '{count} AI Voters',
   'result.wins': '{side} wins the audience',
   'result.tied': 'the Swing is tied',
+  'result.swingExplained':
+    'The Swing is how far each Side’s support moved between the before-vote and the after-vote, in percentage points. The larger Swing wins the audience.',
 
   'turn.truncated': 'This Turn was cut off at the word limit.',
 
@@ -336,11 +338,6 @@ export const en = {
   'outcome.folded': 'Audience voting is open until {date}. The result is folded away so it cannot sway the vote.',
   'outcome.foldedUntil': 'Audience voting is open until {date}.',
   'result.emptyChart': 'Each Side’s Swing appears here once Members have voted before and after the Debate.',
-  'how.title': 'How this Debate works',
-  'how.debate': 'Two AI models argue the Motion in Turns, one For and one Against.',
-  'how.judge': 'An AI Judge then reads the whole Debate and gives the Verdict: the Side that argued better.',
-  'how.vote': 'Members cast an Audience Vote before the Debate and again after it. The Swing is how far each Side’s support moved; the Side with the larger Swing wins the audience.',
-  'how.apart': 'The Verdict and the Audience Result are shown side by side, never merged.',
   'debate.onward': 'More Debates on the order paper',
   'debate.startOwn': 'Start a Debate',
   'outcome.carries': '{model} carries the Motion',

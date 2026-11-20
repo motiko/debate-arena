@@ -23,6 +23,7 @@ const closesAt = debate.audienceResult.votingClosesAt;
 const askAfter = dispatchState(debate) === 'askAfter';
 const hidden = outcomeHidden({ ...debate, votingClosesAt: closesAt });
 const Wrapper = hidden ? 'details' : 'div';
+const membersPanel = !isBatch && debate.status !== 'failed';
 ---
 
 <div class="outcome-region" data-region="outcome">
@@ -68,8 +69,8 @@ const Wrapper = hidden ? 'details' : 'div';
               <VerdictView verdict={debate.verdict} debaters={debate.debaters} motion={debate.motion} selfJudging={debate.selfJudging} models={models} />
               {/* The two audiences side by side, in the same panel; a Slow Debate has only the AI one. */}
               <div class="audiences">
-                {!isBatch && debate.status !== 'failed' && (
-                  <AudienceResultView title={t('audience.title')} result={debate.audienceResult} voters="members" myVote={debate.myVote} />
+                {membersPanel && (
+                  <AudienceResultView title={t('audience.title')} result={debate.audienceResult} voters="members" myVote={debate.myVote} explainSwing />
                 )}
                 {debate.aiAudience && (
                   <AudienceResultView
@@ -77,6 +78,7 @@ const Wrapper = hidden ? 'details' : 'div';
                     ai
                     result={debate.aiAudience}
                     voters="aiVoters"
+                    explainSwing={!membersPanel}
                     notes={[
                       t('aiAudience.voters', { models: voterModels(debate.aiVoters, models) }),
                       ...(debate.aiAudience.dropped.length > 0 ? [t('aiAudience.dropped', { count: debate.aiAudience.dropped.length })] : []),

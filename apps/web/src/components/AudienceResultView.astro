@@ -20,9 +20,11 @@ interface Props {
   notes?: string[];
   /** A disclosure under the notes, e.g. that some AI Voters are a Debater's model. */
   warning?: string | undefined;
+  /** Says what the Swing is, under the heading: on the first panel only, so it is said once. */
+  explainSwing?: boolean;
 }
 
-const { title, ai = false, result, voters, myVote = null, notes = [], warning } = Astro.props;
+const { title, ai = false, result, voters, myVote = null, notes = [], warning, explainSwing = false } = Astro.props;
 const closesAt = result.votingClosesAt ?? null;
 const closed = closesAt !== null && Date.parse(closesAt) <= Date.now();
 const stance = (s: 'for' | 'against' | 'undecided') => (s === 'for' ? t('side.for') : s === 'against' ? t('side.against') : t('vote.undecided'));
@@ -31,6 +33,7 @@ const headingId = ai ? 'ai-audience-title' : 'audience-title';
 
 <section class="division stack" aria-labelledby={headingId}>
   <h2 id={headingId}>{title} {ai && <AiLabel />}</h2>
+  {explainSwing && <p class="muted">{t('result.swingExplained')}</p>}
   <!-- Members' votes are still coming in until voting closes; AI Voters' are all in. -->
   <SwingChart result={result} label={swingText(result, voters)} empty={ai || closed ? undefined : t('result.emptyChart')} />
   {
