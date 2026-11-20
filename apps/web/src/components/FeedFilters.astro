@@ -1,9 +1,10 @@
 ---
-// The feed's finding aids: one search bar (plain GET, so it works without JavaScript) with every filter folded away
-// beside it under More filters, and below it the filters in force with a way to drop each.
-import { t, tn } from '../i18n/t';
+// The feed's search bar (plain GET, so it works without JavaScript), with every other filter folded behind the
+// filter icon at its end. The Tags are a list of checkboxes, so several can be chosen without JavaScript; with it,
+// a box above them narrows the list as you type.
+import { t } from '../i18n/t';
 import { modelLabel, type ModelInfo } from '../lib/debate';
-import { CATEGORIES, categoryLabel, feedHref, type FeedParams } from '../lib/feed';
+import { CATEGORIES, MAX_FILTER_TAGS, categoryLabel, type FeedParams } from '../lib/feed';
 
 interface Props {
   params: FeedParams;
@@ -12,247 +13,347 @@ interface Props {
   /** Every model's name, to show a filtered model that is not offered. */
   allModels: ModelInfo[];
   popularTags: string[];
-  total: number;
 }
 
-const { params, models, allModels, popularTags, total } = Astro.props;
-const filtered = Object.keys(params).some(key => key !== 'page');
+const { params, models, allModels, popularTags } = Astro.props;
 const offered = params.model && !models.some(m => m.id === params.model) ? [...models, { id: params.model, label: modelLabel(params.model, allModels) }] : models;
-// A Tag reached from an entry may not be a popular one; it is still offered, so a search keeps it.
-const tags = params.tag && !popularTags.includes(params.tag) ? [params.tag, ...popularTags] : popularTags;
-const folded = [params.category, params.tag, params.model, params.kind].filter(Boolean).length;
-const active = [
-  ...(params.q ? [{ name: t('feed.filterSearch', { q: params.q }), change: { q: undefined } }] : []),
-  ...(params.category ? [{ name: categoryLabel(params.category), change: { category: undefined } }] : []),
-  ...(params.tag ? [{ name: params.tag, change: { tag: undefined } }] : []),
-  ...(params.model ? [{ name: modelLabel(params.model, allModels), change: { model: undefined } }] : []),
-  ...(params.kind ? [{ name: t(params.kind === 'batch' ? 'feed.filterSlow' : 'feed.filterLive'), change: { kind: undefined } }] : []),
-];
+// The chosen Tags first, so they are in view when the panel opens; one reached from an entry may not be a popular one.
+const chosen = params.tags ?? [];
+const tags = [...chosen, ...popularTags.filter(tag => !chosen.includes(tag))];
+const folded = [params.category, params.model, params.kind].filter(Boolean).length + chosen.length;
 ---
 
 <form class="search" role="search" method="get" action="/">
   <div class="bar">
     <label for="feed-q" class="visually-hidden">{t('feed.searchLabel')}</label>
     <input id="feed-q" type="search" name="q" value={params.q ?? ''} maxlength="100" autocomplete="off" placeholder={t('feed.searchPlaceholder')} />
-    <button type="submit" aria-label={t('feed.search')}>
+    <button type="submit" class="go" aria-label={t('feed.search')}>
       <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false">
         <circle cx="8.5" cy="8.5" r="5.75" fill="none" stroke="currentColor" stroke-width="2"></circle>
         <path d="M13 13l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
       </svg>
     </button>
-  </div>
-  <details class="more">
-    <summary>
-      {t('feed.moreFilters')}
-      {folded > 0 && <span class="applied">{folded}<span class="visually-hidden"> {t('feed.applied')}</span></span>}
-    </summary>
-    <div class="panel">
-      <div class="field">
-        <label for="feed-category">{t('feed.categoryLabel')}</label>
-        <select id="feed-category" name="category">
-          <option value="">{t('feed.anyCategory')}</option>
-          {CATEGORIES.map(category => <option value={category} selected={params.category === category}>{categoryLabel(category)}</option>)}
-        </select>
-      </div>
-      {
-        tags.length > 0 && (
+    <details class="more">
+      <summary aria-label={folded > 0 ? `${t('feed.moreFilters')}, ${folded} ${t('feed.applied')}` : t('feed.moreFilters')} title={t('feed.moreFilters')}>
+        <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false">
+          <path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"></path>
+          <circle cx="7" cy="5.5" r="2" fill="var(--knob)" stroke="currentColor" stroke-width="1.75"></circle>
+          <circle cx="13" cy="10" r="2" fill="var(--knob)" stroke="currentColor" stroke-width="1.75"></circle>
+          <circle cx="8.5" cy="14.5" r="2" fill="var(--knob)" stroke="currentColor" stroke-width="1.75"></circle>
+        </svg>
+        {folded > 0 && <span class="applied" aria-hidden="true">{folded}</span>}
+      </summary>
+      <div class="panel">
+        <div class="fields">
           <div class="field">
-            <label for="feed-tag">{t('feed.tagLabel')}</label>
-            <select id="feed-tag" name="tag">
-              <option value="">{t('feed.anyTag')}</option>
-              {tags.map(tag => <option value={tag} selected={params.tag === tag}>{tag}</option>)}
+            <label for="feed-category">{t('feed.categoryLabel')}</label>
+            <select id="feed-category" name="category">
+              <option value="">{t('feed.anyCategory')}</option>
+              {CATEGORIES.map(category => <option value={category} selected={params.category === category}>{categoryLabel(category)}</option>)}
             </select>
           </div>
-        )
-      }
-      <div class="field">
-        <label for="feed-model">{t('feed.modelLabel')}</label>
-        <select id="feed-model" name="model">
-          <option value="">{t('feed.anyModel')}</option>
-          {offered.map(m => <option value={m.id} selected={params.model === m.id}>{m.label}</option>)}
-        </select>
+          <div class="field">
+            <label for="feed-model">{t('feed.modelLabel')}</label>
+            <select id="feed-model" name="model">
+              <option value="">{t('feed.anyModel')}</option>
+              {offered.map(m => <option value={m.id} selected={params.model === m.id}>{m.label}</option>)}
+            </select>
+          </div>
+          <label class="choice">
+            <input type="checkbox" name="kind" value="batch" checked={params.kind === 'batch'} />
+            {t('feed.slowOnly')}
+          </label>
+        </div>
+        {
+          tags.length > 0 && (
+            <fieldset class="tags" data-max={MAX_FILTER_TAGS}>
+              <legend>{t('feed.tagsLabel')}</legend>
+              <p class="hint" id="feed-tags-hint">{t('feed.tagsHint', { count: MAX_FILTER_TAGS })}</p>
+              {/* No name: the box only narrows the list below, it is never sent. Shown once the script can work it. */}
+              <input class="find" type="search" autocomplete="off" placeholder={t('feed.findTag')} aria-label={t('feed.findTag')} aria-controls="feed-tags" hidden />
+              <ul id="feed-tags" class="tag-list" role="list" aria-describedby="feed-tags-hint">
+                {tags.map(tag => (
+                  <li>
+                    <label>
+                      <input type="checkbox" name="tag" value={tag} checked={chosen.includes(tag)} />
+                      {tag}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+              <p class="none" role="status"></p>
+            </fieldset>
+          )
+        }
+        <div class="apply">
+          <button type="submit" class="secondary">{t('feed.applyFilters')}</button>
+          <p class="ai-note">{t('feed.labelsNote')}</p>
+        </div>
       </div>
-      <label class="choice">
-        <input type="checkbox" name="kind" value="batch" checked={params.kind === 'batch'} />
-        {t('feed.slowOnly')}
-      </label>
-      <div class="apply">
-        <button type="submit" class="secondary">{t('feed.applyFilters')}</button>
-        <p class="ai-note">{t('feed.labelsNote')}</p>
-      </div>
-    </div>
-  </details>
+    </details>
+  </div>
 </form>
 
-{
-  filtered && (
-    <div class="found">
-      <p class="count">{tn('feed.count', total)}</p>
-      <ul class="active" role="list">
-        {active.map(filter => (
-          <li>
-            <a href={feedHref(params, filter.change)} aria-label={t('feed.removeFilter', { name: filter.name })}>
-              {filter.name}
-              <span aria-hidden="true">×</span>
-            </a>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
+<script>
+  import { t } from '../i18n/t';
+
+  const more = document.querySelector<HTMLDetailsElement>('.search .more');
+  const tags = more?.querySelector<HTMLFieldSetElement>('.tags');
+  if (more) {
+    // A dropdown: Esc or a click outside folds it away again.
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && more.open) {
+        more.open = false;
+        more.querySelector('summary')?.focus();
+      }
+    });
+    document.addEventListener('click', event => {
+      if (more.open && !more.contains(event.target as Node)) more.open = false;
+    });
+  }
+  if (tags) {
+    const find = tags.querySelector<HTMLInputElement>('.find')!;
+    const none = tags.querySelector<HTMLElement>('.none')!;
+    const boxes = [...tags.querySelectorAll<HTMLInputElement>('input[name="tag"]')];
+    const max = Number(tags.dataset.max);
+    find.hidden = false;
+    // Typing narrows the list; a chosen Tag stays in view whatever is typed, so it can always be unchosen.
+    find.addEventListener('input', () => {
+      const words = find.value.trim().toLowerCase();
+      let shown = 0;
+      for (const box of boxes) {
+        const visible = !words || box.checked || box.value.includes(words);
+        box.closest('li')!.hidden = !visible;
+        if (visible) shown++;
+      }
+      none.textContent = shown === 0 ? t('feed.noTagMatch', { q: find.value.trim() }) : '';
+    });
+    // Enter in the box would send the form; here it only narrows.
+    find.addEventListener('keydown', event => {
+      if (event.key === 'Enter') event.preventDefault();
+    });
+    // At the most a feed can be filtered by, the rest wait until one is unchosen.
+    const limit = () => {
+      const full = boxes.filter(box => box.checked).length >= max;
+      for (const box of boxes) box.disabled = full && !box.checked;
+    };
+    tags.addEventListener('change', limit);
+    limit();
+  }
+</script>
 
 <style>
-  /* One line: the search bar, and More filters set against its right end. The summary sits over the bar's row
-     (absolutely), so the panel it opens unfolds in the flow below the whole line rather than over the feed. */
   .search {
     position: relative;
-    margin-bottom: 1.25rem;
   }
+  /* One field: the words, then the magnifier and the filter icon inside its right end. */
   .bar {
     position: relative;
-    margin-right: 9.5rem;
   }
-  .bar input {
+  .bar input[type='search'] {
     min-height: 3rem;
-    padding-inline: 0.9rem 3.25rem;
+    padding-inline: 0.9rem 5.75rem;
     border-color: var(--line);
+    background: var(--surface);
     font-family: var(--font-serif);
     font-size: 1.125rem;
   }
-  .bar input::placeholder {
+  .bar > input::placeholder {
     color: var(--muted);
   }
-  .bar input:hover {
+  .bar > input:hover {
     border-color: var(--muted);
   }
-  /* The magnifier sits inside the bar's right end: the bar reads as one field, not a field and a button. */
-  .bar button {
-    position: absolute;
-    inset-block: 0.25rem;
-    right: 0.25rem;
-    min-height: 0;
-    width: 2.5rem;
-    padding: 0;
-    border-color: transparent;
-    background: transparent;
-    color: var(--green);
-  }
-  .bar button:hover {
-    background: var(--paper);
-  }
+  .go,
   .more summary {
     position: absolute;
-    top: 0;
-    right: 0;
-    display: inline-flex;
-    gap: 0.5rem;
-    align-items: center;
-    justify-content: center;
-    width: 9rem;
-    min-height: 3rem;
-    border: 1px solid var(--line);
+    top: 0.25rem;
+    display: inline-grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    min-height: 0;
+    padding: 0;
+    border: 1px solid transparent;
     border-radius: var(--radius);
+    background: transparent;
     color: var(--green);
-    font-size: 0.95rem;
-    font-weight: 600;
-    list-style: none;
     cursor: pointer;
+  }
+  .go {
+    right: 2.95rem;
+  }
+  .more summary {
+    --knob: var(--surface);
+    right: 0.25rem;
+    list-style: none;
+  }
+  /* A hairline between the two icons: search, then refine. */
+  .more summary::before {
+    content: '';
+    position: absolute;
+    left: -0.2rem;
+    top: 0.5rem;
+    bottom: 0.5rem;
+    border-left: 1px solid var(--line);
   }
   .more summary::-webkit-details-marker {
     display: none;
   }
+  .go:hover,
   .more summary:hover {
-    border-color: var(--muted);
+    background: var(--paper);
+    --knob: var(--paper);
   }
   .more[open] summary {
-    border-color: var(--green);
-    background: var(--surface);
+    background: var(--green);
+    color: var(--surface);
+    --knob: var(--green);
   }
   .applied {
+    position: absolute;
+    top: -0.3rem;
+    right: -0.3rem;
     display: inline-grid;
     place-items: center;
-    min-width: 1.4rem;
-    height: 1.4rem;
-    padding-inline: 0.3rem;
-    border-radius: 0.7rem;
-    background: var(--green);
-    color: var(--paper);
-    font-size: 0.8rem;
+    min-width: 1.2rem;
+    height: 1.2rem;
+    padding-inline: 0.25rem;
+    border-radius: 0.6rem;
+    background: var(--brass);
+    color: var(--ink);
+    font-size: 0.75rem;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
+    line-height: 1;
+    box-shadow: 0 0 0 2px var(--surface);
   }
+  /* A dropdown under the bar: it lies over the feed, and scrolls inside itself when it is taller than the window. */
   .panel {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    left: 0;
+    right: 0;
+    z-index: 2;
     display: grid;
-    gap: 0.75rem 1.5rem;
-    margin-top: 0.75rem;
+    gap: 1rem 2rem;
+    max-height: calc(100dvh - 6rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 1rem;
     border: 1px solid var(--line);
-    border-top: 2px solid var(--brass);
+    border-top: 3px solid var(--brass);
     border-radius: var(--radius);
     background: var(--surface);
+    box-shadow: 0 0.75rem 2rem -0.75rem rgb(10 25 18 / 0.35);
   }
-  .panel label {
+  .fields {
+    display: grid;
+    gap: 0.75rem;
+    align-content: start;
+  }
+  .panel label,
+  .tags legend {
     font-size: 0.9rem;
   }
   .panel select {
     min-height: 2.75rem;
+  }
+  .tags {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .tags legend {
+    padding: 0;
+    font-weight: 600;
+  }
+  .tags > * + * {
+    margin-top: 0.4rem;
+  }
+  .hint,
+  .ai-note,
+  .none {
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .none:empty {
+    display: none;
+  }
+  .find {
+    min-height: 2.5rem;
+    font-size: 0.95rem;
+  }
+  /* The Tags as toggles that wrap; the list scrolls once it is longer than a handful of rows. */
+  .tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: start;
+    gap: 0.4rem;
+    max-height: 11.5rem;
+    margin: 0;
+    padding: 0.1rem;
+    overflow-y: auto;
+    list-style: none;
+  }
+  .tag-list li[hidden] {
+    display: none;
+  }
+  .tag-list label {
+    display: inline-flex;
+    gap: 0.4rem;
+    align-items: center;
+    min-height: 2.25rem;
+    padding: 0.2rem 0.7rem 0.2rem 0.5rem;
+    border: 1px solid var(--line);
+    border-radius: 1.125rem;
+    background: var(--paper);
+    font-size: 0.9rem;
+    line-height: 1.2;
+    cursor: pointer;
+  }
+  .tag-list label:hover {
+    border-color: var(--muted);
+  }
+  .tag-list input {
+    width: 1rem;
+    height: 1rem;
+    min-height: 0;
+    margin: 0;
+    accent-color: var(--green);
+  }
+  .tag-list label:has(:checked) {
+    border-color: var(--green);
+    background: color-mix(in srgb, var(--green) 12%, var(--surface));
+    font-weight: 600;
+  }
+  .tag-list label:has(:disabled) {
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+  .tag-list label:has(:disabled):hover {
+    border-color: var(--line);
+  }
+  .tag-list label:has(:focus-visible) {
+    outline: 3px solid var(--focus);
+    outline-offset: 1px;
+  }
+  .tag-list input:focus-visible {
+    outline: 0;
   }
   .apply {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem 1rem;
     align-items: center;
-  }
-  .ai-note {
-    color: var(--muted);
-    font-size: 0.85rem;
-  }
-  .found {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.25rem 1.25rem;
-    margin-bottom: 1rem;
-    font-size: 0.9rem;
-  }
-  .count {
-    font-size: 1rem;
-    font-weight: 600;
-  }
-  .active {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.1rem 0.75rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .active a {
-    display: inline-flex;
-    gap: 0.35rem;
-    align-items: baseline;
-    padding-block: 0.3rem;
-    color: var(--ink);
-    text-decoration-color: var(--line);
-  }
-  .active a span {
-    color: var(--against);
-    font-weight: 600;
-  }
-  /* On a phone the toggle keeps only its width's worth of words: the bar takes the rest. */
-  @media (max-width: 39.99rem) {
-    .bar {
-      margin-right: 8.5rem;
-    }
-    .more summary {
-      width: 8rem;
-      font-size: 0.9rem;
-    }
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--line);
   }
   @media (min-width: 40rem) {
     .panel {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      align-items: end;
+      grid-template-columns: minmax(12rem, 1fr) minmax(0, 1.6fr);
+      padding: 1.25rem;
     }
     .apply {
       grid-column: 1 / -1;

@@ -103,6 +103,22 @@ test('pages hold twenty Debates, newest first, and say how many pages there are'
   expect(await feed(`tag=${t}&page=9`)).toMatchObject({ debates: [], page: 9, pageCount: 2, total: 21 });
 });
 
+test('several Tags narrow the feed to Debates carrying all of them', async () => {
+  const [a, b] = [tag(), tag()];
+  const both = await seed({ tags: [a, b] });
+  await seed({ tags: [a] });
+  await seed({ tags: [b] });
+  const page = (await feed(`tag=${a}&tag=${b}`)) as FeedPage & { query: unknown };
+  expect(page.debates.map(d => d.id)).toEqual([both]);
+  expect(page.query).toEqual({ tags: [a, b], page: 1 });
+});
+
+test('Tags are normalised, repeats dropped, and at most five kept', () => {
+  expect(parseFeedQuery({}, [' Space ', 'space', '!!', 'a1', 'a2', 'a3', 'a4', 'a5']).tags).toEqual(['space', 'a1', 'a2', 'a3', 'a4']);
+  expect(parseFeedQuery({ tag: 'space' }).tags).toEqual(['space']);
+  expect(parseFeedQuery({}).tags).toBeUndefined();
+});
+
 test.each(['0', '-3', 'abc', '1.5', ''])('page=%j reads as the first page', page => {
   expect(parseFeedQuery({ page }).page).toBe(1);
 });
@@ -135,7 +151,7 @@ test('popular Tags count listed, completed Debates', async () => {
   await seed({ tags: [t] });
   expect((await popularTags(env.DB, 10_000)).find(x => x.tag === t)).toEqual({ tag: t, count: 2 });
   const res = await exports.default.fetch('https://api.test/api/tags');
-  expect(((await res.json()) as { tags: unknown[] }).tags.length).toBeLessThanOrEqual(20);
+  expect(((await res.json()) as { tags: unknown[] }).tags.length).toBeLessThanOrEqual(50);
 });
 
 test('the date cursor still works, with the paging fields', async () => {

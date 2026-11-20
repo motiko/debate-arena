@@ -7,7 +7,8 @@ export interface FeedQuery {
   /** Words that must all appear in the Motion or the Tags. */
   q?: string;
   category?: Category;
-  tag?: string;
+  /** Tags that must all be on the Debate. */
+  tags?: string[];
   /** An AI Debater's model, on either Side. */
   model?: string;
   kind?: DebateKind;
@@ -16,20 +17,24 @@ export interface FeedQuery {
 
 export const MAX_SEARCH_WORDS = 5;
 export const MAX_SEARCH_LENGTH = 100;
+export const MAX_FILTER_TAGS = 5;
 const MAX_MODEL_LENGTH = 200;
 /** Pages beyond this are read as this one (empty): a bigger number would overflow the OFFSET. */
 export const MAX_PAGE = 100_000;
 
-/** Reads a feed query from request parameters. Anything unusable is dropped, never refused: a bad page is page 1. */
-export function parseFeedQuery(params: Record<string, string | undefined>): FeedQuery {
+/**
+ * Reads a feed query from request parameters, with `tags` from the repeated `tag` parameter. Anything unusable is
+ * dropped, never refused: a bad page is page 1.
+ */
+export function parseFeedQuery(params: Record<string, string | undefined>, tags: string[] = params.tag ? [params.tag] : []): FeedQuery {
   const words = (params.q ?? '').slice(0, MAX_SEARCH_LENGTH).trim().split(/\s+/).filter(Boolean).slice(0, MAX_SEARCH_WORDS);
   const page = /^\d+$/.test(params.page ?? '') ? Number(params.page) : 1;
-  const tag = params.tag ? normaliseTag(params.tag) : null;
+  const tagList = [...new Set(tags.flatMap(tag => normaliseTag(tag) ?? []))].slice(0, MAX_FILTER_TAGS);
   const model = params.model?.trim();
   return {
     ...(words.length > 0 ? { q: words.join(' ') } : {}),
     ...(isCategory(params.category) ? { category: params.category } : {}),
-    ...(tag ? { tag } : {}),
+    ...(tagList.length > 0 ? { tags: tagList } : {}),
     ...(model && model.length <= MAX_MODEL_LENGTH ? { model } : {}),
     ...(params.kind === 'live' || params.kind === 'batch' ? { kind: params.kind } : {}),
     page: page >= 1 ? Math.min(page, MAX_PAGE) : 1,
@@ -53,9 +58,9 @@ function where(query: FeedQuery): { sql: string; binds: unknown[] } {
     clauses.push('category = ?');
     binds.push(query.category);
   }
-  if (query.tag) {
+  for (const tag of query.tags ?? []) {
     clauses.push('EXISTS (SELECT 1 FROM json_each(debates.tags_json) WHERE json_each.value = ?)');
-    binds.push(query.tag);
+    binds.push(tag);
   }
   if (query.model) {
     // A Custom Debater's model is self-reported, never verified: only AI Debaters count.

@@ -18,11 +18,38 @@ test('searching for a word of the Motion finds that Debate and only Debates with
 test('Category, Tag and Debater are folded under More filters and apply together', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('combobox', { name: 'Category' })).toBeHidden();
-  await page.getByText('More filters').click();
+  await page.getByTitle('More filters').click();
   await page.getByRole('combobox', { name: 'Category' }).selectOption('science');
   await page.getByRole('button', { name: 'Apply filters' }).click();
   await expect(page).toHaveURL(/[?&]category=science/);
   await expect(page.getByRole('link', { name: 'Remove filter: Science' })).toBeVisible();
+});
+
+test('several Tags can be found by typing and chosen together, and dropped one at a time', async ({ page, request }) => {
+  const { id } = await startDebate(request);
+  await waitComplete(request, id);
+  await page.goto('/');
+  await page.getByTitle('More filters').click();
+  const find = page.getByRole('searchbox', { name: 'Find a Tag' });
+  await find.fill('local');
+  await expect(page.getByRole('checkbox', { name: 'fake' })).toBeHidden();
+  await find.press('Enter');
+  await expect(page).toHaveURL(/\/$/);
+  await page.getByRole('checkbox', { name: 'local dev' }).check();
+  await find.fill('fak');
+  await page.getByRole('checkbox', { name: 'fake' }).check();
+  await page.getByRole('button', { name: 'Apply filters' }).click();
+  await expect(page).toHaveURL(/[?&]tag=local\+dev&tag=fake|[?&]tag=fake&tag=local\+dev/);
+  await expect(page.getByTitle('More filters')).toHaveAccessibleName('More filters, 2 applied');
+  await page.getByRole('link', { name: 'Remove filter: fake' }).click();
+  await expect(page).toHaveURL(/\/\?tag=local\+dev$/);
+});
+
+test('the search bar stays in view as the feed scrolls', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 500 });
+  await page.goto('/');
+  await page.mouse.wheel(0, 2000);
+  await expect(page.getByRole('searchbox', { name: 'Search Debates' })).toBeInViewport();
 });
 
 test('a search with no match says so and offers the whole feed', async ({ page }) => {

@@ -1,0 +1,71 @@
+---
+// Under the search bar, once the feed is filtered: how many Debates match, and the filters in force with a way to
+// drop each. A Tag is dropped on its own; the others chosen stay.
+import { t, tn } from '../i18n/t';
+import { modelLabel, type ModelInfo } from '../lib/debate';
+import { categoryLabel, feedHref, type FeedParams } from '../lib/feed';
+
+interface Props {
+  params: FeedParams;
+  /** Every model's name, to name a filtered model. */
+  allModels: ModelInfo[];
+  total: number;
+}
+
+const { params, allModels, total } = Astro.props;
+const active = [
+  ...(params.q ? [{ name: t('feed.filterSearch', { q: params.q }), change: { q: undefined } }] : []),
+  ...(params.category ? [{ name: categoryLabel(params.category), change: { category: undefined } }] : []),
+  ...(params.tags ?? []).map(tag => ({ name: tag, change: { tags: params.tags!.filter(x => x !== tag) } })),
+  ...(params.model ? [{ name: modelLabel(params.model, allModels), change: { model: undefined } }] : []),
+  ...(params.kind ? [{ name: t(params.kind === 'batch' ? 'feed.filterSlow' : 'feed.filterLive'), change: { kind: undefined } }] : []),
+];
+---
+
+<div class="found">
+  <p class="count">{tn('feed.count', total)}</p>
+  <ul class="active" role="list">
+    {active.map(filter => (
+      <li>
+        <a href={feedHref(params, filter.change)} aria-label={t('feed.removeFilter', { name: filter.name })}>
+          {filter.name}
+          <span aria-hidden="true">×</span>
+        </a>
+      </li>
+    ))}
+  </ul>
+</div>
+
+<style>
+  .found {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 1.25rem;
+    font-size: 0.9rem;
+  }
+  .count {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+  .active {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.1rem 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .active a {
+    display: inline-flex;
+    gap: 0.35rem;
+    align-items: baseline;
+    padding-block: 0.3rem;
+    color: var(--ink);
+    text-decoration-color: var(--line);
+  }
+  .active a span {
+    color: var(--against);
+    font-weight: 600;
+  }
+</style>

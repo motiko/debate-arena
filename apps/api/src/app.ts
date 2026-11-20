@@ -35,7 +35,7 @@ import { loadModels } from './models/live-catalog';
 
 const FEED_PAGE_SIZE = 20;
 /** How many Tags the feed offers to browse by. */
-const POPULAR_TAGS = 20;
+const POPULAR_TAGS = 50;
 /** How many older Debates one backfill request labels. */
 const LABELS_PER_REQUEST = 10;
 
@@ -351,7 +351,7 @@ export const app = new Hono<{ Bindings: Env }>()
       const debates = await listCompletedDebates(c.env.DB, FEED_PAGE_SIZE, before);
       return c.json({ debates: debates.map(summary), query: { page: 1 }, page: 1, pageCount: 1, total: debates.length });
     }
-    const query = parseFeedQuery(c.req.query());
+    const query = parseFeedQuery(c.req.query(), c.req.queries('tag'));
     const { debates, total } = await searchDebates(c.env.DB, query, FEED_PAGE_SIZE);
     // `query` is what was applied (anything unusable dropped), for showing the filters in force.
     return c.json({ debates: debates.map(summary), query, page: query.page, pageCount: Math.max(1, Math.ceil(total / FEED_PAGE_SIZE)), total });

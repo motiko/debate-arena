@@ -7,17 +7,21 @@ export { CATEGORIES };
 export interface FeedParams {
   q?: string;
   category?: string;
-  tag?: string;
+  /** Read from, and written as, the repeated `tag` parameter. */
+  tags?: string[];
   model?: string;
   kind?: string;
   page?: number;
 }
 
+/** How many Tags a feed can be filtered by at once (the API keeps no more). */
+export const MAX_FILTER_TAGS = 5;
+
 /** Feed parameters to set; an undefined one is removed. */
 export type FeedChange = { [K in keyof FeedParams]?: FeedParams[K] | undefined };
 
-// In the order they appear in a link.
-const KEYS = ['q', 'category', 'tag', 'model', 'kind'] as const;
+// In the order they appear in a link; the Tags come after the Category.
+const KEYS = ['q', 'category', 'model', 'kind'] as const;
 
 /** The feed parameters in a URL: trimmed, empty ones dropped, a page only when it is a whole number above 1. */
 export function feedParams(search: URLSearchParams): FeedParams {
@@ -26,6 +30,8 @@ export function feedParams(search: URLSearchParams): FeedParams {
     const value = search.get(key)?.trim();
     if (value) params[key] = value;
   }
+  const tags = [...new Set(search.getAll('tag').map(tag => tag.trim()).filter(Boolean))];
+  if (tags.length > 0) params.tags = tags;
   const page = search.get('page') ?? '';
   if (/^\d+$/.test(page) && Number(page) > 1) params.page = Number(page);
   return params;
@@ -39,7 +45,10 @@ export function feedHref(current: FeedChange, change: FeedChange): string {
   const next: FeedChange = { ...current, ...change };
   if (!('page' in change)) delete next.page;
   const search = new URLSearchParams();
-  for (const key of KEYS) if (next[key]) search.set(key, next[key]);
+  for (const key of KEYS) {
+    if (next[key]) search.set(key, next[key]);
+    if (key === 'category') for (const tag of next.tags ?? []) search.append('tag', tag);
+  }
   if (next.page && next.page > 1) search.set('page', String(next.page));
   const query = search.toString();
   return query ? `/?${query}` : '/';

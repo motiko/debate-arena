@@ -26,7 +26,7 @@ const { category, tags, labelled = false } = Astro.props;
       )}
       {tags.map(tag => (
         <li>
-          <a class="tag" href={feedHref({}, { tag })}>
+          <a class="tag" href={feedHref({}, { tags: [tag] })}>
             {tag}
           </a>
         </li>
