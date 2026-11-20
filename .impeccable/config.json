@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "apps/web/src/components/FeedFilters.astro"
+        ],
+        "createdAt": "2026-11-20T11:16:37.774Z",
+        "reason": "Claude's judgment: the 3px brass top border is the app's established panel motif, the same one .account-panel uses in global.css"
+      }
+    ]
+  }
+}
