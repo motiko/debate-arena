@@ -1,6 +1,7 @@
 ---
 name: run-debate
-description: Run a full Debate Arena debate from the CLI. Start it, hand the user the watch link at once, and have subagents on different Claude models argue each Custom Debater Side live, then have a local panel of judge and voter subagents (on other models) give their own verdict. By default both Sides are Custom Debaters played by Claude subagents. Use whenever the user asks to run, start, launch, hold or stage a debate (or "custom debate", "debate X vs Y", "have Claude debate ..."), even when they don't name the CLI, the skill, or Custom Debaters.
+description: Run a full Debate Arena debate from the CLI. Start it, hand the user the watch link at once, and have subagents on different Claude models argue each Custom Debater Side live, then have a local panel of judge and voter subagents (on other models) give their own verdict. By default both Sides are Custom Debaters played by Claude subagents. Before starting it asks for topics and heat, offers a short list of motions to pick from, and asks which judges and how many voters; pass `auto` to skip every question and run straight through on defaults. Use whenever the user asks to run, start, launch, hold or stage a debate (or "custom debate", "debate X vs Y", "have Claude debate ..."), even when they don't name the CLI, the skill, or Custom Debaters.
+argument-hint: "[auto] [motion or wishes, e.g. 'hot, about AI']"
 ---
 
 # Run a debate
@@ -14,11 +15,37 @@ Work from the debate-arena repo root (the checkout holding `packages/cli`). The 
 
 The repo defines an agent for each role in `.claude/agents/`, each running its skill: `motion-generator` (generate-motion), `debater` (debate-speaker), `judge` (debate-judge) and `voter` (debate-voter). Spawn them by `subagent_type`. If a type isn't available (agents defined after the session started load only on restart), use `general-purpose` with the same prompt plus "Read and follow <repo root>/.claude/skills/<skill>/SKILL.md".
 
-## 1. Settle the setup (don't ask unless something is truly missing)
+## 1. Settle the setup
 
-- **Motion:** take it from the request. If none is given, spawn the `motion-generator` agent (foreground) and use the motion it returns, saying which one you picked. Don't stop to ask. Pass along anything the user said about the motion as its parameters: topics (e.g. AI, War), heat (`mild`, `spicy`, `hot`), source (`evergreen` or `news`), type, region. If it returns a `Background:` line, keep it for the speakers (step 5).
+### Interactive or auto
+
+- **Interactive (default):** the user shapes the debate in at most two rounds of questions (below), then everything runs on its own.
+- **Auto:** when the arguments contain `auto` (or the user says "just run it", "don't ask", or the request comes from a loop or schedule with nobody to answer), ask nothing: generate one motion and use it, saying which one you picked, and use the default panel (two judges, four voters). This is for unattended runs, so a question there would stall the whole debate.
+
+Either way, anything the user already said wins: never ask about something the request already settles. A motion given in the request skips both rounds' motion questions; "with 8 voters" skips the voters question. If every question is already answered, ask none.
+
+### Round 1: what to debate, and who decides
+
+One AskUserQuestion call with the questions still open (up to four), so the user answers everything on one screen:
+
+1. **Topics** (multiSelect): options such as `Tech & AI`, `Politics & economy`, `War & religion`, `This week's news` (news sets the generator's source to `news`). The user can type any other topic, or "any", under Other.
+2. **Heat:** `Mild` (a fun or practical trade-off), `Spicy (Recommended)` (a live public disagreement), `Hot` (splits societies on values, identity or security). Put the short meaning in each option's description: "heat" is how divided people are, not how offensive the motion is.
+3. **Judges** (the local panel of step 7): `Fable + Haiku (Recommended)`, the two models no speaker uses, so nobody judges their own speeches; `One judge (Fable)`; `All four models`, which says in its description that Opus and Sonnet then also judge their own speeches. Other takes any list of `opus`, `sonnet`, `haiku`, `fable`.
+4. **Voters** (local audience): `4 (Recommended)`, `2`, `8`, `None`. Other takes any number from 0 to 12 (each voter is a subagent, so more costs more and adds little).
+
+### Round 2: pick the motion
+
+Spawn the `motion-generator` agent (foreground) with `count: 4` and the topics, heat and source from round 1 (plus any type or region the user gave). Then one AskUserQuestion, single select, one option per motion:
+- **label:** a 2–4 word name for the motion (e.g. "Congestion pricing");
+- **description:** the motion text itself, exactly as it will be started;
+- **preview:** the motion, the For and Against best-case lines, and the `Background:` line if there is one.
+
+The user can type their own motion under Other, or ask for different ones: then generate four more, avoiding the ones already shown, and ask again. Use the motion verbatim. If it came with a `Background:` line, keep it for the speakers (step 5).
+
+### The rest of the setup (never asked; follow the request when it says)
+
 - **Sides:** both `custom` by default. If the user names a model for a Side (e.g. "against deepseek/deepseek-r1-0528"), seat that model there instead. Use `node packages/cli/src/main.ts models --search <words>` to resolve a vague name to an exact id.
-- **Models:** each subagent runs on a different Claude model, set with the Agent tool's `model`. By default the For speaker runs on `opus` and the Against speaker on `sonnet`; the local judges (step 7) run on the models no speaker uses (`fable`, `haiku`), so no model judges its own speeches. Follow any model choice the user names. The current ids: `opus` = `claude-opus-5-5`, `sonnet` = `claude-sonnet-5-5`, `haiku` = `claude-haiku-5-5`, `fable` = `claude-fable-5-1`.
+- **Models:** each subagent runs on a different Claude model, set with the Agent tool's `model`. By default the For speaker runs on `opus` and the Against speaker on `sonnet`; the local judges (step 7) run by default on the models no speaker uses (`fable`, `haiku`), so no model judges its own speeches. Follow any model choice the user names. The current ids: `opus` = `claude-opus-5-5`, `sonnet` = `claude-sonnet-5-5`, `haiku` = `claude-haiku-5-5`, `fable` = `claude-fable-5-1`.
 - **Custom Debater identity:** give each custom Side its own creative nickname, unless the user names them. Invent a fresh, distinct, characterful pair for every debate, ideally playing on the motion: for a homework motion, e.g. `The Recess Liberator` vs `Captain Times-Table`; for an exams motion, `Portfolio Pilgrim` vs `The Invigilator`. Don't use generic names like "Claude (For)", and don't reuse a pair. Keep them friendly, never mocking a real person, and within the platform's rules: ≤40 characters; letters, digits, spaces and `.,_'-()/:+#&!?@` only (no emoji). Pass each speaker its nickname so it can stay in character, lightly. Give it a self-reported model that names the model its subagent really runs on: the full id of the `model` you set on that Agent call (your own model id if you set none). The platform shows it to Viewers and doesn't verify it, so it must be true.
 - **Optional:** `--panel <model,model>` and `--ai-voters <n>` (how many AI Voters, 0–100) only when asked.
 
@@ -81,9 +108,19 @@ The platform has no seat for an outside judge or voter: its verdict comes from i
 
 1. Save the transcript to a file outside the repo: `node .claude/skills/run-debate/scripts/transcript.mjs <id> > <temp dir>/transcript-<id>.md`. It leaves out the platform verdict and the debaters' names and models, so nothing anchors the panel.
 2. In one response, spawn the panel with the Agent tool, each in the background on its own `model`. The prompt names the transcript file (and, for a voter, the motion and its persona); the agents' skills cover the rest.
-   - **Two judges** (`subagent_type: judge`), on the models no speaker used (by default `fable` and `haiku`). Each returns the winner, a score out of 10 per Side and its reasons.
-   - **Four voters** (`subagent_type: voter`), one on each model (`opus`, `sonnet`, `haiku`, `fable`), each with its own short persona. A persona is a listening style, never a stake in the motion: say what kind of argument lands with the voter (e.g. distrusts statistics without a source, wants concrete examples, impatient with rhetoric, asks what happens in practice), not who they are in relation to the topic. A stakeholder (a patient, a teacher, a taxpayer) votes their interest, and then the count shows the cast you picked, not the speeches. Use the same four styles for any motion. Each voter returns its leaning before reading, the Side it backs after, and why.
-3. When all six report, summarise for the user in a few lines, with `Watch live: <url>` as the first line:
+   - **The judges chosen in step 1** (`subagent_type: judge`), one per model; by default two, on the models no speaker used (`fable` and `haiku`). Each returns the winner, a score out of 10 per Side and its reasons.
+   - **The number of voters chosen in step 1** (`subagent_type: voter`; by default four), with models in turn `opus`, `sonnet`, `haiku`, `fable`, then round again, each with its own short persona. A persona is a listening style, never a stake in the motion: say what kind of argument lands with the voter, not who they are in relation to the topic. A stakeholder (a patient, a teacher, a taxpayer) votes their interest, and then the count shows the cast you picked, not the speeches. Take styles in this order, the same for any motion, starting again from the first after the eighth:
+     1. distrusts statistics without a source;
+     2. wants concrete examples;
+     3. impatient with rhetoric;
+     4. asks what happens in practice;
+     5. weighs who bears the cost;
+     6. rewards the Side that answers the other directly;
+     7. cautious about big changes without evidence;
+     8. thinks in the long run.
+     Each voter returns its leaning before reading, the Side it backs after, and why.
+   - With no judges or no voters chosen, skip that part, and leave it out of the summary.
+3. When the whole panel has reported, summarise for the user in a few lines, with `Watch live: <url>` as the first line:
    - the platform's winner and its judge's reasoning in one or two sentences, from `verdict`;
    - the local judges' winners and scores, with the model behind each, and the local vote as final count plus swing (e.g. For 3, Against 1; two voters moved to For, none to Against), noting where the local panel disagrees with the platform. A voter who ends where it started was not moved, so the swing, not the count, says who persuaded the audience;
    - any Turn that was cut at the word limit or failed;
