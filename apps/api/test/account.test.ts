@@ -16,7 +16,7 @@ async function startAndVote(headers: Headers) {
   });
   const { id } = (await res.json()) as { id: string };
   for (let i = 0; i < 6; i++) await appendTurn(env.DB, id, i, turnAt(i));
-  await saveVerdict(env.DB, id, { winner: 'for', reasoning: 'r', scores: [], judges: ['fake-c/one'] });
+  await saveVerdict(env.DB, id, { winner: 'for', reasoning: 'r', scores: [], judges: ['fake-c/one'], confidence: null, crux: '', claims: [], ballots: [] });
   await completeDebate(env.DB, id, null, new Date().toISOString());
   for (const phase of ['before', 'after']) {
     await exports.default.fetch(`${base}/debates/${id}/votes`, { method: 'POST', headers: h, body: JSON.stringify({ phase, stance: 'for' }) });
@@ -54,7 +54,7 @@ test('export includes sessions, linked accounts and Quota usage, without secrets
   expect(data.accounts).toEqual([expect.objectContaining({ provider: 'github', accountId: `gh-${userId}` })]);
   expect(JSON.stringify(data.accounts)).not.toMatch(/accessToken|gho_/);
   // A fake Debate reserves 47 816 micro-USD: 4 Quota points.
-  expect(data.quota).toEqual([expect.objectContaining({ points: 4 })]);
+  expect(data.quota).toEqual([expect.objectContaining({ points: 5 })]);
 });
 
 test('the export lists API tokens without secrets', async () => {

@@ -56,8 +56,15 @@ function publicView(d: DebateRecord) {
     turns: d.turns,
     // The API slot the Debate waits for, and until when (null when it is not waiting).
     awaiting: awaitingOf(d),
-    // Verdicts stored before the Judge gave Rubric Scores have none to list.
-    verdict: d.verdict && { ...d.verdict, scores: d.verdict.scores ?? [] },
+    // Verdicts stored before Rubric Scores have none to list; before ADR 0008, no confidence, crux, claims or Ballots.
+    verdict: d.verdict && {
+      ...d.verdict,
+      scores: d.verdict.scores ?? [],
+      confidence: d.verdict.confidence ?? null,
+      crux: d.verdict.crux ?? '',
+      claims: d.verdict.claims ?? [],
+      ballots: d.verdict.ballots ?? [],
+    },
     // Results stored before AI Voters' votes were kept have none to list.
     aiAudience: d.aiAudience && { ...d.aiAudience, votes: d.aiAudience.votes ?? [] },
     createdAt: d.createdAt,

@@ -11,10 +11,10 @@ function aiModels(debaters: Debater[]): ModelId[] {
 
 /**
  * Suggests a Panel of `size` Judges (one or three; ADR 0008), each from a different model family where it can,
- * preferring families no AI Debater uses and never seating a Debater's own model unless nothing else fits.
- * Fewer candidates than `size` suggests one Judge.
+ * preferring families no AI Debater uses. A three-Judge Panel never seats a Debater's own model: when three others
+ * cannot be found, one Judge is suggested (who may be a Debater's model only if nothing else fits).
  */
-export function suggestPanel(debaters: Debater[], candidates: ModelId[], size: 1 | 3 = 3): ModelId[] {
+export function suggestPanel(debaters: Debater[], candidates: ModelId[], size: 1 | 3 = 1): ModelId[] {
   const first = candidates[0];
   if (first === undefined) throw new InvalidPanelError('No candidate Judges');
   const models = aiModels(debaters);
@@ -41,8 +41,8 @@ export function suggestPanel(debaters: Debater[], candidates: ModelId[], size: 1
   take(c => !families.has(modelFamily(c)) && !seated.has(modelFamily(c)));
   take(c => !models.includes(c) && !seated.has(modelFamily(c)));
   take(c => !models.includes(c));
-  take(() => true);
-  return panel;
+  // Rather than seat a Debater's own model on a three-Judge Panel, seat the one best Judge.
+  return panel.length === size ? panel : panel.slice(0, 1);
 }
 
 export function isSelfJudging(panel: ModelId[], debaters: Debater[]): boolean {

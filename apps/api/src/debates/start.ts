@@ -40,7 +40,8 @@ export type SeatInput = ModelId | { kind: 'api' | 'custom'; name?: unknown; mode
 export interface StartDebateInput {
   motion: string;
   debaters: { for: SeatInput; against: SeatInput };
-  panel?: ModelId[];
+  /** The Judges, or 1 or 3 for that many suggested by the platform (ADR 0008). Default: one suggested Judge. */
+  panel?: ModelId[] | 1 | 3;
   /** How many AI Voters (0 for none). The body may also say true (AI_VOTER_COUNT) or false. */
   aiVoters: number;
   batch: boolean;
@@ -100,7 +101,7 @@ function parseInput(input: unknown): StartDebateInput | string {
     return 'debaters must name a model (or "custom") for each Side: { "for": "...", "against": "..." }, '
       + 'or a Custom Debater with a nickname and model: { "kind": "custom", "name": "...", "model": "..." }';
   }
-  if (panel !== undefined && (!Array.isArray(panel) || !panel.every(isString))) return 'panel must be a list of model ids';
+  if (panel !== undefined && panel !== 1 && panel !== 3 && (!Array.isArray(panel) || !panel.every(isString))) return 'panel must be a list of model ids, 1 or 3';
   const voterCount = aiVoters === true ? AI_VOTER_COUNT : aiVoters === false || aiVoters === undefined ? 0 : aiVoters;
   if (typeof voterCount !== 'number' || !Number.isInteger(voterCount) || voterCount < 0 || voterCount > MAX_AI_VOTERS) {
     return `aiVoters must be true, false or a whole number from 0 to ${MAX_AI_VOTERS}`;
@@ -160,15 +161,16 @@ export function planDebate(deps: Pick<StartDeps, 'catalog' | 'unlimitedQuota'>, 
   const slowAvailable = [forSeat, againstSeat].every(d => d.kind === 'ai' && isBatchCapable(deps.catalog, d.model));
 
   let panel: ModelId[];
-  if (parsed.panel) {
-    if (parsed.panel.length !== 1) return bad('A Panel must hold exactly one Judge');
+  if (Array.isArray(parsed.panel)) {
+    if (parsed.panel.length !== 1 && parsed.panel.length !== 3) return bad('A Panel must hold one or three Judges');
+    if (new Set(parsed.panel).size !== parsed.panel.length) return bad('A Panel must not seat the same Judge twice');
     for (const judge of parsed.panel) {
       if (!hasRole(deps.catalog, judge, 'judge')) return bad(`Model ${judge} cannot be a Judge`);
       if (!usable(judge)) return bad(`Model ${judge} cannot take part in a Slow Debate`);
     }
     panel = parsed.panel;
   } else {
-    panel = suggestPanel([debaters.for, debaters.against], suggestedJudges(catalog));
+    panel = suggestPanel([debaters.for, debaters.against], suggestedJudges(catalog), parsed.panel ?? 1);
   }
 
   const setup: DebateSetup = { motion: { text: motion }, format: CLASSIC_FORMAT, debaters, panel };

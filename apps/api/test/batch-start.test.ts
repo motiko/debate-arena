@@ -40,9 +40,9 @@ test('batch-capable models are marked and priced at their batch price', () => {
 
 test('a Batch Debate costs fewer Quota points, as its Budget is at batch prices', async () => {
   const member = uniqueId('m');
-  // Live 4 points, batch 3 (25 971 micro-USD): 3 × 4 + 4 × 3 = 24.
+  // Live 5 points, batch 3: 3 × 5 + 3 × 3 = 24.
   for (let i = 0; i < 3; i++) expect((await startDebate(makeDeps(), member, valid)).ok).toBe(true);
-  for (let i = 0; i < 4; i++) expect((await startDebate(makeDeps(), member, batch)).ok).toBe(true);
+  for (let i = 0; i < 3; i++) expect((await startDebate(makeDeps(), member, batch)).ok).toBe(true);
   expect(await quotaRemaining(env.DB, member, now)).toBe(0);
   expect((await startDebate(makeDeps(), member, batch)).ok).toBe(false);
 });
@@ -53,7 +53,7 @@ test('a Batch Debate is stored as one', async () => {
   expect(await getDebate(env.DB, r.id)).toMatchObject({ kind: 'batch', quotaPoints: 3 });
   const live = await startDebate(makeDeps(), uniqueId('m'), valid);
   if (!live.ok) throw new Error(live.error);
-  expect(await getDebate(env.DB, live.id)).toMatchObject({ kind: 'live', quotaPoints: 4 });
+  expect(await getDebate(env.DB, live.id)).toMatchObject({ kind: 'live', quotaPoints: 5 });
 });
 
 test('a Batch Debate refuses a model without batch', async () => {

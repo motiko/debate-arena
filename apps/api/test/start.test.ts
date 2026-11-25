@@ -34,9 +34,9 @@ test('starts a Debate: suggested Panel, Budget reserved, Quota spent, one job qu
   expect(r.panel).toEqual(['fake-c/one']);
   expect(r.selfJudging).toBe(false);
   expect(jobs).toEqual([{ debateId: r.id }]);
-  expect(await quotaRemaining(env.DB, member, now)).toBe(20);
+  expect(await quotaRemaining(env.DB, member, now)).toBe(19);
   const stored = await getDebate(env.DB, r.id);
-  expect(stored).toMatchObject({ memberId: member, status: 'running', quotaPoints: 4, aiVoters: [] });
+  expect(stored).toMatchObject({ memberId: member, status: 'running', quotaPoints: 5, aiVoters: [] });
   expect(stored?.budgetReservedMicroUsd).toBe(r.budgetReservedMicroUsd);
   expect(r.budgetReservedMicroUsd).toBeGreaterThan(0);
 });
@@ -76,7 +76,7 @@ test('rejects models outside the catalog or role', async () => {
 
 test('rejects a Panel of two Judges', async () => {
   const r = await startDebate(makeDeps().deps, uniqueId('m'), { ...valid, panel: ['fake-c/one', 'fake-d/one'] });
-  expect(r).toEqual({ ok: false, status: 400, error: 'A Panel must hold exactly one Judge' });
+  expect(r).toEqual({ ok: false, status: 400, error: 'A Panel must hold one or three Judges' });
 });
 
 test('an explicit same-model Judge is allowed and flagged as Self-Judging', async () => {
@@ -106,10 +106,10 @@ test('the Budget reserved at start covers screening and labelling the Motion', a
 test('a Debate beyond the day\'s Quota is refused with 429', async () => {
   const { deps, jobs } = makeDeps();
   const member = uniqueId('m');
-  // 4 points each: six fit in 24.
-  for (let i = 0; i < 6; i++) expect((await startDebate(deps, member, valid)).ok).toBe(true);
+  // 5 points each: four fit in 24.
+  for (let i = 0; i < 4; i++) expect((await startDebate(deps, member, valid)).ok).toBe(true);
   expect(await startDebate(deps, member, valid)).toEqual({ ok: false, status: 429, error: 'Daily Debate limit reached' });
-  expect(jobs).toHaveLength(6);
+  expect(jobs).toHaveLength(4);
 });
 
 test('a failed enqueue refunds the Quota and fails the Debate', async () => {

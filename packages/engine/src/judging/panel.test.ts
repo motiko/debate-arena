@@ -9,8 +9,8 @@ test('model family is the provider prefix', () => {
   expect(modelFamily('anthropic/claude-sonnet-5-5')).toBe('anthropic');
 });
 
-test('a one-Judge Panel takes a Judge from another family', () => {
-  expect(suggestPanel([ai('anthropic/a'), ai('openai/b')], ['anthropic/j', 'openai/j', 'google/j'], 1)).toEqual(['google/j']);
+test('a Panel takes one Judge by default, a Judge from another family', () => {
+  expect(suggestPanel([ai('anthropic/a'), ai('openai/b')], ['anthropic/j', 'openai/j', 'google/j'])).toEqual(['google/j']);
 });
 
 test('falls back to a different model of the same family', () => {
@@ -23,19 +23,23 @@ test('falls back to the first candidate when nothing else fits', () => {
 
 test('suggests three Judges from three families, preferring families no Debater uses', () => {
   const candidates = ['anthropic/j', 'google/j', 'google/k', 'openai/j', 'mistral/j', 'qwen/j'];
-  expect(suggestPanel([ai('anthropic/a'), ai('openai/b')], candidates)).toEqual(['google/j', 'mistral/j', 'qwen/j']);
+  expect(suggestPanel([ai('anthropic/a'), ai('openai/b')], candidates, 3)).toEqual(['google/j', 'mistral/j', 'qwen/j']);
 });
 
 test('fills a three-Judge Panel from Debater families when too few others exist, never with a Debater', () => {
-  expect(suggestPanel([ai('anthropic/a'), ai('openai/b')], ['anthropic/a', 'anthropic/j', 'openai/j', 'google/j'])).toEqual(['google/j', 'anthropic/j', 'openai/j']);
+  expect(suggestPanel([ai('anthropic/a'), ai('openai/b')], ['anthropic/a', 'anthropic/j', 'openai/j', 'google/j'], 3)).toEqual(['google/j', 'anthropic/j', 'openai/j']);
+});
+
+test('suggests one Judge rather than seat a Debater on a three-Judge Panel', () => {
+  expect(suggestPanel([ai('a/1'), ai('b/1')], ['a/1', 'b/1', 'c/1', 'd/1'], 3)).toEqual(['c/1']);
 });
 
 test('suggests one Judge when fewer than three candidates exist', () => {
-  expect(suggestPanel([ai('anthropic/a')], ['google/j', 'openai/j'])).toEqual(['google/j']);
+  expect(suggestPanel([ai('anthropic/a')], ['google/j', 'openai/j'], 3)).toEqual(['google/j']);
 });
 
 test('a three-Judge Panel of Custom Debaters takes three families', () => {
-  expect(suggestPanel([{ kind: 'api' }, { kind: 'api' }], ['a/1', 'a/2', 'b/1', 'c/1'])).toEqual(['a/1', 'b/1', 'c/1']);
+  expect(suggestPanel([{ kind: 'api' }, { kind: 'api' }], ['a/1', 'a/2', 'b/1', 'c/1'], 3)).toEqual(['a/1', 'b/1', 'c/1']);
 });
 
 test('an empty candidate list is an error', () => {
