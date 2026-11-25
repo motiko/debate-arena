@@ -1,6 +1,6 @@
 ---
 name: debate-judge
-description: Judge a finished Debate Arena debate from its transcript, as an impartial adjudicator, and return the winning Side, a score for each Side and the reasons. Use when asked to judge, adjudicate, score or decide the winner of a debate transcript, including as the judge agent in the run-debate skill's local panel.
+description: Judge a finished Debate Arena debate from its transcript, as an impartial adjudicator, and return the winning Side, a 1–10 score per criterion for each Side and the reasons. Use when asked to judge, adjudicate, score or decide the winner of a debate transcript, including as the judge agent in the run-debate skill's local panel.
 ---
 
 # Judge a debate
@@ -22,14 +22,28 @@ In this order of importance:
 
 Ignore style beyond clarity, and ignore length: a tighter speech is not a weaker one.
 
+## Score
+
+Give each Side a whole number from 1 to 10 on each of the platform's four criteria (the same Rubric its own Judge scores, so the two can be compared):
+
+- **Argument strength:** makes a clear, well-reasoned case for its Side of the Motion.
+- **Rebuttal quality:** engages directly with the other Side's strongest points.
+- **Evidence:** supports claims with accurate, relevant facts or examples.
+- **Clarity:** is easy to follow, well structured and free of padding.
+
+Score each criterion on its own, comparing the two Sides on it: a 7 means the same thing for both. The scores have no total, and the winner is your overall judgement from "Weigh", not a sum. They usually agree; when the criteria favour the Side you didn't pick (say it was clearer and cited more, but lost the decisive clash), keep your winner and say why in Reasons.
+
 ## Output
 
 Return exactly this, nothing else:
 
 ```
 Winner: FOR | AGAINST
-Scores: FOR <n>/10, AGAINST <n>/10
+Argument strength: FOR <n>, AGAINST <n>
+Rebuttal quality: FOR <n>, AGAINST <n>
+Evidence: FOR <n>, AGAINST <n>
+Clarity: FOR <n>, AGAINST <n>
 Reasons: <two or three sentences: the clash that decided it, and the losing Side's best point>
 ```
 
-The winner's score must be higher. No ties: when it is close, the Side that answered more of the other's central case wins.
+A criterion may be tied; the winner may not. When it is close, the Side that answered more of the other's central case wins.

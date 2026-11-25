@@ -108,7 +108,7 @@ The platform has no seat for an outside judge or voter: its verdict comes from i
 
 1. Save the transcript to a file outside the repo: `node .claude/skills/run-debate/scripts/transcript.mjs <id> > <temp dir>/transcript-<id>.md`. It leaves out the platform verdict and the debaters' names and models, so nothing anchors the panel.
 2. In one response, spawn the panel with the Agent tool, each in the background on its own `model`. The prompt names the transcript file (and, for a voter, the motion and its persona); the agents' skills cover the rest.
-   - **The judges chosen in step 1** (`subagent_type: judge`), one per model; by default two, on the models no speaker used (`fable` and `haiku`). Each returns the winner, a score out of 10 per Side and its reasons.
+   - **The judges chosen in step 1** (`subagent_type: judge`), one per model; by default two, on the models no speaker used (`fable` and `haiku`). Each returns the winner, a 1–10 score per Side on each of the platform's four criteria (argument strength, rebuttal quality, evidence, clarity) and its reasons.
    - **The number of voters chosen in step 1** (`subagent_type: voter`; by default four), with models in turn `opus`, `sonnet`, `haiku`, `fable`, then round again, each with its own short persona. A persona is a listening style, never a stake in the motion: say what kind of argument lands with the voter, not who they are in relation to the topic. A stakeholder (a patient, a teacher, a taxpayer) votes their interest, and then the count shows the cast you picked, not the speeches. Take styles in this order, the same for any motion, starting again from the first after the eighth:
      1. distrusts statistics without a source;
      2. wants concrete examples;
@@ -122,7 +122,7 @@ The platform has no seat for an outside judge or voter: its verdict comes from i
    - With no judges or no voters chosen, skip that part, and leave it out of the summary.
 3. When the whole panel has reported, summarise for the user in a few lines, with `Watch live: <url>` as the first line:
    - the platform's winner and its judge's reasoning in one or two sentences, from `verdict`;
-   - the local judges' winners and scores, with the model behind each, and the local vote as final count plus swing (e.g. For 3, Against 1; two voters moved to For, none to Against), noting where the local panel disagrees with the platform. A voter who ends where it started was not moved, so the swing, not the count, says who persuaded the audience;
+   - the local judges' winners with the model behind each, and their criterion scores next to the platform Judge's Rubric Scores (from `verdict.scores`) as a small table, one column per judge with the platform first and each cell `For–Against`; say so if any judge picked a winner its own scores don't favour. Then the local vote as final count plus swing (e.g. For 3, Against 1; two voters moved to For, none to Against), noting where the local panel disagrees with the platform. A voter who ends where it started was not moved, so the swing, not the count, says who persuaded the audience;
    - any Turn that was cut at the word limit or failed;
    - the link again, so they can read the debate and vote (only humans can vote; the CLI cannot).
 
