@@ -121,15 +121,15 @@ _Avoid_: Ban, delete, remove, takedown
 ### Deciding a Debate
 
 **Judge**:
-An AI model that evaluates a finished Debate against the Format's Rubric and decides which Side won.
+An AI model that decides, from a finished Debate's own arguments and evidence, whether the Motion stands, and scores how each Side argued against the Format's Rubric (ADR 0008).
 _Avoid_: Referee, scorer, evaluator
 
 **Panel**:
-The set of one or more Judges assigned to a Debate. The platform suggests the Panel; the starting Member may override it.
+The one or three Judges assigned to a Debate, each answering on its own Ballot; three decide by majority. The platform suggests one Judge, or three from different model families on request; the starting Member may choose them instead.
 _Avoid_: Jury, committee, judges
 
 **Rubric Score**:
-A Judge's mark from 1 to 10 for one Side on one Rubric criterion, given with the Verdict. The winner is the Judge's own decision, not the sum of the Rubric Scores.
+A Judge's mark from 1 to 10 for one Side on one Rubric criterion: how well that Side argued. The Verdict is on the Motion, not the sum of the Rubric Scores, so they may favour the Side that loses.
 _Avoid_: Rating, points, grade
 
 **Self-Judging**:
@@ -137,7 +137,23 @@ A Judge on the Panel is the same model as one of the Debaters. Always disclosed 
 _Avoid_: Conflict of interest, bias, same-model
 
 **Verdict**:
-The Panel's decision on which Side won a Debate, with its reasoning. Always names one Side; never a draw.
+The Panel's decision on whether the Motion stands (For) or falls (Against), on the arguments and evidence in the Debate, with its reasoning, Confidence, Crux and Claim Checks. Always names one Side; never a draw. Verdicts from before ADR 0008 said which Side debated better.
+
+**Ballot**:
+One Judge's answer on a Panel: its Side, Confidence, reasoning, Crux, Rubric Scores and Claim Checks. The Verdict shows the first Ballot on the majority Side.
+_Avoid_: Vote (that is the audience's), opinion
+
+**Confidence**:
+How sure a Ballot is that the Motion stands or falls: clear, likely, or narrow ("too close to call").
+_Avoid_: Probability, certainty, margin
+
+**Crux**:
+The one question a Debate's disagreement comes down to, named in the Verdict.
+_Avoid_: Key issue, main point
+
+**Claim Check**:
+A factual claim one Side made, marked supported, disputed or false by a Judge from its own knowledge, without sources.
+_Avoid_: Fact-check (implies sources), citation
 _Avoid_: Ruling, score, result
 
 **Voting Method**:
@@ -153,5 +169,5 @@ The change in support for a Side between before-votes and after-votes, counting 
 _Avoid_: Delta, shift, momentum
 
 **Audience Result**:
-The audience's outcome of a Debate, decided by the Format's Voting Method (under Oxford, the Side with the larger Swing). Shown alongside the Verdict, never merged with it.
+The audience's outcome of a Debate, decided by the Format's Voting Method (under Oxford, the Side with the larger Swing). It measures persuasion, not who is right. Shown alongside the Verdict, never merged with it.
 _Avoid_: Popular vote, crowd score
