@@ -26,7 +26,7 @@ export const USAGE = `Usage: debate <command> [options]
 
 Commands:
   start <motion> --for <model|custom> --against <model|custom>
-      [--panel <model,model>] [--ai-voters <n>] [--batch] [--detach] [--json]
+      [--panel <model,model,model> | 3] [--ai-voters <n>] [--batch] [--detach] [--json]
                                                    Start a Debate and follow it live; "custom" seats a
                                                    Custom Debater whose Turns you send with speak;
                                                    --ai-voters: how many AI Voters (0–100)
@@ -135,14 +135,17 @@ async function start(ctx: Context, positionals: string[], values: Values): Promi
   if (voters !== undefined && !/^\d+$/.test(voters)) return usageError(ctx);
   const debaters = { for: seat(ctx, 'for', values), against: seat(ctx, 'against', values) };
   const client = memberClient(ctx);
-  const panel = values.panel
-    ?.split(',')
-    .map(model => model.trim())
-    .filter(Boolean);
+  // "--panel 3" (or 1) asks the platform to suggest that many Judges; otherwise it names them.
+  const panel = values.panel === '3' || values.panel === '1'
+    ? Number(values.panel)
+    : values.panel
+        ?.split(',')
+        .map(model => model.trim())
+        .filter(Boolean);
   const body = {
     motion,
     debaters,
-    ...(panel?.length ? { panel } : {}),
+    ...(typeof panel === 'number' || panel?.length ? { panel } : {}),
     aiVoters: voters === undefined ? false : Number(voters),
     batch: values.batch ?? false,
   };

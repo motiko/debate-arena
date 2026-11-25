@@ -35,11 +35,27 @@ export function renderTurn(debate: PublicDebate, turn: Turn): string {
   return `${turnHeader(debate, turn)}\n${turn.text}${turn.truncated ? ' (cut at the word limit)' : ''}\n`;
 }
 
-/** The winner, the Judge's Rubric Scores (one line per criterion) and the reasoning. */
+const CONFIDENCE_LABEL = { clear: 'clear', likely: 'likely', narrow: 'too close to call' } as const;
+
+/**
+ * Whether the Motion stands, how sure, and the Panel's split (ADR 0008); then the crux, the Judge's Rubric Scores
+ * (one line per criterion), the reasoning and the checked claims. A Verdict from before ADR 0008, or from a server
+ * that sends none of this, prints as "<Side> wins".
+ */
 export function renderVerdict(verdict: NonNullable<PublicDebate['verdict']>): string {
-  // A server from before Rubric Scores sends none.
+  // A server from before Rubric Scores sends none; one from before ADR 0008, no confidence, crux, claims or Ballots.
   const scores = (verdict.scores ?? []).map(s => `  ${s.criterion}: For ${s.for} · Against ${s.against}\n`).join('');
-  return `Verdict: ${SIDE_LABEL[verdict.winner]} wins (${verdict.judges.join(', ')})\n${scores}${verdict.reasoning}\n`;
+  const judges = verdict.judges.join(', ');
+  if (!verdict.confidence) return `Verdict: ${SIDE_LABEL[verdict.winner]} wins (${judges})\n${scores}${verdict.reasoning}\n`;
+  const ballots = verdict.ballots ?? [];
+  const split = ballots.length > 1
+    ? ` · Panel ${ballots.filter(b => b.winner === 'for').length}–${ballots.filter(b => b.winner === 'against').length}`
+    : '';
+  const motion = verdict.winner === 'for' ? 'stands' : 'falls';
+  const head = `Verdict: the Motion ${motion} (${SIDE_LABEL[verdict.winner]}), ${CONFIDENCE_LABEL[verdict.confidence]}${split} (${judges})\n`;
+  const crux = verdict.crux ? `Crux: ${verdict.crux}\n` : '';
+  const claims = (verdict.claims ?? []).map(c => `  [${c.status}] ${SIDE_LABEL[c.side]}: ${c.claim}${c.note ? ` — ${c.note}` : ''}\n`).join('');
+  return `${head}${crux}${scores}${verdict.reasoning}\n${claims}`;
 }
 
 const STANCE_LABEL: Record<AiAudience['votes'][number]['before'], string> = { ...SIDE_LABEL, undecided: 'Undecided' };
