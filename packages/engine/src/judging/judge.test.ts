@@ -220,3 +220,32 @@ test('the Verdict carries the Judge\'s Ballot', async () => {
   expect(verdict).toMatchObject({ winner: 'for', confidence: 'likely', crux: 'k', claims: [] });
   expect(verdict.ballots).toEqual([{ judge: 'c/judge', winner: 'for', confidence: 'likely', reasoning: 'r', crux: 'k', claims: [], scores: NAMES.map(criterion => ({ criterion, for: 7, against: 6 })) }]);
 });
+
+// A Panel of three (ADR 0008): the majority decides; the lead Ballot is the first on the majority Side.
+
+const three = { ...setup, panel: ['a/judge', 'b/judge', 'c/judge'] };
+const byJudge = (replies: Record<string, string>) => new FakeModelClient(r => replies[r.model] ?? '');
+
+test('three Judges decide by majority, with the first majority Ballot leading', async () => {
+  const client = byJudge({ 'a/judge': full({ winner: 'against', reasoning: 'A' }), 'b/judge': full({ reasoning: 'B', confidence: 'clear' }), 'c/judge': full({ reasoning: 'C' }) });
+  const verdict = await judgeDebate(three, sixTurns, client);
+  expect(verdict).toMatchObject({ winner: 'for', reasoning: 'B', confidence: 'clear', judges: three.panel });
+  expect(verdict.ballots.map(b => [b.judge, b.winner])).toEqual([['a/judge', 'against'], ['b/judge', 'for'], ['c/judge', 'for']]);
+});
+
+test('a Judge that fails is left out, and the others decide', async () => {
+  const client = byJudge({ 'a/judge': 'nonsense', 'b/judge': full({ winner: 'against', reasoning: 'B' }), 'c/judge': full({ winner: 'against', reasoning: 'C' }) });
+  const verdict = await judgeDebate(three, sixTurns, client);
+  expect(verdict).toMatchObject({ winner: 'against', reasoning: 'B' });
+  expect(verdict.ballots.map(b => b.judge)).toEqual(['b/judge', 'c/judge']);
+});
+
+test('a 1-1 split goes to the more confident Ballot, then to Panel order', async () => {
+  const split = (a: string, b: string) => byJudge({ 'a/judge': 'nonsense', 'b/judge': full({ winner: 'for', confidence: a, reasoning: 'B' }), 'c/judge': full({ winner: 'against', confidence: b, reasoning: 'C' }) });
+  expect(await judgeDebate(three, sixTurns, split('likely', 'clear'))).toMatchObject({ winner: 'against', reasoning: 'C' });
+  expect(await judgeDebate(three, sixTurns, split('narrow', 'narrow'))).toMatchObject({ winner: 'for', reasoning: 'B' });
+});
+
+test('fails when no Judge of three gives a Verdict', async () => {
+  await expect(judgeDebate(three, sixTurns, new FakeModelClient(() => 'draw'))).rejects.toBeInstanceOf(VerdictParseError);
+});

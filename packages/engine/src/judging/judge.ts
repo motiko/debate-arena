@@ -137,12 +137,33 @@ export async function askJudge(setup: DebateSetup, turns: Turn[], judge: ModelId
   throw new VerdictParseError(`${judge} did not return a valid Verdict`);
 }
 
-/** Asks the Panel for a Verdict on a finished Debate. Panels hold one Judge in this release. */
+const CONFIDENCE_RANK: Record<Confidence, number> = { clear: 2, likely: 1, narrow: 0 };
+
+/**
+ * The Panel's Ballots decide by majority. A 1–1 split (a third Judge failed) goes to the more confident Ballot, then
+ * to Panel order. The lead Ballot, whose reasoning, scores, crux and claims the Verdict shows, is the first on the
+ * winning Side.
+ */
+function leadBallot(ballots: Ballot[]): Ballot {
+  const votes = { for: 0, against: 0 };
+  for (const b of ballots) votes[b.winner]++;
+  if (votes.for !== votes.against) {
+    const winner: Side = votes.for > votes.against ? 'for' : 'against';
+    return ballots.find(b => b.winner === winner)!;
+  }
+  return ballots.reduce((best, b) => (CONFIDENCE_RANK[b.confidence] > CONFIDENCE_RANK[best.confidence] ? b : best));
+}
+
+/**
+ * Asks every Judge on the Panel for a Ballot, in parallel, on a finished Debate. A Judge that fails is left out
+ * rather than failing the Debate; only when every Judge fails does judging fail.
+ */
 export async function judgeDebate(setup: DebateSetup, turns: Turn[], client: ModelClient): Promise<Verdict> {
   if (nextSlot(setup.format, turns)) throw new DebateNotFinishedError('The Debate still has Turns to come');
   validatePanel(setup.panel);
-  const judge = setup.panel[0]!;
-  const ballot = await askJudge(setup, turns, judge, client);
-  const { judge: _, ...lead } = ballot;
-  return { ...lead, judges: [...setup.panel], ballots: [ballot] };
+  const settled = await Promise.allSettled(setup.panel.map(judge => askJudge(setup, turns, judge, client)));
+  const ballots = settled.flatMap(s => (s.status === 'fulfilled' ? [s.value] : []));
+  if (ballots.length === 0) throw (settled[0] as PromiseRejectedResult).reason;
+  const { judge: _, ...lead } = leadBallot(ballots);
+  return { ...lead, judges: [...setup.panel], ballots };
 }
