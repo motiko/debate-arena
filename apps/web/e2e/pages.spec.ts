@@ -37,6 +37,12 @@ test('debate page shows Turns, Verdict and AI labels', async ({ page, request })
   await page.locator('.dispatch').getByRole('link', { name: 'Show the result' }).click();
   await expect(page.getByRole('heading', { name: /Verdict/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: /AI Audience Result/ })).toBeVisible();
+  // The Judge's Rubric Scores, with what each criterion means (the fake Judge: For 7, 6, 6, 8; Against 6, 7, 7, 7).
+  const scores = page.getByRole('table', { name: 'Rubric Scores' });
+  await expect(scores.getByRole('columnheader')).toHaveText(['Criterion', 'For', 'Against']);
+  const first = scores.getByRole('row').filter({ has: page.getByRole('rowheader', { name: /Argument strength/ }) });
+  await expect(first.getByRole('cell')).toHaveText(['7', '6']);
+  await expect(scores).toContainText("Engages directly with the other Side's strongest points.");
   // Every Turn, the Verdict and the AI Audience Result carry the label.
   expect(await page.getByText('AI-generated', { exact: true }).count()).toBeGreaterThanOrEqual(8);
 });

@@ -18,6 +18,8 @@ test('live Turns appear as they are written, each growing in its seat first', as
   const first = (await draft.textContent())!.length;
   await expect.poll(async () => (await draft.textContent())?.length ?? 0).toBeGreaterThan(first);
   await expect(page.getByText(/(For|Against) is speaking/)).toBeAttached();
+  // While it runs, the page names what the Judge will score.
+  await expect(page.getByText('The Judge scores each Side on: Argument strength, Rebuttal quality, Evidence, Clarity.')).toBeVisible();
   await expect(log.getByRole('article')).toHaveCount(2, { timeout: 20_000 });
   await expect(page.getByText('Live: new Turns appear as they are written.')).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as { __sameLoad?: boolean }).__sameLoad)).toBe(true);

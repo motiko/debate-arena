@@ -11,9 +11,12 @@ interface Props {
   motion: string;
   selfJudging: boolean;
   models: ModelInfo[];
+  rubric: PublicDebate['format']['rubric'];
 }
 
-const { verdict, debaters, motion, selfJudging, models } = Astro.props;
+const { verdict, debaters, motion, selfJudging, models, rubric } = Astro.props;
+// Each Rubric Score with its criterion's description, from the Format's Rubric (never from the Judge's reply).
+const scores = verdict.scores.map(s => ({ ...s, description: rubric.criteria.find(c => c.name === s.criterion)?.description }));
 const lang = otherLanguage(verdict.reasoning, motion);
 const winner = t('verdict.side', { side: sideLabel(verdict.winner), model: debaterLabel(debaters[verdict.winner], models) });
 ---
@@ -29,6 +32,32 @@ const winner = t('verdict.side', { side: sideLabel(verdict.winner), model: debat
     <div class="verdict-reasoning" lang={lang}>
       {paragraphs(verdict.reasoning).map(p => <p>{p}</p>)}
     </div>
+    {
+      scores.length > 0 && (
+        <table class="scores">
+          <caption>{t('verdict.scores')}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{t('verdict.criterion')}</th>
+              <th scope="col" class="side-for">{sideLabel('for')}</th>
+              <th scope="col" class="side-against">{sideLabel('against')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scores.map(s => (
+              <tr>
+                <th scope="row">
+                  {s.criterion}
+                  {s.description && <span class="criterion-description">{s.description}</span>}
+                </th>
+                <td class="side-for">{s.for}</td>
+                <td class="side-against">{s.against}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
     <p class="muted">{t('verdict.judges', { judges: verdict.judges.map(j => modelLabel(j, models)).join(', ') })}</p>
   </section>
 </div>
@@ -91,6 +120,53 @@ const winner = t('verdict.side', { side: sideLabel(verdict.winner), model: debat
   }
   .verdict-reasoning p + p {
     margin-top: 0.85rem;
+  }
+  .scores {
+    width: 100%;
+    max-width: 36rem;
+    margin: 1.5rem auto 0;
+    border-collapse: collapse;
+    text-align: left;
+  }
+  .scores caption {
+    margin-bottom: 0.5rem;
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-align: left;
+  }
+  .scores th,
+  .scores td {
+    padding: 0.55rem 0.5rem;
+    border-top: 1px solid var(--brass);
+    vertical-align: top;
+  }
+  .scores thead th {
+    border-top: none;
+    font-size: 0.85rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .scores tbody th {
+    font-weight: 600;
+  }
+  .criterion-description {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: var(--muted);
+  }
+  .scores td,
+  .scores thead th:not(:first-child) {
+    width: 4.5rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .scores td {
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    font-weight: 600;
   }
   .verdict > .muted {
     margin-top: 1.1rem;
