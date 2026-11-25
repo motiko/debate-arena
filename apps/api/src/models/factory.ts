@@ -1,4 +1,5 @@
 import {
+  CLASSIC_FORMAT,
   FakeModelClient,
   CATEGORIES,
   JUDGE_OUTPUT_TOKENS,
@@ -34,7 +35,10 @@ export function devFakeReply(request: ModelRequest): string {
     return JSON.stringify({ category: CATEGORIES[motion.length % CATEGORIES.length], tags: ['local dev', 'fake'] });
   }
   if (request.maxOutputTokens === JUDGE_OUTPUT_TOKENS) {
-    return JSON.stringify({ winner: seed % 2 === 0 ? 'for' : 'against', reasoning: 'A fake Verdict for local development.' });
+    // A Rubric Score for every criterion: For 7, 6, 6, 8 and Against 6, 7, 7, 7 in Rubric order.
+    const marks = [[7, 6], [6, 7], [6, 7], [8, 7]];
+    const scores = Object.fromEntries(CLASSIC_FORMAT.rubric.criteria.map((c, i) => [c.name, { for: marks[i % 4]![0], against: marks[i % 4]![1] }]));
+    return JSON.stringify({ scores, winner: seed % 2 === 0 ? 'for' : 'against', reasoning: 'A fake Verdict for local development.' });
   }
   if (request.maxOutputTokens === STANCE_OUTPUT_TOKENS) {
     const isAfter = request.messages.some(m => m.content.includes('heard the whole debate'));

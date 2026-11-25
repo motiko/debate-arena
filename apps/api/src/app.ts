@@ -46,7 +46,7 @@ function publicView(d: DebateRecord) {
     kind: d.kind,
     status: d.status,
     motion: d.setup.motion.text,
-    format: { id: d.setup.format.id, name: d.setup.format.name, phases: d.setup.format.phases },
+    format: { id: d.setup.format.id, name: d.setup.format.name, phases: d.setup.format.phases, rubric: d.setup.format.rubric },
     debaters: d.setup.debaters,
     panel: d.setup.panel,
     selfJudging: d.selfJudging,
@@ -56,7 +56,8 @@ function publicView(d: DebateRecord) {
     turns: d.turns,
     // The API slot the Debate waits for, and until when (null when it is not waiting).
     awaiting: awaitingOf(d),
-    verdict: d.verdict,
+    // Verdicts stored before the Judge gave Rubric Scores have none to list.
+    verdict: d.verdict && { ...d.verdict, scores: d.verdict.scores ?? [] },
     // Results stored before AI Voters' votes were kept have none to list.
     aiAudience: d.aiAudience && { ...d.aiAudience, votes: d.aiAudience.votes ?? [] },
     createdAt: d.createdAt,

@@ -26,6 +26,10 @@ export type Debater = { kind: 'ai'; model: ModelId } | { kind: 'human'; memberId
 export interface TurnSlot { phaseIndex: number; side: Side }
 export interface Turn extends TurnSlot { text: string; truncated: boolean }
 
-export interface Verdict { winner: Side; reasoning: string; judges: ModelId[] }
+/** A Judge's mark from 1 to 10 for each Side on one Rubric criterion (GLOSSARY: Rubric Score). */
+export interface RubricScore { criterion: string; for: number; against: number }
+
+/** `scores` is empty when the Judge gave no valid Rubric Scores (and on Verdicts stored before they were asked for). */
+export interface Verdict { winner: Side; reasoning: string; scores: RubricScore[]; judges: ModelId[] }
 
 export interface DebateSetup { motion: Motion; format: Format; debaters: Record<Side, Debater>; panel: ModelId[] }

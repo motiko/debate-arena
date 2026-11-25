@@ -1,4 +1,5 @@
 import {
+  CLASSIC_FORMAT,
   FakeModelClient,
   JUDGE_OUTPUT_TOKENS,
   parseScreen,
@@ -29,7 +30,7 @@ const ask = (maxOutputTokens: number, content = 'x') =>
   devFakeReply({ model: 'fake-a/one', messages: [{ role: 'user', content }], maxOutputTokens });
 
 test('dev fake replies parse as a Verdict and as stances', () => {
-  expect(parseVerdict(ask(JUDGE_OUTPUT_TOKENS))).not.toBeNull();
+  expect(parseVerdict(ask(JUDGE_OUTPUT_TOKENS), CLASSIC_FORMAT.rubric)?.scores).toHaveLength(CLASSIC_FORMAT.rubric.criteria.length);
   expect(parseStance(ask(STANCE_OUTPUT_TOKENS))).toBe('undecided');
   expect(parseStance(ask(STANCE_OUTPUT_TOKENS, 'You have heard the whole debate.'))).toMatch(/^(for|against)$/);
   expect(ask(840).length).toBeGreaterThan(0);

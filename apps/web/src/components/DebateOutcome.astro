@@ -33,6 +33,7 @@ const membersPanel = !isBatch && debate.status !== 'failed';
         {debate.status === 'running' && !isBatch && (
           <div class="pending">
             <p>{debate.myVote?.before ? t('live.pendingVoter') : t('verdict.pending')}</p>
+            <p class="muted">{t('verdict.rubric', { criteria: debate.format.rubric.criteria.map(c => c.name).join(', ') })}</p>
             <noscript>
               <p>{t('live.noscript')}</p>
             </noscript>
@@ -66,7 +67,7 @@ const membersPanel = !isBatch && debate.status !== 'failed';
                   <span class="when-open">{t('dispatch.hide')}</span>
                 </summary>
               )}
-              <VerdictView verdict={debate.verdict} debaters={debate.debaters} motion={debate.motion} selfJudging={debate.selfJudging} models={models} />
+              <VerdictView verdict={debate.verdict} debaters={debate.debaters} motion={debate.motion} selfJudging={debate.selfJudging} models={models} rubric={debate.format.rubric} />
               {/* The two audiences side by side, in the same panel; a Slow Debate has only the AI one. */}
               <div class="audiences">
                 {membersPanel && (

@@ -1,6 +1,6 @@
 import type { PublicDebate } from '@debate-arena/api-client';
 import { expect, test } from 'vitest';
-import { renderDebate, renderTurn, turnHeader } from './render.ts';
+import { renderDebate, renderTurn, renderVerdict, turnHeader } from './render.ts';
 import { BASE, debate } from './testing.ts';
 
 test('a Turn header names the phase, Side and model', () => {
@@ -19,6 +19,21 @@ test('a completed Debate shows its Motion, Turns, Verdict and vote link', () => 
   expect(text).toContain('── Opening · Against · b/two ──\nFruit has no place here.');
   expect(text).toContain('Verdict: For wins (c/three)\nBetter evidence.');
   expect(text.trimEnd().endsWith(`Read and vote: ${BASE}/debates/d1`)).toBe(true);
+});
+
+const verdict = { winner: 'against' as const, reasoning: 'Held the burden.', judges: ['c/three'] };
+
+test('renderVerdict lists each Rubric Score between the winner and the reasoning', () => {
+  const scores = [{ criterion: 'Argument strength', for: 7, against: 6 }, { criterion: 'Clarity', for: 8, against: 9 }];
+  expect(renderVerdict({ ...verdict, scores })).toBe(
+    'Verdict: Against wins (c/three)\n  Argument strength: For 7 · Against 6\n  Clarity: For 8 · Against 9\nHeld the burden.\n',
+  );
+});
+
+test('renderVerdict with no scores is unchanged, even from a server that sends none', () => {
+  const plain = 'Verdict: Against wins (c/three)\nHeld the burden.\n';
+  expect(renderVerdict({ ...verdict, scores: [] })).toBe(plain);
+  expect(renderVerdict(verdict as unknown as Parameters<typeof renderVerdict>[0])).toBe(plain);
 });
 
 test('a running Debate says so and has no Verdict yet', () => {

@@ -35,8 +35,11 @@ export function renderTurn(debate: PublicDebate, turn: Turn): string {
   return `${turnHeader(debate, turn)}\n${turn.text}${turn.truncated ? ' (cut at the word limit)' : ''}\n`;
 }
 
+/** The winner, the Judge's Rubric Scores (one line per criterion) and the reasoning. */
 export function renderVerdict(verdict: NonNullable<PublicDebate['verdict']>): string {
-  return `Verdict: ${SIDE_LABEL[verdict.winner]} wins (${verdict.judges.join(', ')})\n${verdict.reasoning}\n`;
+  // A server from before Rubric Scores sends none.
+  const scores = (verdict.scores ?? []).map(s => `  ${s.criterion}: For ${s.for} · Against ${s.against}\n`).join('');
+  return `Verdict: ${SIDE_LABEL[verdict.winner]} wins (${verdict.judges.join(', ')})\n${scores}${verdict.reasoning}\n`;
 }
 
 const STANCE_LABEL: Record<AiAudience['votes'][number]['before'], string> = { ...SIDE_LABEL, undecided: 'Undecided' };
