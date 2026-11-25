@@ -51,6 +51,38 @@ test('debate page shows Turns, Verdict and AI labels', async ({ page, request })
   expect(await page.getByText('AI-generated', { exact: true }).count()).toBeGreaterThanOrEqual(8);
 });
 
+test('the Verdict says whether the Motion stands, how sure, the crux, the checked claims and each Ballot', async ({ page, request }) => {
+  const { id } = await startDebate(request, { panel: ['fake-c/one', 'fake-d/one', 'fake-a/one'] });
+  await waitComplete(request, id);
+  await page.goto(`/debates/${id}`);
+  await page.locator('.dispatch').getByRole('link', { name: 'Show the result' }).click();
+  const verdict = page.locator('section.verdict');
+  // The fake Judges all find the same way, "likely", with one disputed claim.
+  await expect(verdict.locator('.verdict-winner')).toHaveText(/^The Motion (stands|falls)$/);
+  await expect(verdict.locator('.verdict-confidence')).toContainText('Likely');
+  await expect(verdict.locator('.crux')).toContainText('Crux: Whether a fake argument can settle a real question.');
+  const claims = verdict.getByRole('region', { name: 'Claims checked' });
+  await expect(claims.getByRole('listitem')).toHaveCount(1);
+  await expect(claims.getByRole('listitem')).toContainText('Disputed');
+  await expect(claims.getByRole('listitem')).toContainText('A fake claim, made for local development.');
+  await expect(claims).toContainText('Checked against the Judges’ own knowledge, without sources.');
+  await expect(verdict).toContainText(/Panel: (3–0|0–3)/);
+  await expect(verdict).toContainText('The Rubric Scores rate how each Side argued; the Verdict is on the Motion, and they may differ.');
+  await verdict.getByText('Each Judge’s Ballot').click();
+  await expect(verdict.locator('.ballot')).toHaveCount(3);
+  await page.setViewportSize({ width: 360, height: 740 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+  await expectNoAxeViolations(page);
+});
+
+test('the Audience Result says it measures persuasion, not who is right', async ({ page, request }) => {
+  const { id } = await startDebate(request);
+  await waitComplete(request, id);
+  await page.goto(`/debates/${id}`);
+  await page.locator('.dispatch').getByRole('link', { name: 'Show the result' }).click();
+  await expect(page.locator('.audiences')).toContainText('It measures persuasion: who moved the audience, not who is right.');
+});
+
 test('the AI Audience Result sits beside the Audience Result in the same panel', async ({ page, request }) => {
   const { id } = await startDebate(request, { aiVoters: true });
   await waitComplete(request, id);

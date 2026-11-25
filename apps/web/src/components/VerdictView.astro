@@ -19,6 +19,11 @@ const { verdict, debaters, motion, selfJudging, models, rubric } = Astro.props;
 const scores = verdict.scores.map(s => ({ ...s, description: rubric.criteria.find(c => c.name === s.criterion)?.description }));
 const lang = otherLanguage(verdict.reasoning, motion);
 const winner = t('verdict.side', { side: sideLabel(verdict.winner), model: debaterLabel(debaters[verdict.winner], models) });
+// A Verdict from before ADR 0008 (no confidence) said who argued better, not whether the Motion stands.
+const confidence = verdict.confidence;
+const onMotion = confidence !== null;
+const ballots = verdict.ballots.length > 1 ? verdict.ballots : [];
+const tally = { for: ballots.filter(b => b.winner === 'for').length, against: ballots.filter(b => b.winner === 'against').length };
 ---
 
 <div class="ruling">
@@ -26,7 +31,19 @@ const winner = t('verdict.side', { side: sideLabel(verdict.winner), model: debat
   <section class="verdict" aria-labelledby="verdict-title">
     {/* data-focus: where focus lands when the Verdict is brought in after the after-vote (lib/refresh). */}
     <h2 id="verdict-title" data-focus tabindex="-1">{t('verdict.title')} <AiLabel /> {selfJudging && <SelfJudgingBadge />}</h2>
-    <p class={`verdict-winner side-${verdict.winner}`}>{winner}</p>
+    {
+      onMotion ? (
+        <>
+          <p class={`verdict-winner side-${verdict.winner}`}>{t(verdict.winner === 'for' ? 'verdict.stands' : 'verdict.falls')}</p>
+          <p class="verdict-confidence">
+            {confidence && t(`verdict.confidence.${confidence}`)} · {winner}
+          </p>
+        </>
+      ) : (
+        <p class={`verdict-winner side-${verdict.winner}`}>{winner}</p>
+      )
+    }
+    {verdict.crux && <p class="crux"><strong>{t('verdict.crux')}</strong> {verdict.crux}</p>}
     {/* A Judge that kept answering in another language: say so, and mark the text so it is read in that language. */}
     {lang && <p class="note language-note">{t('verdict.otherLanguage')}</p>}
     <div class="verdict-reasoning" lang={lang}>
@@ -58,7 +75,41 @@ const winner = t('verdict.side', { side: sideLabel(verdict.winner), model: debat
         </table>
       )
     }
+    {onMotion && scores.length > 0 && <p class="muted scores-note">{t('verdict.scoresNote')}</p>}
+    {
+      verdict.claims.length > 0 && (
+        <section class="claims" aria-labelledby="claims-title">
+          <h3 id="claims-title">{t('verdict.claims')}</h3>
+          <ul>
+            {verdict.claims.map(c => (
+              <li>
+                <span class={`claim-status status-${c.status}`}>{t(`verdict.claim.${c.status}`)}</span>{' '}
+                <span class={`side-${c.side}`}>{sideLabel(c.side)}:</span> {c.claim}
+                {c.note && <span class="claim-note">{c.note}</span>}
+              </li>
+            ))}
+          </ul>
+          <p class="muted">{t('verdict.claimsNote')}</p>
+        </section>
+      )
+    }
+    {ballots.length > 0 && <p class="panel-tally">{t('verdict.panel', { for: tally.for, against: tally.against })}</p>}
     <p class="muted">{t('verdict.judges', { judges: verdict.judges.map(j => modelLabel(j, models)).join(', ') })}</p>
+    {
+      ballots.length > 0 && (
+        <details class="ballots">
+          <summary>{t('verdict.ballots')}</summary>
+          {ballots.map(b => (
+            <div class="ballot">
+              <p class="ballot-head">
+                <strong>{modelLabel(b.judge, models)}</strong>: <span class={`side-${b.winner}`}>{t(b.winner === 'for' ? 'verdict.stands' : 'verdict.falls')}</span>, {t(`verdict.confidence.${b.confidence}`)}
+              </p>
+              <div lang={otherLanguage(b.reasoning, motion)}>{paragraphs(b.reasoning).map(p => <p>{p}</p>)}</div>
+            </div>
+          ))}
+        </details>
+      )
+    }
   </section>
 </div>
 
@@ -167,6 +218,86 @@ const winner = t('verdict.side', { side: sideLabel(verdict.winner), model: debat
     font-family: var(--font-serif);
     font-size: 1.25rem;
     font-weight: 600;
+  }
+  .verdict-confidence {
+    margin-top: 0.35rem;
+    font-size: 1rem;
+    color: var(--muted);
+  }
+  .crux {
+    margin: 1rem auto 0;
+    max-width: 36rem;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+  .scores-note {
+    margin: 0.5rem auto 0;
+    max-width: 36rem;
+    font-size: 0.875rem;
+    text-align: left;
+  }
+  .claims {
+    margin: 1.5rem auto 0;
+    max-width: 36rem;
+    text-align: left;
+  }
+  .claims h3 {
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+  }
+  .claims ul {
+    margin: 0.5rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .claims li {
+    padding: 0.55rem 0;
+    border-top: 1px solid var(--brass);
+    overflow-wrap: anywhere;
+  }
+  .claim-status {
+    display: inline-block;
+    padding: 0 0.4rem;
+    border: 1px solid currentColor;
+    border-radius: var(--radius);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .claim-note {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.875rem;
+    color: var(--muted);
+  }
+  .claims .muted {
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+  }
+  .panel-tally {
+    margin-top: 1.1rem;
+    font-weight: 600;
+  }
+  .ballots {
+    margin: 0.75rem auto 0;
+    max-width: 36rem;
+    text-align: left;
+  }
+  .ballots summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+  }
+  .ballot {
+    padding: 0.75rem 0;
+    border-top: 1px solid var(--brass);
+    overflow-wrap: anywhere;
+  }
+  .ballot p + p,
+  .ballot-head + div {
+    margin-top: 0.5rem;
   }
   .verdict > .muted {
     margin-top: 1.1rem;
