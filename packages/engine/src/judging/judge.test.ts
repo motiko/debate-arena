@@ -229,7 +229,7 @@ const byJudge = (replies: Record<string, string>) => new FakeModelClient(r => re
 test('three Judges decide by majority, with the first majority Ballot leading', async () => {
   const client = byJudge({ 'a/judge': full({ winner: 'against', reasoning: 'A' }), 'b/judge': full({ reasoning: 'B', confidence: 'clear' }), 'c/judge': full({ reasoning: 'C' }) });
   const verdict = await judgeDebate(three, sixTurns, client);
-  expect(verdict).toMatchObject({ winner: 'for', reasoning: 'B', confidence: 'clear', judges: three.panel });
+  expect(verdict).toMatchObject({ winner: 'for', reasoning: 'B', confidence: 'likely', judges: three.panel });
   expect(verdict.ballots.map(b => [b.judge, b.winner])).toEqual([['a/judge', 'against'], ['b/judge', 'for'], ['c/judge', 'for']]);
 });
 
@@ -238,6 +238,8 @@ test('a Judge that fails is left out, and the others decide', async () => {
   const verdict = await judgeDebate(three, sixTurns, client);
   expect(verdict).toMatchObject({ winner: 'against', reasoning: 'B' });
   expect(verdict.ballots.map(b => b.judge)).toEqual(['b/judge', 'c/judge']);
+  // "Judged by" names only the Judges whose Ballots count.
+  expect(verdict.judges).toEqual(['b/judge', 'c/judge']);
 });
 
 test('a 1-1 split goes to the more confident Ballot, then to Panel order', async () => {
@@ -248,4 +250,22 @@ test('a 1-1 split goes to the more confident Ballot, then to Panel order', async
 
 test('fails when no Judge of three gives a Verdict', async () => {
   await expect(judgeDebate(three, sixTurns, new FakeModelClient(() => 'draw'))).rejects.toBeInstanceOf(VerdictParseError);
+});
+
+test('errors the host marks (a batch result not ready yet, an exhausted Budget) are rethrown, not taken as a failed Judge', async () => {
+  class Pending extends Error {}
+  const client = new FakeModelClient(r => {
+    if (r.model === 'a/judge') return full({ reasoning: 'A' });
+    throw new Pending('not yet');
+  });
+  await expect(judgeDebate(three, sixTurns, client, { rethrow: e => e instanceof Pending })).rejects.toBeInstanceOf(Pending);
+});
+
+test('a split Panel is never more than likely, and a 1-1 split is too close to call', async () => {
+  const twoOne = byJudge({ 'a/judge': full({ confidence: 'clear' }), 'b/judge': full({ confidence: 'clear' }), 'c/judge': full({ winner: 'against', confidence: 'clear' }) });
+  expect((await judgeDebate(three, sixTurns, twoOne)).confidence).toBe('likely');
+  const unanimous = byJudge({ 'a/judge': full({ confidence: 'clear' }), 'b/judge': full({ confidence: 'likely' }), 'c/judge': full({ confidence: 'clear' }) });
+  expect((await judgeDebate(three, sixTurns, unanimous)).confidence).toBe('clear');
+  const oneOne = byJudge({ 'a/judge': 'nonsense', 'b/judge': full({ confidence: 'clear' }), 'c/judge': full({ winner: 'against', confidence: 'likely' }) });
+  expect((await judgeDebate(three, sixTurns, oneOne)).confidence).toBe('narrow');
 });

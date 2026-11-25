@@ -83,6 +83,14 @@ test('the Audience Result says it measures persuasion, not who is right', async 
   await expect(page.locator('.audiences')).toContainText('It measures persuasion: who moved the audience, not who is right.');
 });
 
+test('the AI Audience Result says it measures persuasion too', async ({ page, request }) => {
+  const { id } = await startDebate(request, { aiVoters: true });
+  await waitComplete(request, id);
+  await page.goto(`/debates/${id}`);
+  await page.locator('.dispatch').getByRole('link', { name: 'Show the result' }).click();
+  await expect(page.locator('section.division').filter({ has: page.getByRole('heading', { name: /AI Audience Result/ }) })).toContainText('not who is right');
+});
+
 test('the AI Audience Result sits beside the Audience Result in the same panel', async ({ page, request }) => {
   const { id } = await startDebate(request, { aiVoters: true });
   await waitComplete(request, id);

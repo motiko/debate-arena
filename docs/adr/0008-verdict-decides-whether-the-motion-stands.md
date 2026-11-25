@@ -9,7 +9,7 @@ A Verdict also carries what a reader needs to weigh it:
 - **Confidence**: clear, likely, or narrow ("too close to call"). A Verdict still always names a Side; narrow is how it says the Debate did not settle the question.
 - **Crux**: the one question the disagreement comes down to.
 - **Claim Checks**: up to six of the most important factual claims, marked supported, disputed or false with a note, from the Judge's own knowledge and without sources (and labelled as such). A false claim's argument counts as not established.
-- **Ballots**: a Panel may seat three Judges from different model families, who answer independently and decide by majority; each Ballot and the split are shown. The default stays one Judge: at current prices three cost about four times as much (a custom Debate from 5 to 21 of the 24 daily Quota points, and an AI line-up over the day's Quota), so three are opt-in.
+- **Ballots**: a Panel may seat three Judges from different model families, who answer independently and decide by majority; each Ballot and the split are shown. A split Panel is never more than likely, and a Judge that gives no Ballot is not named as having judged. The default stays one Judge: at current prices three cost about four times as much (a custom Debate from 5 to 21 of the 24 daily Quota points, and an AI line-up over the day's Quota), so three are opt-in.
 
 The Audience Result keeps measuring persuasion (ADR 0001) and says so: who moved the audience, not who is right. Swapping the Debaters between Sides and debating the Motion again is how the run-debate skill tests whether a result follows the Motion or the stronger model.
 

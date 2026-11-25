@@ -129,7 +129,8 @@ export async function runStep(deps: StepDeps, job: StepJob): Promise<StepOutcome
   }
 
   if (!debate.verdict) {
-    const verdict = await judgeDebate(setup, turns, client);
+    // A batch result not ready yet, or an exhausted Budget, must not count as a Judge that failed (ADR 0008).
+    const verdict = await judgeDebate(setup, turns, client, { rethrow: error => error instanceof BudgetExhaustedError || (deps.isPending?.(error) ?? false) });
     if (!(await saveVerdict(db, id, verdict))) return 'skipped';
     await notify(id, { type: 'verdict', verdict });
     await enqueue({ debateId: id });

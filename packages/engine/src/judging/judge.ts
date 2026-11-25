@@ -154,16 +154,34 @@ function leadBallot(ballots: Ballot[]): Ballot {
   return ballots.reduce((best, b) => (CONFIDENCE_RANK[b.confidence] > CONFIDENCE_RANK[best.confidence] ? b : best));
 }
 
+/** A split Panel is never more than likely; a 1–1 split (a third Judge failed) is too close to call. */
+function panelConfidence(lead: Ballot, ballots: Ballot[]): Confidence {
+  const agree = ballots.filter(b => b.winner === lead.winner).length;
+  if (agree === ballots.length) return lead.confidence;
+  if (agree * 2 === ballots.length) return 'narrow';
+  return lead.confidence === 'clear' ? 'likely' : lead.confidence;
+}
+
 /**
  * Asks every Judge on the Panel for a Ballot, in parallel, on a finished Debate. A Judge that fails is left out
- * rather than failing the Debate; only when every Judge fails does judging fail.
+ * rather than failing the Debate, and `judges` names only those whose Ballots count; only when every Judge fails
+ * does judging fail. Errors `rethrow` marks (a batch result not ready yet, an exhausted Budget) are not Judge
+ * failures: every Judge has been asked by then, so the host can wait and judge again.
  */
-export async function judgeDebate(setup: DebateSetup, turns: Turn[], client: ModelClient): Promise<Verdict> {
+export async function judgeDebate(
+  setup: DebateSetup,
+  turns: Turn[],
+  client: ModelClient,
+  options: { rethrow?: (error: unknown) => boolean } = {},
+): Promise<Verdict> {
   if (nextSlot(setup.format, turns)) throw new DebateNotFinishedError('The Debate still has Turns to come');
   validatePanel(setup.panel);
   const settled = await Promise.allSettled(setup.panel.map(judge => askJudge(setup, turns, judge, client)));
+  const marked = settled.find(r => r.status === 'rejected' && options.rethrow?.(r.reason));
+  if (marked?.status === 'rejected') throw marked.reason;
   const ballots = settled.flatMap(s => (s.status === 'fulfilled' ? [s.value] : []));
   if (ballots.length === 0) throw (settled[0] as PromiseRejectedResult).reason;
-  const { judge: _, ...lead } = leadBallot(ballots);
-  return { ...lead, judges: [...setup.panel], ballots };
+  const leader = leadBallot(ballots);
+  const { judge: _, ...lead } = leader;
+  return { ...lead, confidence: panelConfidence(leader, ballots), judges: ballots.map(b => b.judge), ballots };
 }

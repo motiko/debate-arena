@@ -138,6 +138,7 @@ _Avoid_: Conflict of interest, bias, same-model
 
 **Verdict**:
 The Panel's decision on whether the Motion stands (For) or falls (Against), on the arguments and evidence in the Debate, with its reasoning, Confidence, Crux and Claim Checks. Always names one Side; never a draw. Verdicts from before ADR 0008 said which Side debated better.
+_Avoid_: Ruling, score, result
 
 **Ballot**:
 One Judge's answer on a Panel: its Side, Confidence, reasoning, Crux, Rubric Scores and Claim Checks. The Verdict shows the first Ballot on the majority Side.
@@ -154,7 +155,6 @@ _Avoid_: Key issue, main point
 **Claim Check**:
 A factual claim one Side made, marked supported, disputed or false by a Judge from its own knowledge, without sources.
 _Avoid_: Fact-check (implies sources), citation
-_Avoid_: Ruling, score, result
 
 **Voting Method**:
 How a Format collects Audience Votes and turns them into an Audience Result, including when voting closes and the result becomes final. The default is Oxford: before-and-after votes decided by Swing.
