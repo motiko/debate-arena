@@ -21,7 +21,7 @@ test('a completed Debate shows its Motion, Turns, Verdict and vote link', () => 
   expect(text.trimEnd().endsWith(`Read and vote: ${BASE}/debates/d1`)).toBe(true);
 });
 
-const verdict = { winner: 'against' as const, reasoning: 'Held the burden.', judges: ['c/three'] };
+const verdict = { winner: 'against' as const, reasoning: 'Held the burden.', judges: ['c/three'], scores: [], confidence: null, crux: '', claims: [], ballots: [] };
 
 test('renderVerdict lists each Rubric Score between the winner and the reasoning', () => {
   const scores = [{ criterion: 'Argument strength', for: 7, against: 6 }, { criterion: 'Clarity', for: 8, against: 9 }];
@@ -33,7 +33,28 @@ test('renderVerdict lists each Rubric Score between the winner and the reasoning
 test('renderVerdict with no scores is unchanged, even from a server that sends none', () => {
   const plain = 'Verdict: Against wins (c/three)\nHeld the burden.\n';
   expect(renderVerdict({ ...verdict, scores: [] })).toBe(plain);
-  expect(renderVerdict(verdict as unknown as Parameters<typeof renderVerdict>[0])).toBe(plain);
+  const { scores: _, confidence: __, crux: ___, claims: ____, ballots: _____, ...fromOldServer } = verdict;
+  expect(renderVerdict(fromOldServer as unknown as Parameters<typeof renderVerdict>[0])).toBe(plain);
+});
+
+test('renderVerdict on the Motion: stands or falls, confidence, Panel split, crux and checked claims', () => {
+  const ballot = (judge: string, winner: 'for' | 'against') => ({ judge, winner, confidence: 'likely' as const, reasoning: 'r', crux: '', scores: [], claims: [] });
+  const claims = [{ side: 'for' as const, claim: 'Denmark cut it to 2.6%', status: 'false' as const, note: 'It was 2.6% in 2022 only.' }];
+  const onMotion = {
+    ...verdict,
+    winner: 'for' as const,
+    judges: ['a/j', 'b/j', 'c/j'],
+    confidence: 'clear' as const,
+    crux: 'Whether tightening works.',
+    claims,
+    ballots: [ballot('a/j', 'for'), ballot('b/j', 'against'), ballot('c/j', 'for')],
+  };
+  expect(renderVerdict(onMotion)).toBe(
+    'Verdict: the Motion stands (For), clear · Panel 2–1 (a/j, b/j, c/j)\nCrux: Whether tightening works.\nHeld the burden.\n  [false] For: Denmark cut it to 2.6% — It was 2.6% in 2022 only.\n',
+  );
+  expect(renderVerdict({ ...onMotion, winner: 'against', confidence: 'narrow', ballots: [], claims: [], crux: '', judges: ['a/j'] })).toBe(
+    'Verdict: the Motion falls (Against), too close to call (a/j)\nHeld the burden.\n',
+  );
 });
 
 test('a running Debate says so and has no Verdict yet', () => {

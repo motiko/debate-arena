@@ -3,7 +3,7 @@ import { env, exports } from 'cloudflare:workers';
 import { expect, test } from 'vitest';
 import type { AiAudienceResult, Verdict } from '@debate-arena/engine';
 import { completeDebate, createDebate, getDebate, saveVerdict } from '../src/db/debates';
-import { quotaRemaining } from '../src/db/quota';
+import { DAILY_QUOTA_POINTS, quotaRemaining } from '../src/db/quota';
 import { planDebate, startDebate, type StartDeps, type StepJob } from '../src/debates/start';
 import { FAKE_CATALOG, priceTable, type Catalog } from '../src/models/catalog';
 import { newDebate, uniqueId } from './helpers';
@@ -45,10 +45,10 @@ test('a Debate spends Quota points in proportion to its worst-case Budget', asyn
   if (!r.ok) throw new Error(r.error);
   const stored = await getDebate(env.DB, r.id);
   // Fake models at $1 per million tokens: 49 634 micro-USD, 4 points.
-  expect(r.budgetReservedMicroUsd).toBe(49_634);
+  expect(r.budgetReservedMicroUsd).toBe(50_834);
   expect(stored?.quotaPoints).toBe(quotaPointsFor(r.budgetReservedMicroUsd));
-  expect(stored?.quotaPoints).toBe(4);
-  expect(await quotaRemaining(env.DB, member, now)).toBe(20);
+  expect(stored?.quotaPoints).toBe(5);
+  expect(await quotaRemaining(env.DB, member, now)).toBe(19);
 });
 
 test('AI Voters and the Judge count toward the Quota points', () => {
@@ -155,6 +155,29 @@ test('a Verdict stored without scores is served with scores: []', async () => {
   await saveVerdict(env.DB, d.id, old);
   const res = await exports.default.fetch(`https://api.test/api/debates/${d.id}`);
   expect(((await res.json()) as { verdict: { scores: unknown } }).verdict.scores).toEqual([]);
+});
+
+test('a Verdict stored before ADR 0008 is served with no confidence, crux, claims or Ballots', async () => {
+  const d = newDebate();
+  await createDebate(env.DB, d);
+  await saveVerdict(env.DB, d.id, { winner: 'for', reasoning: 'r', scores: [], judges: ['x/y'] } as unknown as Verdict);
+  const res = await exports.default.fetch(`https://api.test/api/debates/${d.id}`);
+  expect(((await res.json()) as { verdict: unknown }).verdict).toMatchObject({ confidence: null, crux: '', claims: [], ballots: [] });
+});
+
+test('panel: 3 asks for three suggested Judges from three families', () => {
+  expect(plan({ ...valid, debaters: { for: 'custom', against: 'custom' } })).toMatchObject({ setup: { panel: ['fake-a/one'] } });
+  const r = plan({ ...valid, debaters: { for: 'custom', against: 'custom' }, panel: 3 });
+  if (!r.ok) throw new Error(r.error);
+  expect(r.setup.panel).toEqual(['fake-a/one', 'fake-b/one', 'fake-c/one']);
+  expect(r.quotaPoints).toBeLessThanOrEqual(DAILY_QUOTA_POINTS);
+});
+
+test('a chosen Panel holds one or three distinct Judges', () => {
+  expect(plan({ ...valid, panel: ['fake-c/one', 'fake-d/one', 'fake-a/one'] }).ok).toBe(true);
+  expect(plan({ ...valid, panel: ['fake-c/one', 'fake-d/one'] })).toMatchObject({ ok: false, error: 'A Panel must hold one or three Judges' });
+  expect(plan({ ...valid, panel: ['fake-c/one', 'fake-c/one', 'fake-d/one'] })).toMatchObject({ ok: false, error: 'A Panel must not seat the same Judge twice' });
+  expect(plan({ ...valid, panel: 2 })).toMatchObject({ ok: false, error: 'panel must be a list of model ids, 1 or 3' });
 });
 
 test('a line-up over $5 is refused for everyone', async () => {
@@ -277,8 +300,8 @@ test('POST /debates/quote prices a line-up without charging or creating anything
   });
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({
-    budgetMicroUsd: 49_634,
-    quotaPoints: 4,
+    budgetMicroUsd: 50_834,
+    quotaPoints: 5,
     quotaRemaining: 24,
     slowAvailable: true,
     panel: ['fake-c/one'],

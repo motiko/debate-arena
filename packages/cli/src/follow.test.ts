@@ -13,7 +13,7 @@ const turn = (slotIndex: number, text = `Turn ${slotIndex} text.`) => ({
   truncated: false,
 });
 const running = (turns: number) => debate({ status: 'running', verdict: null, turns: Array.from({ length: turns }, (_, i) => turn(i)) });
-const verdict = { winner: 'for' as const, reasoning: 'Better evidence.', scores: [], judges: ['c/three'] };
+const verdict = { winner: 'for' as const, reasoning: 'Better evidence.', scores: [], judges: ['c/three'], confidence: null, crux: '', claims: [], ballots: [] };
 
 /** Answers each GET with the next Debate in `views` (the last one repeats). */
 function views(...list: object[]) {

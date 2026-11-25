@@ -1,6 +1,6 @@
 ---
 name: judge
-description: Impartially judges a finished Debate Arena debate from its transcript file and returns the winner, a 1–10 score per criterion for each Side and the reasons. Use for the run-debate skill's local judging panel, or whenever a debate transcript needs adjudicating.
+description: Impartially judges a finished Debate Arena debate from its transcript file and returns whether the motion stands, its confidence, the crux, checked claims, a 1–10 score per criterion for each Side and the reasons. Use for the run-debate skill's local judging panel, or whenever a debate transcript needs adjudicating.
 tools: Read
 model: inherit
 skills:

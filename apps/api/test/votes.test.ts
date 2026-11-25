@@ -6,7 +6,7 @@ import { linkGithub, signedInHeaders } from './auth-helpers';
 import { newDebate, turnAt, uniqueId } from './helpers';
 
 const base = 'https://api.test/api';
-const verdict = { winner: 'for' as const, reasoning: 'Clearer.', scores: [], judges: ['fake-c/one'] };
+const verdict = { winner: 'for' as const, reasoning: 'Clearer.', scores: [], judges: ['fake-c/one'], confidence: null, crux: '', claims: [], ballots: [] };
 
 async function debate(state: 'running' | 'complete' | 'failed', completedAt = new Date(Date.now() - 3600_000).toISOString()) {
   const d = newDebate();

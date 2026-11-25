@@ -21,10 +21,12 @@ const NAMES = ['Argument strength', 'Rebuttal quality', 'Evidence', 'Clarity'];
 /** A Judge reply with the given scores (For, Against per criterion, in Rubric order unless keys say otherwise). */
 const scored = (winner: string, scores: unknown, reasoning = 'r') => JSON.stringify({ scores, winner, reasoning });
 const allScores = (f: number, a: number) => Object.fromEntries(NAMES.map(n => [n, { for: f, against: a }]));
+/** What a reply without a confidence, crux or claims parses to besides its winner, reasoning and scores. */
+const bare = { confidence: 'narrow', crux: '', claims: [] };
 
 test('parses plain and fenced JSON', () => {
-  expect(parseVerdict('{"winner":"against","reasoning":"r"}', rubric)).toEqual({ winner: 'against', reasoning: 'r', scores: null });
-  expect(parseVerdict('```json\n{"winner":"for","reasoning":"r"}\n```', rubric)).toEqual({ winner: 'for', reasoning: 'r', scores: null });
+  expect(parseVerdict('{"winner":"against","reasoning":"r"}', rubric)).toEqual({ winner: 'against', reasoning: 'r', scores: null, ...bare });
+  expect(parseVerdict('```json\n{"winner":"for","reasoning":"r"}\n```', rubric)).toEqual({ winner: 'for', reasoning: 'r', scores: null, ...bare });
 });
 
 test('Judge prompt asks for a 1-10 score per Rubric criterion and Side', () => {
@@ -40,7 +42,7 @@ test('parses scores in Rubric order', () => {
 test('bad scores are null, the winner and reasoning still parse', () => {
   const { Clarity: _, ...missing } = allScores(5, 5);
   for (const scores of [allScores(7, '7' as never), allScores(7.5, 6), allScores(0, 6), allScores(11, 6), missing, undefined, [], { ...allScores(5, 5), Evidence: 7 }])
-    expect(parseVerdict(scored('for', scores), rubric)).toEqual({ winner: 'for', reasoning: 'r', scores: null });
+    expect(parseVerdict(scored('for', scores), rubric)).toEqual({ winner: 'for', reasoning: 'r', scores: null, ...bare });
 });
 
 test('extra score keys are ignored', () => {
@@ -54,7 +56,7 @@ test('scores may favour the losing Side', () => {
 
 test('retries when the scores are bad, and keeps the Verdict with no scores if every attempt is bad', async () => {
   const client = new FakeModelClient(() => scored('against', allScores(0, 0), 'Against held the burden.'));
-  expect(await judgeDebate(setup, sixTurns, client)).toEqual({ winner: 'against', reasoning: 'Against held the burden.', scores: [], judges: ['c/judge'] });
+  expect(await judgeDebate(setup, sixTurns, client)).toMatchObject({ winner: 'against', reasoning: 'Against held the burden.', scores: [], judges: ['c/judge'] });
   expect(client.calls).toHaveLength(2);
 });
 
@@ -71,7 +73,7 @@ test('a reply padded with whitespace is parsed in linear time', () => {
   const started = performance.now();
   expect(parseVerdict(padded, rubric)).toBeNull();
   expect(performance.now() - started).toBeLessThan(100);
-  expect(parseVerdict('```\n{"winner":"for","reasoning":"r"}  \n```  ', rubric)).toEqual({ winner: 'for', reasoning: 'r', scores: null });
+  expect(parseVerdict('```\n{"winner":"for","reasoning":"r"}  \n```  ', rubric)).toEqual({ winner: 'for', reasoning: 'r', scores: null, ...bare });
 });
 
 test('rejects draws, wrong Sides and prose', () => {
@@ -153,10 +155,10 @@ test('keeps a wrong-language Verdict rather than failing the Debate when every a
 test('retries once, then succeeds', async () => {
   const replies = ['nonsense', scored('for', allScores(7, 6), 'clear')];
   const client = new FakeModelClient(() => replies.shift() ?? '');
-  expect(await judgeDebate(setup, sixTurns, client)).toEqual({ winner: 'for', reasoning: 'clear', scores: NAMES.map(criterion => ({ criterion, for: 7, against: 6 })), judges: ['c/judge'] });
+  expect(await judgeDebate(setup, sixTurns, client)).toMatchObject({ winner: 'for', reasoning: 'clear', scores: NAMES.map(criterion => ({ criterion, for: 7, against: 6 })), judges: ['c/judge'] });
   expect(client.calls).toHaveLength(2);
   expect(client.calls[0]?.model).toBe('c/judge');
-  expect(client.calls[0]?.maxOutputTokens).toBe(1000);
+  expect(client.calls[0]?.maxOutputTokens).toBe(1600);
 });
 
 test('throws VerdictParseError after two bad replies', async () => {
@@ -169,4 +171,101 @@ test('refuses to judge an unfinished Debate', async () => {
 
 test('rejects an invalid Panel', async () => {
   await expect(judgeDebate({ ...setup, panel: [] }, sixTurns, new FakeModelClient())).rejects.toBeInstanceOf(InvalidPanelError);
+});
+
+// A truth-seeking Verdict (ADR 0008): does the Motion stand, how sure, the crux, and the factual claims checked.
+
+const full = (extra: Record<string, unknown>) => JSON.stringify({ scores: allScores(7, 6), winner: 'for', reasoning: 'r', ...extra });
+
+test('Judge prompt asks whether the Motion stands on the Debate\'s own arguments, not the Judge\'s view', () => {
+  const [system] = buildJudgeMessages(setup, sixTurns);
+  for (const s of ['whether the Motion stands', 'arguments and evidence in this Debate', 'not your own view', 'may favour the Side that loses'])
+    expect(system?.content).toContain(s);
+});
+
+test('Judge prompt asks for a confidence, a crux and claim checks', () => {
+  const [system] = buildJudgeMessages(setup, sixTurns);
+  for (const s of ['"confidence"', '"clear" | "likely" | "narrow"', '"crux"', '"claims"', '"supported" | "disputed" | "false"']) expect(system?.content).toContain(s);
+});
+
+test('parses the confidence, crux and claims', () => {
+  const claims = [{ side: 'against', claim: 'Germany tightened asylum rules after 2015', status: 'supported', note: 'The 2016 asylum packages did.' }];
+  expect(parseVerdict(full({ confidence: 'clear', crux: 'Whether tightening works', claims }), rubric)).toMatchObject({ confidence: 'clear', crux: 'Whether tightening works', claims });
+});
+
+test('a confidence outside the three words is narrow, a missing crux is empty', () => {
+  for (const confidence of ['certain', 3, null, undefined]) expect(parseVerdict(full({ confidence, crux: 7 }), rubric)).toMatchObject({ confidence: 'narrow', crux: '' });
+});
+
+test('invalid claims are dropped, the rest kept', () => {
+  const good = { side: 'for', claim: 'c', status: 'false', note: 'n' };
+  const claims = [good, { ...good, side: 'both' }, { ...good, status: 'true' }, { ...good, claim: 5 }, { ...good, note: undefined }, 'x', null];
+  expect(parseVerdict(full({ claims }), rubric)?.claims).toEqual([good]);
+  expect(parseVerdict(full({ claims: 'none' }), rubric)?.claims).toEqual([]);
+});
+
+test('at most six claims are kept, and long text is cut to 300 characters', () => {
+  const long = 'x'.repeat(1000);
+  const claims = Array.from({ length: 9 }, () => ({ side: 'for', claim: long, status: 'disputed', note: long }));
+  const parsed = parseVerdict(full({ claims, crux: long }), rubric)!;
+  expect(parsed.claims).toHaveLength(6);
+  expect(parsed.claims[0]!.claim).toHaveLength(300);
+  expect(parsed.claims[0]!.note).toHaveLength(300);
+  expect(parsed.crux).toHaveLength(300);
+});
+
+test('the Verdict carries the Judge\'s Ballot', async () => {
+  const client = new FakeModelClient(() => full({ confidence: 'likely', crux: 'k', claims: [] }));
+  const verdict = await judgeDebate(setup, sixTurns, client);
+  expect(verdict).toMatchObject({ winner: 'for', confidence: 'likely', crux: 'k', claims: [] });
+  expect(verdict.ballots).toEqual([{ judge: 'c/judge', winner: 'for', confidence: 'likely', reasoning: 'r', crux: 'k', claims: [], scores: NAMES.map(criterion => ({ criterion, for: 7, against: 6 })) }]);
+});
+
+// A Panel of three (ADR 0008): the majority decides; the lead Ballot is the first on the majority Side.
+
+const three = { ...setup, panel: ['a/judge', 'b/judge', 'c/judge'] };
+const byJudge = (replies: Record<string, string>) => new FakeModelClient(r => replies[r.model] ?? '');
+
+test('three Judges decide by majority, with the first majority Ballot leading', async () => {
+  const client = byJudge({ 'a/judge': full({ winner: 'against', reasoning: 'A' }), 'b/judge': full({ reasoning: 'B', confidence: 'clear' }), 'c/judge': full({ reasoning: 'C' }) });
+  const verdict = await judgeDebate(three, sixTurns, client);
+  expect(verdict).toMatchObject({ winner: 'for', reasoning: 'B', confidence: 'likely', judges: three.panel });
+  expect(verdict.ballots.map(b => [b.judge, b.winner])).toEqual([['a/judge', 'against'], ['b/judge', 'for'], ['c/judge', 'for']]);
+});
+
+test('a Judge that fails is left out, and the others decide', async () => {
+  const client = byJudge({ 'a/judge': 'nonsense', 'b/judge': full({ winner: 'against', reasoning: 'B' }), 'c/judge': full({ winner: 'against', reasoning: 'C' }) });
+  const verdict = await judgeDebate(three, sixTurns, client);
+  expect(verdict).toMatchObject({ winner: 'against', reasoning: 'B' });
+  expect(verdict.ballots.map(b => b.judge)).toEqual(['b/judge', 'c/judge']);
+  // "Judged by" names only the Judges whose Ballots count.
+  expect(verdict.judges).toEqual(['b/judge', 'c/judge']);
+});
+
+test('a 1-1 split goes to the more confident Ballot, then to Panel order', async () => {
+  const split = (a: string, b: string) => byJudge({ 'a/judge': 'nonsense', 'b/judge': full({ winner: 'for', confidence: a, reasoning: 'B' }), 'c/judge': full({ winner: 'against', confidence: b, reasoning: 'C' }) });
+  expect(await judgeDebate(three, sixTurns, split('likely', 'clear'))).toMatchObject({ winner: 'against', reasoning: 'C' });
+  expect(await judgeDebate(three, sixTurns, split('narrow', 'narrow'))).toMatchObject({ winner: 'for', reasoning: 'B' });
+});
+
+test('fails when no Judge of three gives a Verdict', async () => {
+  await expect(judgeDebate(three, sixTurns, new FakeModelClient(() => 'draw'))).rejects.toBeInstanceOf(VerdictParseError);
+});
+
+test('errors the host marks (a batch result not ready yet, an exhausted Budget) are rethrown, not taken as a failed Judge', async () => {
+  class Pending extends Error {}
+  const client = new FakeModelClient(r => {
+    if (r.model === 'a/judge') return full({ reasoning: 'A' });
+    throw new Pending('not yet');
+  });
+  await expect(judgeDebate(three, sixTurns, client, { rethrow: e => e instanceof Pending })).rejects.toBeInstanceOf(Pending);
+});
+
+test('a split Panel is never more than likely, and a 1-1 split is too close to call', async () => {
+  const twoOne = byJudge({ 'a/judge': full({ confidence: 'clear' }), 'b/judge': full({ confidence: 'clear' }), 'c/judge': full({ winner: 'against', confidence: 'clear' }) });
+  expect((await judgeDebate(three, sixTurns, twoOne)).confidence).toBe('likely');
+  const unanimous = byJudge({ 'a/judge': full({ confidence: 'clear' }), 'b/judge': full({ confidence: 'likely' }), 'c/judge': full({ confidence: 'clear' }) });
+  expect((await judgeDebate(three, sixTurns, unanimous)).confidence).toBe('clear');
+  const oneOne = byJudge({ 'a/judge': 'nonsense', 'b/judge': full({ confidence: 'clear' }), 'c/judge': full({ winner: 'against', confidence: 'likely' }) });
+  expect((await judgeDebate(three, sixTurns, oneOne)).confidence).toBe('narrow');
 });

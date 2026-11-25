@@ -31,6 +31,7 @@ const ask = (maxOutputTokens: number, content = 'x') =>
 
 test('dev fake replies parse as a Verdict and as stances', () => {
   expect(parseVerdict(ask(JUDGE_OUTPUT_TOKENS), CLASSIC_FORMAT.rubric)?.scores).toHaveLength(CLASSIC_FORMAT.rubric.criteria.length);
+  expect(parseVerdict(ask(JUDGE_OUTPUT_TOKENS), CLASSIC_FORMAT.rubric)).toMatchObject({ confidence: 'likely', crux: expect.any(String), claims: [expect.objectContaining({ status: 'disputed' })] });
   expect(parseStance(ask(STANCE_OUTPUT_TOKENS))).toBe('undecided');
   expect(parseStance(ask(STANCE_OUTPUT_TOKENS, 'You have heard the whole debate.'))).toMatch(/^(for|against)$/);
   expect(ask(840).length).toBeGreaterThan(0);

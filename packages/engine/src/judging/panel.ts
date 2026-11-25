@@ -9,17 +9,40 @@ function aiModels(debaters: Debater[]): ModelId[] {
   return debaters.flatMap(d => (d.kind === 'ai' ? [d.model] : []));
 }
 
-/** Suggests a one-Judge Panel, preferring a model family no AI Debater uses. */
-export function suggestPanel(debaters: Debater[], candidates: ModelId[]): ModelId[] {
+/**
+ * Suggests a Panel of `size` Judges (one or three; ADR 0008), each from a different model family where it can,
+ * preferring families no AI Debater uses. A three-Judge Panel never seats a Debater's own model: when three others
+ * cannot be found, one Judge is suggested (who may be a Debater's model only if nothing else fits).
+ */
+export function suggestPanel(debaters: Debater[], candidates: ModelId[], size: 1 | 3 = 1): ModelId[] {
   const first = candidates[0];
   if (first === undefined) throw new InvalidPanelError('No candidate Judges');
   const models = aiModels(debaters);
   const families = new Set(models.map(modelFamily));
-  const judge =
-    candidates.find(c => !families.has(modelFamily(c))) ??
-    candidates.find(c => !models.includes(c)) ??
-    first;
-  return [judge];
+  const unique = [...new Set(candidates)];
+  if (size === 1 || unique.length < size) {
+    const judge =
+      unique.find(c => !families.has(modelFamily(c))) ??
+      unique.find(c => !models.includes(c)) ??
+      first;
+    return [judge];
+  }
+  const panel: ModelId[] = [];
+  const seated = new Set<string>();
+  const take = (fits: (c: ModelId) => boolean) => {
+    for (const c of unique) {
+      if (panel.length === size) return;
+      if (!panel.includes(c) && fits(c)) {
+        panel.push(c);
+        seated.add(modelFamily(c));
+      }
+    }
+  };
+  take(c => !families.has(modelFamily(c)) && !seated.has(modelFamily(c)));
+  take(c => !models.includes(c) && !seated.has(modelFamily(c)));
+  take(c => !models.includes(c));
+  // Rather than seat a Debater's own model on a three-Judge Panel, seat the one best Judge.
+  return panel.length === size ? panel : panel.slice(0, 1);
 }
 
 export function isSelfJudging(panel: ModelId[], debaters: Debater[]): boolean {
@@ -27,6 +50,8 @@ export function isSelfJudging(panel: ModelId[], debaters: Debater[]): boolean {
   return panel.some(judge => models.includes(judge));
 }
 
+/** A Panel holds one Judge or three distinct ones, so a majority always decides (ADR 0008). */
 export function validatePanel(panel: ModelId[]): void {
-  if (panel.length !== 1) throw new InvalidPanelError(`A Panel must hold exactly one Judge, got ${panel.length}`);
+  if (panel.length !== 1 && panel.length !== 3) throw new InvalidPanelError(`A Panel must hold one or three Judges, got ${panel.length}`);
+  if (new Set(panel).size !== panel.length) throw new InvalidPanelError('A Panel must not seat the same Judge twice');
 }

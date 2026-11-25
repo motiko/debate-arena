@@ -112,6 +112,13 @@ test('DEBATE_ARENA_URL changes the base', async () => {
   expect(output.out).toContain('http://localhost:4321/debates/d1');
 });
 
+test('start --panel 3 asks for three suggested Judges', async () => {
+  const { fetch, requests } = recordingFetch(started);
+  const { deps } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch });
+  await run(['start', 'M', '--for', 'a/one', '--against', 'b/two', '--panel', '3'], deps);
+  expect(await requests[0]?.json()).toMatchObject({ panel: 3 });
+});
+
 test('start --json prints id, url, panel and selfJudging only', async () => {
   const { fetch } = recordingFetch(started);
   const { deps, output } = testDeps({ env: { DEBATE_ARENA_TOKEN: TOKEN }, fetch });

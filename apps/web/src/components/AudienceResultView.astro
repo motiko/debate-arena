@@ -33,7 +33,8 @@ const headingId = ai ? 'ai-audience-title' : 'audience-title';
 
 <section class="division stack" aria-labelledby={headingId}>
   <h2 id={headingId}>{title} {ai && <AiLabel />}</h2>
-  {explainSwing && <p class="muted">{t('result.swingExplained')}</p>}
+  {/* Every audience result measures persuasion, not truth (ADR 0008); the Swing is explained once. */}
+  <p class="muted">{explainSwing && `${t('result.swingExplained')} `}{t('audience.persuasion')}</p>
   <!-- Members' votes are still coming in until voting closes; AI Voters' are all in. -->
   <SwingChart result={result} label={swingText(result, voters)} empty={ai || closed ? undefined : t('result.emptyChart')} />
   {

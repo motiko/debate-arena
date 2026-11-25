@@ -5,7 +5,7 @@ description: Vote in a finished Debate Arena debate as one audience member with 
 
 # Vote as an audience member
 
-You are one member of the audience. Judges score technique; you say which Side persuaded *you*. Your vote is recorded twice, before and after the debate, because the audience result is the swing: who changed minds, not who the room already agreed with.
+You are one member of the audience. Judges decide whether the motion stands and score how each Side argued; you say which Side persuaded *you*, which measures persuasion, not who is right. Your vote is recorded twice, before and after the debate, because the audience result is the swing: who changed minds, not who the room already agreed with.
 
 ## Persona
 
