@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { DebateNotFinishedError, InvalidPanelError, VerdictParseError } from '../errors';
 import { FakeModelClient } from '../models/fake';
 import { setup, sixTurns } from '../testing/fixtures';
-import { buildJudgeMessages, judgeDebate, parseVerdict } from './judge';
+import { buildJudgeMessages, judgeDebate, parseVerdict, SCORES_REQUEST } from './judge';
 
 test('Judge prompt lists the Rubric, demands JSON and forbids a draw', () => {
   const [system] = buildJudgeMessages(setup, sixTurns);
@@ -103,6 +103,38 @@ test('asks for a rewrite, quoting the wrong-language reply, rather than the same
   expect(retry[3]?.role).toBe('user');
   expect(retry[3]?.content).toContain('Remote work beats office work');
   expect(retry[3]?.content).toContain('not in the language of the Motion');
+});
+
+test('a reply with bad scores is quoted back with a request for valid scores', async () => {
+  const bad = scored('for', allScores(0, 0), 'For was clearer.');
+  const replies = [bad, scored('for', allScores(8, 6), 'For was clearer.')];
+  const client = new FakeModelClient(() => replies.shift() ?? '');
+  await judgeDebate(setup, sixTurns, client);
+  const retry = client.calls[1]!.messages;
+  expect(retry.slice(0, 2)).toEqual(buildJudgeMessages(setup, sixTurns));
+  expect(retry[2]).toEqual({ role: 'assistant', content: bad });
+  expect(retry[3]).toEqual({ role: 'user', content: SCORES_REQUEST });
+});
+
+test('a reply in the wrong language and with bad scores is asked to fix both', async () => {
+  const replies = [scored('for', allScores(0, 0), '正方论证更有力。'), scored('for', allScores(8, 6), 'For was clearer.')];
+  const client = new FakeModelClient(() => replies.shift() ?? '');
+  await judgeDebate(setup, sixTurns, client);
+  const followUp = client.calls[1]!.messages[3]?.content;
+  expect(followUp).toContain('not in the language of the Motion');
+  expect(followUp).toContain(SCORES_REQUEST);
+});
+
+test('the fallback prefers reasoning in the right language over Rubric Scores', async () => {
+  const replies = [scored('for', allScores(0, 0), 'For was clearer.'), scored('against', allScores(6, 7), '反方在整场辩论中更准确')];
+  const client = new FakeModelClient(() => replies.shift() ?? '');
+  expect(await judgeDebate(setup, sixTurns, client)).toMatchObject({ winner: 'for', reasoning: 'For was clearer.', scores: [] });
+});
+
+test('the fallback keeps Rubric Scores when both replies are in the wrong language', async () => {
+  const replies = [scored('for', allScores(8, 6), '正方论证更有力。'), scored('for', allScores(0, 0), '正方论证更有力。')];
+  const client = new FakeModelClient(() => replies.shift() ?? '');
+  expect((await judgeDebate(setup, sixTurns, client)).scores).toHaveLength(4);
 });
 
 test('accepts reasoning in the Motion\'s own script', async () => {

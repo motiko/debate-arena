@@ -80,8 +80,10 @@ async function askJudge(setup: DebateSetup, turns: Turn[], judge: ModelId, clien
   const question = buildJudgeMessages(setup, turns);
   let messages = question;
   const motionScript = dominantScript(setup.motion.text);
-  // The latest usable Verdict with a flaw (wrong language or bad Rubric Scores), kept in case no attempt is flawless.
+  // The best usable Verdict with a flaw, kept in case no attempt is flawless. Viewers read the reasoning, so one in
+  // the Motion's language ranks above one with Rubric Scores; on a tie, the later reply wins.
   let flawed: ParsedVerdict | null = null;
+  let flawedRank = -1;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const response = await client.complete({ model: judge, messages, maxOutputTokens: JUDGE_OUTPUT_TOKENS });
     const verdict = parseVerdict(response.text, setup.format.rubric);
@@ -90,8 +92,9 @@ async function askJudge(setup: DebateSetup, turns: Turn[], judge: ModelId, clien
     const script = dominantScript(verdict.reasoning);
     const rightLanguage = motionScript === null || script === null || script === motionScript;
     if (rightLanguage && verdict.scores) return { ...verdict, scores: verdict.scores };
-    flawed = verdict;
-    const followUp = rightLanguage ? SCORES_REQUEST : rewriteRequest(setup);
+    const rank = (rightLanguage ? 2 : 0) + (verdict.scores ? 1 : 0);
+    if (rank >= flawedRank) [flawed, flawedRank] = [verdict, rank];
+    const followUp = [rightLanguage ? '' : rewriteRequest(setup), verdict.scores ? '' : SCORES_REQUEST].filter(Boolean).join('\n\n');
     messages = [...question, { role: 'assistant', content: response.text }, { role: 'user', content: followUp }];
   }
   // A Verdict in the wrong language, or without Rubric Scores, beats failing a finished Debate.

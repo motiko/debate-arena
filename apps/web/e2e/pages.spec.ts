@@ -43,6 +43,10 @@ test('debate page shows Turns, Verdict and AI labels', async ({ page, request })
   const first = scores.getByRole('row').filter({ has: page.getByRole('rowheader', { name: /Argument strength/ }) });
   await expect(first.getByRole('cell')).toHaveText(['7', '6']);
   await expect(scores).toContainText("Engages directly with the other Side's strongest points.");
+  // The table fits a narrow phone without scrolling the page sideways.
+  await page.setViewportSize({ width: 360, height: 740 });
+  await expect(scores).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
   // Every Turn, the Verdict and the AI Audience Result carry the label.
   expect(await page.getByText('AI-generated', { exact: true }).count()).toBeGreaterThanOrEqual(8);
 });
