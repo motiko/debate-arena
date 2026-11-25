@@ -1,8 +1,8 @@
 import { quotaPointsFor, worstCaseBudgetMicroUsd } from '@debate-arena/engine';
 import { env, exports } from 'cloudflare:workers';
 import { expect, test } from 'vitest';
-import type { AiAudienceResult } from '@debate-arena/engine';
-import { completeDebate, createDebate, getDebate } from '../src/db/debates';
+import type { AiAudienceResult, Verdict } from '@debate-arena/engine';
+import { completeDebate, createDebate, getDebate, saveVerdict } from '../src/db/debates';
 import { quotaRemaining } from '../src/db/quota';
 import { planDebate, startDebate, type StartDeps, type StepJob } from '../src/debates/start';
 import { FAKE_CATALOG, priceTable, type Catalog } from '../src/models/catalog';
@@ -138,6 +138,23 @@ test('a stored AI Audience Result without votes is served with votes: []', async
   const res = await exports.default.fetch(`https://api.test/api/debates/${d.id}`);
   expect(res.status).toBe(200);
   expect(((await res.json()) as { aiAudience: { votes: unknown } }).aiAudience.votes).toEqual([]);
+});
+
+test("a Debate's view includes its Format's Rubric", async () => {
+  const d = newDebate();
+  await createDebate(env.DB, d);
+  const res = await exports.default.fetch(`https://api.test/api/debates/${d.id}`);
+  const body = (await res.json()) as { format: { rubric: { criteria: { name: string; description: string }[] } } };
+  expect(body.format.rubric.criteria.map(c => c.name)).toEqual(['Argument strength', 'Rebuttal quality', 'Evidence', 'Clarity']);
+});
+
+test('a Verdict stored without scores is served with scores: []', async () => {
+  const d = newDebate();
+  await createDebate(env.DB, d);
+  const old = { winner: 'for', reasoning: 'r', judges: ['x/y'] } as unknown as Verdict;
+  await saveVerdict(env.DB, d.id, old);
+  const res = await exports.default.fetch(`https://api.test/api/debates/${d.id}`);
+  expect(((await res.json()) as { verdict: { scores: unknown } }).verdict.scores).toEqual([]);
 });
 
 test('a line-up over $5 is refused for everyone', async () => {
