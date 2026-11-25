@@ -13,7 +13,7 @@ import {
 } from '../src/db/debates';
 import { newDebate, turnAt } from './helpers';
 
-const verdict = { winner: 'for' as const, reasoning: 'Clearer case.', judges: ['fake-c/one'] };
+const verdict = { winner: 'for' as const, reasoning: 'Clearer case.', scores: [], judges: ['fake-c/one'] };
 
 test('round-trips a new Debate', async () => {
   const d = newDebate();

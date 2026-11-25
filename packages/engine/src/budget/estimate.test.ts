@@ -22,41 +22,41 @@ test('UTF-8 length bounds tokens for any script', () => {
 
 // Motion "Remote work beats office work" = 29 bytes, so every call reads 600 + 29 = 629 tokens of base.
 // Output caps (2x headroom): 840, 840, 560, 560, 420, 420 (sum 3640).
-// One attempt: Turns 14554 in + 3640 out, Judge 4269 in + 800 out = 23263. Every call is reserved twice.
+// One attempt: Turns 14554 in + 3640 out, Judge 4269 in + 1000 out = 23463. Every call is reserved twice.
 test('Classic Debate with one Judge', () => {
-  expect(worstCaseBudgetMicroUsd(setup, [], unitPrices)).toBe(46526);
+  expect(worstCaseBudgetMicroUsd(setup, [], unitPrices)).toBe(46926);
 });
 
 test('each AI Voter adds a before- and after-stance', () => {
   // (629 + 10) + (4269 + 10) = 4918 per attempt, twice
-  expect(worstCaseBudgetMicroUsd(setup, ['x/v'], unitPrices)).toBe(46526 + 9836);
+  expect(worstCaseBudgetMicroUsd(setup, ['x/v'], unitPrices)).toBe(46926 + 9836);
 });
 
 test('budget covers screening the Motion', () => {
   // (629 Motion prompt + 16 output) per attempt, twice
-  expect(worstCaseBudgetMicroUsd(setup, [], { ...unitPrices, 'g/guard': unit }, 'g/guard')).toBe(46526 + 1290);
+  expect(worstCaseBudgetMicroUsd(setup, [], { ...unitPrices, 'g/guard': unit }, 'g/guard')).toBe(46926 + 1290);
 });
 
 test('budget covers labelling the Motion', () => {
   // (629 Motion prompt + 80 output) per attempt, twice
   const prices = { ...unitPrices, 'g/guard': unit, 'l/label': unit };
-  expect(worstCaseBudgetMicroUsd(setup, [], prices, 'g/guard', 'l/label')).toBe(46526 + 1290 + 1418);
+  expect(worstCaseBudgetMicroUsd(setup, [], prices, 'g/guard', 'l/label')).toBe(46926 + 1290 + 1418);
 });
 
 test('human Debaters cost nothing', () => {
   const humanFor = { ...setup, debaters: { ...setup.debaters, for: { kind: 'human', memberId: 'm1' } as const } };
   // Drops the three For Turns: (629+840) + (2309+560) + (3429+420) = 8187, twice
-  expect(worstCaseBudgetMicroUsd(humanFor, [], unitPrices)).toBe(46526 - 16374);
+  expect(worstCaseBudgetMicroUsd(humanFor, [], unitPrices)).toBe(46926 - 16374);
 });
 
 test('an API Debater costs no model calls, one screen per Turn, and its Turns are read at their byte cap', () => {
   const apiFor = { ...setup, debaters: { ...setup.debaters, for: { kind: 'api' } as const } };
   const prices = { ...unitPrices, 'g/guard': unit };
-  // AI Debate with the Motion screen: 46526 + 1290. Drops the For Turns (16374). An API Turn is at most
+  // AI Debate with the Motion screen: 46926 + 1290. Drops the For Turns (16374). An API Turn is at most
   // 8 bytes per word (2400, 1600, 1200), and bytes bound tokens. Screens: (629+2400+16) + (629+1600+16) + (629+1200+16)
   // = 7135, twice. Later calls read the larger For Turns: Against 2 reads +1560, Against 4 +2600, Against 6 and the
   // Judge +3380 each = 10920, twice.
-  expect(worstCaseBudgetMicroUsd(apiFor, [], prices, 'g/guard')).toBe(46526 + 1290 - 16374 + 14270 + 21840);
+  expect(worstCaseBudgetMicroUsd(apiFor, [], prices, 'g/guard')).toBe(46926 + 1290 - 16374 + 14270 + 21840);
 });
 
 test("a named Custom Debater's identity is screened once: (629+416+16), twice = 2122 more", () => {
@@ -100,7 +100,7 @@ test('quotaPointsFor: one point per 1.25 cents, rounded up, at least 1', () => {
 
 test('prices scale cost', () => {
   const double = Object.fromEntries(Object.keys(unitPrices).map(k => [k, { inputPerMTokUsd: 2, outputPerMTokUsd: 2 }]));
-  expect(worstCaseBudgetMicroUsd(setup, [], double)).toBe(93052);
+  expect(worstCaseBudgetMicroUsd(setup, [], double)).toBe(93852);
 });
 
 test('a long Motion without spaces is costed by its length, not its word count', () => {

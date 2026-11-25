@@ -44,8 +44,8 @@ test('a Debate spends Quota points in proportion to its worst-case Budget', asyn
   const r = await startDebate(deps(), member, valid);
   if (!r.ok) throw new Error(r.error);
   const stored = await getDebate(env.DB, r.id);
-  // Fake models at $1 per million tokens: 49 234 micro-USD, 4 points.
-  expect(r.budgetReservedMicroUsd).toBe(49_234);
+  // Fake models at $1 per million tokens: 49 634 micro-USD, 4 points.
+  expect(r.budgetReservedMicroUsd).toBe(49_634);
   expect(stored?.quotaPoints).toBe(quotaPointsFor(r.budgetReservedMicroUsd));
   expect(stored?.quotaPoints).toBe(4);
   expect(await quotaRemaining(env.DB, member, now)).toBe(20);
@@ -260,7 +260,7 @@ test('POST /debates/quote prices a line-up without charging or creating anything
   });
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({
-    budgetMicroUsd: 49_234,
+    budgetMicroUsd: 49_634,
     quotaPoints: 4,
     quotaRemaining: 24,
     slowAvailable: true,

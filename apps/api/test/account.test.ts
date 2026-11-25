@@ -16,7 +16,7 @@ async function startAndVote(headers: Headers) {
   });
   const { id } = (await res.json()) as { id: string };
   for (let i = 0; i < 6; i++) await appendTurn(env.DB, id, i, turnAt(i));
-  await saveVerdict(env.DB, id, { winner: 'for', reasoning: 'r', judges: ['fake-c/one'] });
+  await saveVerdict(env.DB, id, { winner: 'for', reasoning: 'r', scores: [], judges: ['fake-c/one'] });
   await completeDebate(env.DB, id, null, new Date().toISOString());
   for (const phase of ['before', 'after']) {
     await exports.default.fetch(`${base}/debates/${id}/votes`, { method: 'POST', headers: h, body: JSON.stringify({ phase, stance: 'for' }) });

@@ -128,6 +128,10 @@ _Avoid_: Referee, scorer, evaluator
 The set of one or more Judges assigned to a Debate. The platform suggests the Panel; the starting Member may override it.
 _Avoid_: Jury, committee, judges
 
+**Rubric Score**:
+A Judge's mark from 1 to 10 for one Side on one Rubric criterion, given with the Verdict. The winner is the Judge's own decision, not the sum of the Rubric Scores.
+_Avoid_: Rating, points, grade
+
 **Self-Judging**:
 A Judge on the Panel is the same model as one of the Debaters. Always disclosed to Viewers alongside the Verdict.
 _Avoid_: Conflict of interest, bias, same-model

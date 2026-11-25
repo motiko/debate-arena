@@ -17,7 +17,7 @@ test('engine exports a version', () => {
 
 test('runs a full Classic Debate offline', async () => {
   const client = new FakeModelClient(r =>
-    r.maxOutputTokens === 800 ? '{"winner":"for","reasoning":"ok"}' : r.maxOutputTokens === 10 ? 'for' : 'An argument.');
+    r.maxOutputTokens === 1000 ? '{"winner":"for","reasoning":"ok"}' : r.maxOutputTokens === 10 ? 'for' : 'An argument.');
   const turns: Turn[] = [];
   while (nextSlot(setup.format, turns)) turns.push(await generateTurn(setup, turns, client));
   expect(turns).toHaveLength(6);
